@@ -1,0 +1,217 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Private">
+      <UniqueIdentifier>{ea11ed54-6694-4822-99fd-343438659c52}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Public">
+      <UniqueIdentifier>{54a06e81-5695-4c58-94cc-fe3603f74203}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="nvhelpers">
+      <UniqueIdentifier>{cc7d3886-bac3-4ec3-b22e-069a27f07a2b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{382f1549-d3f8-40b5-a0af-4a624b8f0438}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{76128ba1-b44d-43e5-9072-b93e07c31249}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="D3D12MemoryAllocator">
+      <UniqueIdentifier>{682f7815-f279-443d-af21-e33b25c5fae3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Includes">
+      <UniqueIdentifier>{2ce7fb95-4ecf-48fa-8d43-faa2ae1ab0c1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="private\rt64_device.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_instance.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_scene.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_texture.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="private\nv_helpers_dx12\BottomLevelASGenerator.h">
+      <Filter>nvhelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="private\nv_helpers_dx12\RaytracingPipelineGenerator.h">
+      <Filter>nvhelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="private\nv_helpers_dx12\RootSignatureGenerator.h">
+      <Filter>nvhelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="private\nv_helpers_dx12\ShaderBindingTableGenerator.h">
+      <Filter>nvhelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="private\nv_helpers_dx12\TopLevelASGenerator.h">
+      <Filter>nvhelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_common.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_view.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="public\rt64.h">
+      <Filter>Public</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_mesh.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imconfig.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imgui.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imgui_impl_dx12.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imgui_impl_win32.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imgui_internal.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imstb_rectpack.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imstb_textedit.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\imgui\imstb_truetype.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_inspector.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClInclude Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.h">
+      <Filter>D3D12MemoryAllocator</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="private\rt64_device.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_instance.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_scene.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_texture.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\nv_helpers_dx12\BottomLevelASGenerator.cpp">
+      <Filter>nvhelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="private\nv_helpers_dx12\RaytracingPipelineGenerator.cpp">
+      <Filter>nvhelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="private\nv_helpers_dx12\RootSignatureGenerator.cpp">
+      <Filter>nvhelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="private\nv_helpers_dx12\ShaderBindingTableGenerator.cpp">
+      <Filter>nvhelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="private\nv_helpers_dx12\TopLevelASGenerator.cpp">
+      <Filter>nvhelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_common.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_view.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_mesh.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\imgui\imgui.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="private\imgui\imgui_demo.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="private\imgui\imgui_draw.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="private\imgui\imgui_impl_dx12.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="private\imgui\imgui_impl_win32.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="private\imgui\imgui_widgets.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_inspector.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClCompile Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.cpp">
+      <Filter>D3D12MemoryAllocator</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\Camera.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\GlobalBuffers.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\GlobalHitBuffers.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Instances.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Lights.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Materials.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Mesh.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\N64CC.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Ray.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Samplers.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\ShadowSamples.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Textures.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\PSInput.hlsli">
+      <Filter>Shaders\Includes</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\Tracer.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\Surface.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\RasterPS.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\Shadow.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\RasterVS.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,15 @@
+*.vs
+*.db
+*.log
+*.dll
+*.exe
+*.lib
+*.exp
+*.ipdb
+*.iobj
+*.tlog
+*.recipe
+*.FileListAbsolute.txt
+*.idb
+*.hlsl.h
+imgui.ini

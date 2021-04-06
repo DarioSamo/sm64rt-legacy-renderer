@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.h" />
+    <ClInclude Include="private\imgui\imconfig.h" />
+    <ClInclude Include="private\imgui\imgui.h" />
+    <ClInclude Include="private\imgui\imgui_impl_dx12.h" />
+    <ClInclude Include="private\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="private\imgui\imgui_internal.h" />
+    <ClInclude Include="private\imgui\imstb_rectpack.h" />
+    <ClInclude Include="private\imgui\imstb_textedit.h" />
+    <ClInclude Include="private\imgui\imstb_truetype.h" />
+    <ClInclude Include="private\nv_helpers_dx12\BottomLevelASGenerator.h" />
+    <ClInclude Include="private\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
+    <ClInclude Include="private\nv_helpers_dx12\RootSignatureGenerator.h" />
+    <ClInclude Include="private\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
+    <ClInclude Include="private\nv_helpers_dx12\TopLevelASGenerator.h" />
+    <ClInclude Include="private\rt64_common.h" />
+    <ClInclude Include="private\rt64_device.h" />
+    <ClInclude Include="private\rt64_inspector.h" />
+    <ClInclude Include="private\rt64_instance.h" />
+    <ClInclude Include="private\rt64_mesh.h" />
+    <ClInclude Include="private\rt64_scene.h" />
+    <ClInclude Include="private\rt64_texture.h" />
+    <ClInclude Include="private\rt64_view.h" />
+    <ClInclude Include="public\rt64.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.cpp" />
+    <ClCompile Include="private\imgui\imgui.cpp" />
+    <ClCompile Include="private\imgui\imgui_demo.cpp" />
+    <ClCompile Include="private\imgui\imgui_draw.cpp" />
+    <ClCompile Include="private\imgui\imgui_impl_dx12.cpp" />
+    <ClCompile Include="private\imgui\imgui_impl_win32.cpp" />
+    <ClCompile Include="private\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="private\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
+    <ClCompile Include="private\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
+    <ClCompile Include="private\nv_helpers_dx12\RootSignatureGenerator.cpp" />
+    <ClCompile Include="private\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
+    <ClCompile Include="private\nv_helpers_dx12\TopLevelASGenerator.cpp" />
+    <ClCompile Include="private\rt64_common.cpp" />
+    <ClCompile Include="private\rt64_device.cpp" />
+    <ClCompile Include="private\rt64_inspector.cpp" />
+    <ClCompile Include="private\rt64_instance.cpp" />
+    <ClCompile Include="private\rt64_mesh.cpp" />
+    <ClCompile Include="private\rt64_scene.cpp" />
+    <ClCompile Include="private\rt64_texture.cpp" />
+    <ClCompile Include="private\rt64_view.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\Camera.hlsli" />
+    <None Include="shaders\GlobalBuffers.hlsli" />
+    <None Include="shaders\GlobalHitBuffers.hlsli" />
+    <None Include="shaders\Instances.hlsli" />
+    <None Include="shaders\Lights.hlsli" />
+    <None Include="shaders\Materials.hlsli" />
+    <None Include="shaders\Mesh.hlsli" />
+    <None Include="shaders\N64CC.hlsli" />
+    <None Include="shaders\PSInput.hlsli" />
+    <None Include="shaders\Ray.hlsli" />
+    <None Include="shaders\Samplers.hlsli" />
+    <None Include="shaders\ShadowSamples.hlsli" />
+    <None Include="shaders\Textures.hlsli" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\RasterPS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T ps_5_1 -E PSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T ps_5_1 -E PSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="shaders\Shadow.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="shaders\Surface.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="shaders\Tracer.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\RasterVS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T vs_5_1 -E VSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T vs_5_1 -E VSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{F367D911-6ABC-49D8-A59E-3BF758F6D19A}</ProjectGuid>
+    <RootNamespace>RT64</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>../../bin/Release/</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>../../bin/Debug/</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>./;./contrib/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ImportLibrary>../../lib/Debug/rt64lib.lib</ImportLibrary>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>./;./contrib/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <ImportLibrary>../../lib/Release/rt64lib.lib</ImportLibrary>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent />
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
