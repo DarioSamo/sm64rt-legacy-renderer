@@ -2,6 +2,9 @@
 // RT64
 //
 
+// General explanation
+// RT64_DEBUG if you wanna use debug Dll.
+
 #ifndef RT64_H_INCLUDED
 #define RT64_H_INCLUDED
 
@@ -430,7 +433,11 @@ typedef struct {
 // @returns Something.
 inline RT64_LIBRARY RT64_LoadLibrary() {
 	RT64_LIBRARY lib;
+#ifdef RT64_DEBUG
+	lib.handle = LoadLibrary(TEXT("rt64libd.dll"));
+#else
 	lib.handle = LoadLibrary(TEXT("rt64lib.dll"));
+#endif
 	if (lib.handle != 0) {
 		lib.CreateDevice = (CreateDevicePtr)(GetProcAddress(lib.handle, "RT64_CreateDevice"));
 		lib.DrawDevice = (DrawDevicePtr)(GetProcAddress(lib.handle, "RT64_DrawDevice"));

@@ -2,6 +2,10 @@
 // RT64 SAMPLE
 //
 
+#ifndef NDEBUG
+#	define RT64_DEBUG
+#endif
+
 #include "rt64.h"
 
 #include <stdio.h>

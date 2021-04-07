@@ -50,7 +50,7 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 			hi -= hitStride;
 			lo -= hitStride;
 		}
-
+		
 		uint hitPos = hi / hitStride;
 		if (hitPos < MAX_HIT_QUERIES) {
 			// Calculate resulting color.
