@@ -11,10 +11,15 @@
 #include "Samplers.hlsli"
 #include "ShadowSamples.hlsli"
 
-#define RAY_MIN_DISTANCE				0.2f
-#define RAY_MAX_DISTANCE				100000.0f
+#define RAY_MIN_DISTANCE					0.2f
+#define RAY_MAX_DISTANCE					100000.0f
 
-#define EPSILON							0.000001f
+// Disable multisampling for any hits that contribute less than the
+// percentage specified in the constant. Helps performance when multiple
+// layers of transparent effects are overlaid on top of each other.
+#define MULTISAMPLE_MIN_ALPHA_CONTRIB		0.25f
+
+#define EPSILON								0.000001f
 
 float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist) {
 	RayDesc ray;
@@ -260,7 +265,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 		float3 vertexNormal = hitNormals[hit].xyz;
 		float alphaContrib = (resColor.a * hitColors[hit].a);
 		if (alphaContrib >= EPSILON) {
-			float3 resultLight = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, true);
+			float3 resultLight = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, alphaContrib >= MULTISAMPLE_MIN_ALPHA_CONTRIB);
 			hitColors[hit].rgb *= resultLight;
 
 			// Add reflections.
