@@ -106,6 +106,7 @@ void setupRT64Scene() {
 	RT64.lights[1].specularIntensity = 1.0f;
 	RT64.lights[1].shadowOffset = 0.0f;
 	RT64.lights[1].attenuationExponent = 1.0f;
+	RT64.lights[1].groupBits = RT64_LIGHT_GROUP_DEFAULT;
 	RT64.lightCount = 2;
 
 	// Setup view.
@@ -170,7 +171,6 @@ void setupRT64Scene() {
 	RT64.baseMaterial.vAddressMode = RT64_MATERIAL_ADDR_WRAP;
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.normalMapScale = 1.0f;
-	RT64.baseMaterial.normalMapStrength = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
@@ -180,6 +180,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
 	RT64.baseMaterial.selfLight = { 0.0f , 0.0f, 0.0f };
+	RT64.baseMaterial.lightGroupMaskBits = 0xFFFFFFFF;
 	RT64.baseMaterial.fogColor = { 0.3f, 0.5f, 0.7f };
 	RT64.baseMaterial.fogMul = 1.0f;
 	RT64.baseMaterial.fogOffset = 0.0f;

@@ -88,16 +88,19 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 	float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
 	float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
 	float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
+	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 	float3 selfLight = instanceProps[instanceId].materialProperties.selfLight;
 	float3 resultLight = SceneLights[0].diffuseColor + selfLight;
 	uint lightCount, lightStride;
 	SceneLights.GetDimensions(lightCount, lightStride);
 	for (uint l = 1; l < lightCount; l++) {
-		uint sampleLevels = ((SceneLights[l].pointRadius > 0.0f) && multisamplingEnabled) ? SAMPLE_QUALITY_MIN : 1;
-		float3 lightingFactors = ComputeLightingFactors(rayDirection, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, l, sampleLevels);
-		resultLight += (SceneLights[l].diffuseColor * lightingFactors.x + SceneLights[l].diffuseColor * SceneLights[l].specularIntensity * lightingFactors.y) * lightingFactors.z;
+		if (lightGroupMaskBits & SceneLights[l].groupBits) {
+			uint sampleLevels = ((SceneLights[l].pointRadius > 0.0f) && multisamplingEnabled) ? SAMPLE_QUALITY_MIN : 1;
+			float3 lightingFactors = ComputeLightingFactors(rayDirection, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, l, sampleLevels);
+			resultLight += (SceneLights[l].diffuseColor * lightingFactors.x + SceneLights[l].diffuseColor * SceneLights[l].specularIntensity * lightingFactors.y) * lightingFactors.z;
+		}
 	}
-
+	
 	// Add eye light.
 	float3 eyeLightColor = float3(0.15f, 0.15f, 0.15f);
 	resultLight += eyeLightColor * max(dot(normal, -rayDirection), 0.0f);

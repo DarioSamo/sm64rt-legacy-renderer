@@ -63,9 +63,6 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 				float3 normalColor = SampleTexture(gTextures[normalTexIndex], vertex.uv * normalMapScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode).xyz;
 				normalColor = (normalColor * 2.0f) - 1.0f;
 
-				float normalMapStrength = instanceProps[instanceId].materialProperties.normalMapStrength;
-				normalColor = lerp(float3(0.0f, 0.0f, 1.0f), normalColor, normalMapStrength);
-
 				float3 newNormal = normalize(vertex.normal * normalColor.z + vertex.tangent * normalColor.x + vertex.binormal * normalColor.y);
 				vertex.normal = newNormal;
 			}

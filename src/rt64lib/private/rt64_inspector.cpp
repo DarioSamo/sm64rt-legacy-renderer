@@ -127,7 +127,6 @@ void RT64::Inspector::renderMaterialInspector() {
         };
         
         pushFloat("Ignore normal factor", RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR, &material->ignoreNormalFactor, &material->enabledAttributes, 1.0f, 0.0f, 1.0f);
-        pushFloat("Normal map strength", RT64_ATTRIBUTE_NORMAL_MAP_STRENGTH, &material->normalMapStrength, &material->enabledAttributes, 0.01f, 0.0f, 5.0f);
         pushFloat("Normal map scale", RT64_ATTRIBUTE_NORMAL_MAP_SCALE, &material->normalMapScale, &material->enabledAttributes, 0.01f, -50.0f, 50.0f);
         pushFloat("Reflection factor", RT64_ATTRIBUTE_REFLECTION_FACTOR, &material->reflectionFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Reflection shine factor", RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR, &material->reflectionShineFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
@@ -155,7 +154,6 @@ void RT64::Inspector::renderLightInspector() {
             // Rest of the lights.
             if (i > 0) {
                 if (ImGui::CollapsingHeader("Point light")) {
-                    // 0.0046547454185009 POINT RADIUS MULTIPLIER COMPARED TO DISTANCE FOR REALISTIC SUN
                     ImGui::DragFloat3("Position", &lights[i].position.x);
                     ImGui::DragFloat3("Diffuse color", &lights[i].diffuseColor.x, 0.01f);
                     ImGui::DragFloat("Attenuation radius", &lights[i].attenuationRadius);
@@ -164,6 +162,7 @@ void RT64::Inspector::renderLightInspector() {
                     ImGui::DragFloat("Shadow offset", &lights[i].shadowOffset);
                     ImGui::DragFloat("Attenuation exponent", &lights[i].attenuationExponent);
                     ImGui::DragFloat("Flicker intensity", &lights[i].flickerIntensity);
+                    ImGui::InputInt("Group bits", (int *)(&lights[i].groupBits));
 
                     if ((*lightCount) < maxLightCount) {
                         if (ImGui::Button("Duplicate")) {

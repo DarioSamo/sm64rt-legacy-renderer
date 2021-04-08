@@ -31,22 +31,26 @@
 // Material attributes.
 #define RT64_ATTRIBUTE_NONE						0x0
 #define RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR		0x1
-#define RT64_ATTRIBUTE_NORMAL_MAP_STRENGTH		0x2
-#define RT64_ATTRIBUTE_NORMAL_MAP_SCALE			0x4
-#define RT64_ATTRIBUTE_REFLECTION_FACTOR		0x8
-#define RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR	0x10
-#define RT64_ATTRIBUTE_REFRACTION_FACTOR		0x20
-#define RT64_ATTRIBUTE_SPECULAR_INTENSITY		0x40
-#define RT64_ATTRIBUTE_SPECULAR_EXPONENT		0x80
-#define RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER	0x100
-#define RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER	0x200
-#define RT64_ATTRIBUTE_SELF_LIGHT				0x400
+#define RT64_ATTRIBUTE_NORMAL_MAP_SCALE			0x2
+#define RT64_ATTRIBUTE_REFLECTION_FACTOR		0x4
+#define RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR	0x8
+#define RT64_ATTRIBUTE_REFRACTION_FACTOR		0x10
+#define RT64_ATTRIBUTE_SPECULAR_INTENSITY		0x20
+#define RT64_ATTRIBUTE_SPECULAR_EXPONENT		0x40
+#define RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER	0x80
+#define RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER	0x100
+#define RT64_ATTRIBUTE_SELF_LIGHT				0x200
+#define RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS	0x400
 #define RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX		0x800
 
 ////// TODO
 // Mesh flags.
 #define RT64_MESH_RAYTRACE_ENABLED				0x1
 #define RT64_MESH_RAYTRACE_UPDATABLE			0x2
+
+// Light flags.
+#define RT64_LIGHT_GROUP_MASK_ALL				0xFFFFFFFF
+#define RT64_LIGHT_GROUP_DEFAULT				0x1
 
 ////// TODO
 // Vector 2
@@ -106,9 +110,6 @@ typedef struct {
 	float ignoreNormalFactor;
 
 	////// TODO
-	float normalMapStrength;
-
-	////// TODO
 	float normalMapScale;
 
 	////// TODO
@@ -134,6 +135,9 @@ typedef struct {
 
 	////// TODO
 	RT64_VECTOR3 selfLight;
+
+	////// TODO
+	unsigned int lightGroupMaskBits;
 
 	////// TODO
 	RT64_VECTOR3 fogColor;
@@ -191,6 +195,9 @@ typedef struct {
 
 	////// TODO
 	float flickerIntensity;
+
+	////// TODO
+	unsigned int groupBits;
 } RT64_LIGHT;
 
 
@@ -211,10 +218,6 @@ typedef struct RT64_INSPECTOR RT64_INSPECTOR;
 inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src) {
 	if (src->enabledAttributes & RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR) {
 		dst->ignoreNormalFactor = src->ignoreNormalFactor;
-	}
-
-	if (src->enabledAttributes & RT64_ATTRIBUTE_NORMAL_MAP_STRENGTH) {
-		dst->normalMapStrength = src->normalMapStrength;
 	}
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_NORMAL_MAP_SCALE) {
@@ -251,6 +254,10 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_SELF_LIGHT) {
 		dst->selfLight = src->selfLight;
+	}
+
+	if (src->enabledAttributes & RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS) {
+		dst->lightGroupMaskBits = src->lightGroupMaskBits;
 	}
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX) {

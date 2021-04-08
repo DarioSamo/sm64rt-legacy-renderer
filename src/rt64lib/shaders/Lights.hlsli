@@ -13,6 +13,7 @@ struct LightInfo {
 	float shadowOffset;
 	float attenuationExponent;
 	float flickerIntensity;
+	uint groupBits;
 };
 
 // Root signature

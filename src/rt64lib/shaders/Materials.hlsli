@@ -10,7 +10,6 @@ struct MaterialProperties {
 	int hAddressMode;
 	int vAddressMode;
 	float ignoreNormalFactor;
-	float normalMapStrength;
 	float normalMapScale;
 	float reflectionFactor;
 	float reflectionShineFactor;
@@ -20,6 +19,7 @@ struct MaterialProperties {
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
 	float3 selfLight;
+	uint lightGroupMaskBits;
 	float3 fogColor;
 	float4 diffuseColorMix;
 	float fogMul;
