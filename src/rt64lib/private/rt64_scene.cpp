@@ -5,6 +5,7 @@
 #include "../public/rt64.h"
 
 #include <map>
+#include <random>
 #include <set>
 
 #include "rt64_scene.h"
@@ -78,6 +79,9 @@ void RT64::Scene::removeView(View *view) {
 }
 
 void RT64::Scene::setLights(RT64_LIGHT *lightArray, int lightCount) {
+	static std::default_random_engine randomEngine;
+	static std::uniform_real_distribution<float> randomDistribution(0.0f, 1.0f);
+
 	assert(lightCount > 0);
 	size_t newSize = ROUND_UP(sizeof(RT64_LIGHT) * lightCount, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 	if (newSize != lightsBufferSize) {
@@ -87,10 +91,27 @@ void RT64::Scene::setLights(RT64_LIGHT *lightArray, int lightCount) {
 	}
 
 	uint8_t *pData;
+	size_t i = 0;
 	ThrowIfFailed(lightsBuffer.Get()->Map(0, nullptr, (void **)&pData));
 	if (lightArray != nullptr) {
 		memcpy(pData, lightArray, sizeof(RT64_LIGHT) * lightCount);
+
+		// Modify light colors with flicker intensity if necessary.
+		while (i < lightCount) {
+			RT64_LIGHT *light = ((RT64_LIGHT *)(pData));
+			const float flickerIntensity = light->flickerIntensity;
+			if (flickerIntensity > 0.0) {
+				const float flickerMult = 1.0f + ((randomDistribution(randomEngine) * 2.0f - 1.0f) * flickerIntensity);
+				light->diffuseColor.x *= flickerMult;
+				light->diffuseColor.y *= flickerMult;
+				light->diffuseColor.z *= flickerMult;
+			}
+
+			pData += sizeof(RT64_LIGHT);
+			i++;
+		}
 	}
+
 	lightsBuffer.Get()->Unmap(0, nullptr);
 	lightsCount = lightCount;
 }

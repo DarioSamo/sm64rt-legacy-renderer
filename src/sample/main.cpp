@@ -106,8 +106,13 @@ void setupRT64Scene() {
 	RT64.lights[1].specularIntensity = 1.0f;
 	RT64.lights[1].shadowOffset = 0.0f;
 	RT64.lights[1].attenuationExponent = 1.0f;
-	RT64.lights[1].groupBits = RT64_LIGHT_GROUP_DEFAULT;
 	RT64.lightCount = 2;
+
+	for (int i = 0; i < _countof(RT64.lights); i++) {
+		RT64.lights[i].minSamples = 8;
+		RT64.lights[i].maxSamples = 32;
+		RT64.lights[i].groupBits = RT64_LIGHT_GROUP_DEFAULT;
+	}
 
 	// Setup view.
 	RT64.view = RT64.lib.CreateView(RT64.scene);

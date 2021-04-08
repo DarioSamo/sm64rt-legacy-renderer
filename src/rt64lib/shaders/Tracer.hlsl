@@ -11,9 +11,6 @@
 #include "Samplers.hlsli"
 #include "ShadowSamples.hlsli"
 
-#define SAMPLE_QUALITY_MIN				8
-#define SAMPLE_QUALITY_MAX				32
-
 #define RAY_MIN_DISTANCE				0.2f
 #define RAY_MAX_DISTANCE				100000.0f
 
@@ -32,14 +29,16 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	return shadowPayload.shadowHit;
 }
 
-float3 ComputeSampleFactors(float3 rayDirection, float3 perpX, float3 perpY, float3 position, float3 normal, float specularIntensity, float specularExponent, float ignoreNormalFactor, float3 lightPosition, float lightRadius, float lightAttenuation, float pointRadius, uint s, bool checkShadow, float maxShadowDist) {
+float3 ComputeSampleFactors(float3 rayDirection, float3 perpX, float3 perpY, float3 position, float3 normal, float specularIntensity, float specularExponent, 
+	float ignoreNormalFactor, float3 lightPosition, float lightRadius, float lightAttenuation, float pointRadius, uint s, float maxShadowDist) 
+{
 	float3 samplePosition = lightPosition + perpX * ShadowSamples[s].x * pointRadius + perpY * ShadowSamples[s].y * pointRadius;
 	float sampleDistance = length(position - samplePosition);
 	float3 sampleDirection = normalize(samplePosition - position);
 	float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
 	float sampleLambertFactor = lerp(max(dot(normal, sampleDirection), 0.0f), 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
 	float3 reflectedLight = reflect(-sampleDirection, normal);
-	float sampleShadowFactor = ((sampleLambertFactor > 0.0f) && checkShadow) ? TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, maxShadowDist) : 0.0f;
+	float sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, maxShadowDist);
 	return float3(
 		sampleLambertFactor,
 		specularIntensity * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent),
@@ -47,35 +46,47 @@ float3 ComputeSampleFactors(float3 rayDirection, float3 perpX, float3 perpY, flo
 	);
 }
 
-float3 ComputeLightingFactors(float3 rayDirection, float3 position, float3 normal, float specularIntensity, float specularExponent, float ignoreNormalFactor, uint l, uint sampleLevels) {
+float3 ComputeLightingFactors(float3 rayDirection, float3 position, float3 normal, float specularIntensity, float specularExponent, float ignoreNormalFactor, 
+	uint l, bool multisamplingEnabled) 
+{
 	float3 lightingFactors = float3(0.0f, 0.0f, 0.0f);
 	float3 lightPosition = SceneLights[l].position;
 	float3 lightDelta = position - lightPosition;
 	float lightDistance = length(lightDelta);
 	float lightRadius = SceneLights[l].attenuationRadius;
 	float lightAttenuation = SceneLights[l].attenuationExponent;
+	float lightPointRadius = SceneLights[l].pointRadius;
+	uint sampleLevels = multisamplingEnabled && (lightPointRadius >= EPSILON) ? SceneLights[l].minSamples : 1;
 	if (lightDistance < lightRadius) {
-		float pointRadius = SceneLights[l].pointRadius;
 		float3 lightDirection = normalize(lightDelta);
 		float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
 		if (all(perpX == 0.0f)) {
 			perpX.x = 1.0;
 		}
 
-		float3 perpY = cross(perpX, -lightDirection);
-		float maxShadowDist = max(lightDistance - SceneLights[l].shadowOffset, 0.0f);
-		bool checkShadow = SceneLights[l].shadowOffset < lightRadius;
+		float3 perpY = cross(perpX, -lightDirection); 
+		float maxShadowDist = lightDistance - SceneLights[l].shadowOffset;
 		float shadowFactorVariance = 0.0f;
-		for (uint s = 0; s < sampleLevels; s++) {
-			float3 sampleFactors = ComputeSampleFactors(rayDirection, perpX, perpY, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, lightPosition, lightRadius, lightAttenuation, pointRadius, s, checkShadow, maxShadowDist);
-			shadowFactorVariance += (s > 0) ? abs(sampleFactors.z - (lightingFactors.z / s)) : 0.0f;
-			lightingFactors += sampleFactors;
-		}
+		
+		// Always compute first sample.
+		float3 sampleFactors = ComputeSampleFactors(rayDirection, perpX, perpY, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, lightPosition, lightRadius, lightAttenuation, lightPointRadius, 0, maxShadowDist);
+		lightingFactors = sampleFactors;
 
+		// Compute extra samples to reach the minimum quality.
+		uint s = 1;
+		while (s < sampleLevels) {
+			sampleFactors = ComputeSampleFactors(rayDirection, perpX, perpY, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, lightPosition, lightRadius, lightAttenuation, lightPointRadius, s, maxShadowDist);
+			shadowFactorVariance += abs(sampleFactors.z - (lightingFactors.z / s));
+			lightingFactors += sampleFactors;
+			s++;
+		}
+		
+		// Compute even more samples to reach the maximum quality if a significant variance in the shadow factor was detected.
 		if (shadowFactorVariance >= EPSILON) {
-			sampleLevels = SAMPLE_QUALITY_MAX;
-			for (uint s = SAMPLE_QUALITY_MIN; s < sampleLevels; s++) {
-				lightingFactors += ComputeSampleFactors(rayDirection, perpX, perpY, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, lightPosition, lightRadius, lightAttenuation, pointRadius, s, checkShadow, maxShadowDist);
+			sampleLevels = SceneLights[l].maxSamples;
+			while (s < sampleLevels) {
+				lightingFactors += ComputeSampleFactors(rayDirection, perpX, perpY, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, lightPosition, lightRadius, lightAttenuation, lightPointRadius, s, maxShadowDist);
+				s++;
 			}
 		}
 	}
@@ -95,8 +106,7 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 	SceneLights.GetDimensions(lightCount, lightStride);
 	for (uint l = 1; l < lightCount; l++) {
 		if (lightGroupMaskBits & SceneLights[l].groupBits) {
-			uint sampleLevels = ((SceneLights[l].pointRadius > 0.0f) && multisamplingEnabled) ? SAMPLE_QUALITY_MIN : 1;
-			float3 lightingFactors = ComputeLightingFactors(rayDirection, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, l, sampleLevels);
+			float3 lightingFactors = ComputeLightingFactors(rayDirection, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, l, multisamplingEnabled);
 			resultLight += (SceneLights[l].diffuseColor * lightingFactors.x + SceneLights[l].diffuseColor * SceneLights[l].specularIntensity * lightingFactors.y) * lightingFactors.z;
 		}
 	}
@@ -250,7 +260,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 		float3 vertexNormal = hitNormals[hit].xyz;
 		float alphaContrib = (resColor.a * hitColors[hit].a);
 		if (alphaContrib >= EPSILON) {
-			float3 resultLight = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, alphaContrib >= 0.5F);
+			float3 resultLight = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, true);
 			hitColors[hit].rgb *= resultLight;
 
 			// Add reflections.

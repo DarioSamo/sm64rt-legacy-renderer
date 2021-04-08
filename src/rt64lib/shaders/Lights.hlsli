@@ -14,6 +14,8 @@ struct LightInfo {
 	float attenuationExponent;
 	float flickerIntensity;
 	uint groupBits;
+	uint minSamples;
+	uint maxSamples;
 };
 
 // Root signature

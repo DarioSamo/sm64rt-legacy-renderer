@@ -14,4 +14,5 @@ lib/
 *.FileListAbsolute.txt
 *.idb
 *.hlsl.h
+*.bat
 imgui.ini

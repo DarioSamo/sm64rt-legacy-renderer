@@ -51,6 +51,7 @@
 // Light flags.
 #define RT64_LIGHT_GROUP_MASK_ALL				0xFFFFFFFF
 #define RT64_LIGHT_GROUP_DEFAULT				0x1
+#define RT64_LIGHT_MAX_SAMPLES					128
 
 ////// TODO
 // Vector 2
@@ -198,6 +199,12 @@ typedef struct {
 
 	////// TODO
 	unsigned int groupBits;
+	
+	////// TODO
+	unsigned int minSamples;
+
+	////// TODO
+	unsigned int maxSamples;
 } RT64_LIGHT;
 
 
