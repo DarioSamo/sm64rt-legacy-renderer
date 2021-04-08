@@ -12,6 +12,10 @@ This library is not meant to be used in the traditional way of linking it as an 
 ### Future support
 * Vulkan backend for both Windows 10 and Linux
 
+### Requirements
+* Visual Studio Community 2019 Version 16.9.0 or newer
+* Windows SDK 10.0.18362.0 or newer
+
 ### Building
 Open **src/RT64.sln** in **Visual Studio Community 2019** and build the solution.
 
