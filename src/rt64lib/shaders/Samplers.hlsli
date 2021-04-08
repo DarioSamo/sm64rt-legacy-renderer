@@ -2,6 +2,11 @@
 // RT64
 //
 
+// TODO: This is a terrible implementation that adds a ton of divergence, but it allows us 
+// to sample with any type of filtering and addressing mode as needed by the game without 
+// having to generate specialized hit shaders. We'll likely remove this once shader generation
+// is implemented.
+
 // Samplers
 
 SamplerState pointWrapWrap : register(s0);

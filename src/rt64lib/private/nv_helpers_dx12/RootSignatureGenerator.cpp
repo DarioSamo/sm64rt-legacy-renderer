@@ -172,7 +172,7 @@ ID3D12RootSignature* RootSignatureGenerator::Generate(ID3D12Device* device, bool
   rootDesc.NumParameters = static_cast<UINT>(m_parameters.size());
   rootDesc.pParameters = m_parameters.data();
 
-  // TODO: Probably need to move this into something more elegant.
+  // TODO: This is a horrible solution, but we likely need shader generation for each type of sampler to correct this.
   D3D12_STATIC_SAMPLER_DESC samplerDesc[16];
   if (makeSamplers) {
 	  const D3D12_TEXTURE_ADDRESS_MODE addressModes[] = {
@@ -185,6 +185,8 @@ ID3D12RootSignature* RootSignatureGenerator::Generate(ID3D12Device* device, bool
       for (int filter = 0; filter < 2; filter++) {
           for (int cms = 0; cms < 3; cms++) {
               for (int cmt = 0; cmt < 3; cmt++) {
+                  // TODO: These filters are rarely used and it helps to get around the sampler limit.
+                  // This limitation will be gone when shader generation is implemented.
                   if (filter == 0 && cms == 2 && cmt == 1)
                       continue;
 

@@ -7,6 +7,10 @@
 ByteAddressBuffer vertexBuffer : register(t3);
 ByteAddressBuffer indexBuffer : register(t4);
 
+// TODO: With specialized shader generation, this structure should match the VBO
+// from the client application instead of using a fixed structure to avoid copying
+// in memory and interpolating useless attributes.
+
 struct VertexAttributes {
 	float3 position;
 	float3 normal;
@@ -72,44 +76,41 @@ VertexAttributes GetVertexAttributes(ByteAddressBuffer vertexBuffer, ByteAddress
 			asfloat(vertexBuffer.Load4(InputAddr(index3[2], i))) * barycentrics[2];
 	}
 
-	///
 	// Compute the tangent vector for the polygon.
 	// Derived from http://area.autodesk.com/blogs/the-3ds-max-blog/how_the_3ds_max_scanline_renderer_computes_tangent_and_binormal_vectors_for_normal_mapping
-	float uva = uv1.x - uv0.x;
-	float uvb = uv2.x - uv0.x;
-	float uvc = uv1.y - uv0.y;
-	float uvd = uv2.y - uv0.y;
-	float uvk = uvb * uvc - uva * uvd;
-	float3 dpos1 = pos1 - pos0;
-	float3 dpos2 = pos2 - pos0;
-
-	// TODO: Evaluate how to accomodate this to the smoothed tangent if it exists, probably by calculating the cross vector manually?
-	// Also only do this if it actually uses a normal map? Would be better to move this to the shader instead?
-	if (uvk != 0) {
-		v.tangent = normalize((uvc * dpos2 - uvd * dpos1) / uvk);
-	}
-	else {
-		if (uva != 0) {
-			v.tangent = normalize(dpos1 / uva);
-		}
-		else if (uvb != 0) {
-			v.tangent = normalize(dpos2 / uvb);
+	// TODO: Evaluate how to accomodate this to the smoothed normal.
+	// TODO: Only do this if it actually uses a normal map. Likely need specialized shader generation to solve this properly.
+	{
+		float uva = uv1.x - uv0.x;
+		float uvb = uv2.x - uv0.x;
+		float uvc = uv1.y - uv0.y;
+		float uvd = uv2.y - uv0.y;
+		float uvk = uvb * uvc - uva * uvd;
+		float3 dpos1 = pos1 - pos0;
+		float3 dpos2 = pos2 - pos0;
+		if (uvk != 0) {
+			v.tangent = normalize((uvc * dpos2 - uvd * dpos1) / uvk);
 		}
 		else {
-			v.tangent = 0.0f;
+			if (uva != 0) {
+				v.tangent = normalize(dpos1 / uva);
+			}
+			else if (uvb != 0) {
+				v.tangent = normalize(dpos2 / uvb);
+			}
+			else {
+				v.tangent = 0.0f;
+			}
 		}
-	}
 
-	// Calculate the W component of the tangent.
-	// Consider V component inverted for calculating this just like in 3DS Max.
-	float2 duv1 = uv1 - uv0;
-	float2 duv2 = uv2 - uv1;
-	duv1.y = -duv1.y;
-	duv2.y = -duv2.y;
-	float3 cr = cross(float3(duv1.xy, 0.0f), float3(duv2.xy, 0.0f));
-	float binormalMult = (cr.z < 0.0f) ? -1.0f : 1.0f;
-	v.binormal = cross(v.tangent, v.normal) * binormalMult;
-	///
+		float2 duv1 = uv1 - uv0;
+		float2 duv2 = uv2 - uv1;
+		duv1.y = -duv1.y;
+		duv2.y = -duv2.y;
+		float3 cr = cross(float3(duv1.xy, 0.0f), float3(duv2.xy, 0.0f));
+		float binormalMult = (cr.z < 0.0f) ? -1.0f : 1.0f;
+		v.binormal = cross(v.tangent, v.normal) * binormalMult;
+	}
 
 	return v;
 }

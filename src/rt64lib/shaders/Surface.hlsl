@@ -39,8 +39,9 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 		float tval = WithDistanceBias(RayTCurrent(), instanceId);
 		uint hi = getHitBufferIndex(min(payload.nhits, MAX_HIT_QUERIES), pixelIdx, pixelDims);
 		uint lo = hi - hitStride;
-
+		
 		// HACK: Add some bias for the comparison based on the instance ID so coplanar surfaces are friendlier with each other.
+		// This can likely be implemented as an instance property at some point to control depth sorting.
 		while ((hi > 0) && (tval < gHitDistance[lo]))
 		{
 			gHitDistance[hi] = gHitDistance[lo];
