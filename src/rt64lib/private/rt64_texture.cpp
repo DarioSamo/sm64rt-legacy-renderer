@@ -10,7 +10,7 @@
 
 // Private
 
-RT64::Texture::Texture(Device *device, void *bytes, int width, int height, int stride) {
+RT64::Texture::Texture(Device *device, const void *bytes, int width, int height, int stride) {
 	assert(bytes != nullptr);
 
 	this->device = device;
@@ -120,7 +120,7 @@ ID3D12Resource *RT64::Texture::getTexture() {
 
 // Public
 
-DLLEXPORT RT64_TEXTURE *RT64_CreateTextureFromRGBA8(RT64_DEVICE *devicePtr, void *bytes, int width, int height, int stride) {
+DLLEXPORT RT64_TEXTURE *RT64_CreateTextureFromRGBA8(RT64_DEVICE *devicePtr, const void *bytes, int width, int height, int stride) {
 	RT64::Device *device = (RT64::Device *)(devicePtr);
 	return (RT64_TEXTURE *)(new RT64::Texture(device, bytes, width, height, stride));
 }

@@ -15,7 +15,7 @@ namespace RT64 {
 		AllocatedResource texture;
 		AllocatedResource textureUpload;
 	public:
-		Texture(Device *device, void *bytes, int width, int height, int stride);
+		Texture(Device *device, const void *bytes, int width, int height, int stride);
 		virtual ~Texture();
 		ID3D12Resource *getTexture();
 	};
