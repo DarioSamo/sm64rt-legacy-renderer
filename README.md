@@ -1,6 +1,6 @@
 # RT64
 
-RT64 is a hardware-accelerated raytracing real-time renderer that aims to recreate the visual style of promotional offline renders of the mid 90s to early 2000s. It's currently licensed under the terms of the MIT license.
+RT64 is a hardware-accelerated real-time raytracer that aims to recreate the visual style of promotional offline renders of the mid 90s to early 2000s. It's currently licensed under the terms of the MIT license.
 
 This library is not meant to be used in the traditional way of linking it as an static or dynamic library. It can be loaded during runtime by other processes as long as they can include the basic C-style header and call the provided function pointers. This is mostly meant for ease of use as it allows to run this renderer without having to port it to the build system used by the host application.
 
