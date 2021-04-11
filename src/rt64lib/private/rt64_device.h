@@ -42,7 +42,6 @@ namespace RT64 {
 		ID3D12RootSignature *d3dRootSignature;
 		ID3D12DescriptorHeap *d3dRtvHeap;
 		ID3D12PipelineState *d3dPipelineState;
-		ID3D12PipelineState *d3dComputeState;
 		ID3D12DescriptorHeap *d3dDsvHeap;
 		UINT d3dRtvDescriptorSize;
 		IDxcBlob *d3dTracerLibrary;
@@ -50,6 +49,10 @@ namespace RT64 {
 		IDxcBlob *d3dShadowLibrary;
 		ID3D12RootSignature *d3dTracerSignature;
 		ID3D12RootSignature *d3dSurfaceShadowSignature;
+		ID3D12PipelineState *im3dPipelineStatePoint;
+		ID3D12PipelineState *im3dPipelineStateLine;
+		ID3D12PipelineState *im3dPipelineStateTriangle;
+		ID3D12RootSignature *im3dRootSignature;
 		ID3D12StateObject *d3dRtStateObject;
 		ID3D12StateObjectProperties *d3dRtStateObjectProps;
 		D3D12_RESOURCE_BARRIER lastCommandQueueBarrier;
@@ -86,7 +89,10 @@ namespace RT64 {
 		ID3D12Resource *getD3D12RenderTarget();
 		ID3D12RootSignature* getD3D12RootSignature();
 		ID3D12PipelineState *getD3D12PipelineState();
-		ID3D12PipelineState* getD3D12ComputePipelineState();
+		ID3D12RootSignature *getIm3dRootSignature();
+		ID3D12PipelineState *getIm3dPipelineStatePoint();
+		ID3D12PipelineState *getIm3dPipelineStateLine();
+		ID3D12PipelineState *getIm3dPipelineStateTriangle();
 		CD3DX12_VIEWPORT getD3D12Viewport();
 		CD3DX12_RECT getD3D12ScissorRect(); 
 		AllocatedResource allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue);

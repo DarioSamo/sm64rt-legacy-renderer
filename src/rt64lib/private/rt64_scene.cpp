@@ -78,6 +78,10 @@ void RT64::Scene::removeView(View *view) {
 	// TODO
 }
 
+const std::vector<RT64::View *> &RT64::Scene::getViews() const {
+	return views;
+}
+
 void RT64::Scene::setLights(RT64_LIGHT *lightArray, int lightCount) {
 	static std::default_random_engine randomEngine;
 	static std::uniform_real_distribution<float> randomDistribution(0.0f, 1.0f);

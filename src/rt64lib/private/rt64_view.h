@@ -13,6 +13,8 @@
 
 namespace RT64 {
 	class Scene;
+	class Inspector;
+	class Texture;
 
 	class View {
 	private:
@@ -25,6 +27,14 @@ namespace RT64 {
 			RT64_MATERIAL material;
 		};
 
+		struct CameraBuffer {
+			XMMATRIX view;
+			XMMATRIX projection;
+			XMMATRIX viewI;
+			XMMATRIX projectionI;
+			float viewport[4];
+		};
+
 		Scene *scene;
 		RT64_VECTOR3 eyePosition;
 		RT64_VECTOR3 eyeFocus;
@@ -32,7 +42,6 @@ namespace RT64 {
 		float fovRadians;
 		float nearDist;
 		float farDist;
-		XMMATRIX previousViewProj;
 		AccelerationStructureBuffers topLevelASBuffers;
 		nv_helpers_dx12::TopLevelASGenerator topLevelASGenerator;
 		AllocatedResource rasterResources[2];
@@ -48,7 +57,8 @@ namespace RT64 {
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;
-		AllocatedResource cameraBuffer;
+		AllocatedResource cameraBufferResource;
+		CameraBuffer cameraBufferData;
 		uint32_t cameraBufferSize;
 		AllocatedResource activeInstancesBufferProps;
 		uint32_t activeInstancesBufferPropsSize;
@@ -56,6 +66,10 @@ namespace RT64 {
 		std::vector<RenderInstance> rasterFgInstances;
 		std::vector<RenderInstance> rtInstances;
 		std::vector<Texture*> usedTextures;
+
+		AllocatedResource im3dVertexBuffer;
+		D3D12_VERTEX_BUFFER_VIEW im3dVertexBufferView;
+		unsigned int im3dVertexCount;
 		
 		void createOutputBuffers();
 		void releaseOutputBuffers();
@@ -71,7 +85,14 @@ namespace RT64 {
 		virtual ~View();
 		void update();
 		void render();
+		void renderInspector(Inspector *inspector);
 		void setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eyeFocus, RT64_VECTOR3 eyeUpDirection, float fovRadians, float nearDist, float farDist);
+		RT64_VECTOR3 getEyePosition() const;
+		RT64_VECTOR3 getEyeFocus() const;
+		float getFOVRadians() const;
+		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		void resize();
+		int getWidth() const;
+		int getHeight() const;
 	};
 };

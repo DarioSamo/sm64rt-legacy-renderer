@@ -14,6 +14,8 @@
 #include "rt64_texture.h"
 #include "rt64_view.h"
 
+#include "im3d/im3d.h"
+
 namespace {
 	const int MaxQueries = 12 + 1;
 };
@@ -28,7 +30,8 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferPropsSize = 0;
 	cameraBufferSize = 0;
-	previousViewProj = XMMatrixIdentity();
+
+	im3dVertexCount = 0;
 
 	setPerspectiveLookAt({ 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0.1f, 1000.0f);
 
@@ -278,7 +281,7 @@ void RT64::View::createShaderResourceHeap() {
 
 	// Describe and create a constant buffer view for the camera
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = cameraBuffer.Get()->GetGPUVirtualAddress();
+	cbvDesc.BufferLocation = cameraBufferResource.Get()->GetGPUVirtualAddress();
 	cbvDesc.SizeInBytes = cameraBufferSize;
 	scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
 	handle.ptr += handleIncrement;
@@ -375,32 +378,35 @@ void RT64::View::createShaderBindingTable() {
 }
 
 void RT64::View::createCameraBuffer() {
-	cameraBufferSize = ROUND_UP(6 * sizeof(XMMATRIX), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	cameraBufferSize = ROUND_UP(4 * sizeof(XMMATRIX) + 8, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 	// Create the constant buffer for all matrices
-	cameraBuffer = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, cameraBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+	cameraBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, cameraBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 void RT64::View::updateCameraBuffer() {
-	std::vector<XMMATRIX> matrices(6);
-	
 	assert(fovRadians > 0.0f);
-	matrices[0] = XMMatrixLookAtRH(XMVectorSet(eyePosition.x, eyePosition.y, eyePosition.z, 0.0f), XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 0.0f), XMVectorSet(eyeUpDirection.x, eyeUpDirection.y, eyeUpDirection.z, 0.0f));
-	matrices[1] = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
+
+	// View and projection matrices.
+	cameraBufferData.view = XMMatrixLookAtRH(XMVectorSet(eyePosition.x, eyePosition.y, eyePosition.z, 0.0f), XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 0.0f), XMVectorSet(eyeUpDirection.x, eyeUpDirection.y, eyeUpDirection.z, 0.0f));
+	cameraBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
 
 	// Inverse matrices required for raytracing.
 	XMVECTOR det;
-	matrices[2] = XMMatrixInverse(&det, matrices[0]);
-	matrices[3] = XMMatrixInverse(&det, matrices[1]);
-	matrices[4] = previousViewProj;
-	matrices[5] = XMMatrixMultiply(matrices[0], matrices[1]);
-	previousViewProj = matrices[5];
+	cameraBufferData.viewI = XMMatrixInverse(&det, cameraBufferData.view);
+	cameraBufferData.projectionI = XMMatrixInverse(&det, cameraBufferData.projection);
 
-	// Copy the matrix contents.
+	// Viewport dimensions.
+	cameraBufferData.viewport[0] = 0.0f;
+	cameraBufferData.viewport[1] = 0.0f;
+	cameraBufferData.viewport[2] = (float)(getWidth());
+	cameraBufferData.viewport[3] = (float)(getHeight());
+
+	// Copy the camera buffer data to the resource.
 	uint8_t *pData;
-	ThrowIfFailed(cameraBuffer.Get()->Map(0, nullptr, (void **)&pData));
-	memcpy(pData, matrices.data(), cameraBufferSize);
-	cameraBuffer.Get()->Unmap(0, nullptr);
+	ThrowIfFailed(cameraBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &cameraBufferData, sizeof(CameraBuffer));
+	cameraBufferResource.Get()->Unmap(0, nullptr);
 }
 
 void RT64::View::update() {
@@ -595,6 +601,83 @@ void RT64::View::render() {
 	}
 }
 
+void RT64::View::renderInspector(Inspector *inspector) {
+	if (Im3d::GetDrawListCount() > 0) {
+		auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
+		auto viewport = scene->getDevice()->getD3D12Viewport();
+		auto scissorRect = scene->getDevice()->getD3D12ScissorRect();
+		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getIm3dRootSignature());
+
+		std::vector<ID3D12DescriptorHeap *> heaps = { descriptorHeap };
+		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+		d3dCommandList->SetGraphicsRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+		d3dCommandList->RSSetViewports(1, &viewport);
+		d3dCommandList->RSSetScissorRects(1, &scissorRect);
+
+		unsigned int totalVertexCount = 0;
+		for (Im3d::U32 i = 0, n = Im3d::GetDrawListCount(); i < n; ++i) {
+			auto &drawList = Im3d::GetDrawLists()[i];
+			totalVertexCount += drawList.m_vertexCount;
+		}
+
+		if (totalVertexCount > 0) {
+			// Release the previous vertex buffer if it should be bigger.
+			if (!im3dVertexBuffer.IsNull() && (totalVertexCount > im3dVertexCount)) {
+				im3dVertexBuffer.Release();
+			}
+
+			// Create the vertex buffer if it's empty.
+			const UINT vertexBufferSize = totalVertexCount * sizeof(Im3d::VertexData);
+			if (im3dVertexBuffer.IsNull()) {
+				CD3DX12_RESOURCE_DESC uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+				im3dVertexBuffer = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_UPLOAD, &uploadBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
+				im3dVertexCount = totalVertexCount;
+				im3dVertexBufferView.BufferLocation = im3dVertexBuffer.Get()->GetGPUVirtualAddress();
+				im3dVertexBufferView.StrideInBytes = sizeof(Im3d::VertexData);
+				im3dVertexBufferView.SizeInBytes = vertexBufferSize;
+			}
+
+			// Copy data to vertex buffer.
+			UINT8 *pDataBegin;
+			CD3DX12_RANGE readRange(0, 0);
+			ThrowIfFailed(im3dVertexBuffer.Get()->Map(0, &readRange, reinterpret_cast<void **>(&pDataBegin)));
+			for (Im3d::U32 i = 0, n = Im3d::GetDrawListCount(); i < n; ++i) {
+				auto &drawList = Im3d::GetDrawLists()[i];
+				size_t copySize = sizeof(Im3d::VertexData) * drawList.m_vertexCount;
+				memcpy(pDataBegin, drawList.m_vertexData, copySize);
+				pDataBegin += copySize;
+			}
+			im3dVertexBuffer.Get()->Unmap(0, nullptr);
+
+			unsigned int vertexOffset = 0;
+			for (Im3d::U32 i = 0, n = Im3d::GetDrawListCount(); i < n; ++i) {
+				auto &drawList = Im3d::GetDrawLists()[i];
+				d3dCommandList->IASetVertexBuffers(0, 1, &im3dVertexBufferView);
+				switch (drawList.m_primType) {
+				case Im3d::DrawPrimitive_Points:
+					d3dCommandList->SetPipelineState(scene->getDevice()->getIm3dPipelineStatePoint());
+					d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
+					break;
+				case Im3d::DrawPrimitive_Lines:
+					d3dCommandList->SetPipelineState(scene->getDevice()->getIm3dPipelineStateLine());
+					d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+					break;
+				case Im3d::DrawPrimitive_Triangles:
+					d3dCommandList->SetPipelineState(scene->getDevice()->getIm3dPipelineStateTriangle());
+					d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+					break;
+				default:
+					break;
+				}
+
+				d3dCommandList->DrawInstanced(drawList.m_vertexCount, 1, vertexOffset, 0);
+				vertexOffset += drawList.m_vertexCount;
+			}
+		}
+	}
+}
+
 void RT64::View::setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eyeFocus, RT64_VECTOR3 eyeUpDirection, float fovRadians, float nearDist, float farDist) {
 	this->eyePosition = eyePosition;
 	this->eyeFocus = eyeFocus;
@@ -604,8 +687,37 @@ void RT64::View::setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eye
 	this->farDist = farDist;
 }
 
+RT64_VECTOR3 RT64::View::getEyePosition() const {
+	return eyePosition;
+}
+
+RT64_VECTOR3 RT64::View::getEyeFocus() const {
+	return eyeFocus;
+}
+
+float RT64::View::getFOVRadians() const {
+	return fovRadians;
+}
+
+RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {
+	float x = ((px + 0.5f) / getWidth()) * 2.0f - 1.0f;
+	float y = ((py + 0.5f) / getHeight()) * 2.0f - 1.0f;
+	XMVECTOR target = XMVector4Transform(XMVectorSet(x, -y, 1.0f, 1.0f), cameraBufferData.projectionI);
+	XMVECTOR rayDirection = XMVector4Transform(XMVectorSetW(target, 0.0f), cameraBufferData.viewI);
+	rayDirection = XMVector4Normalize(rayDirection);
+	return { XMVectorGetX(rayDirection), XMVectorGetY(rayDirection), XMVectorGetZ(rayDirection) };
+}
+
 void RT64::View::resize() {
 	createOutputBuffers();
+}
+
+int RT64::View::getWidth() const {
+	return scene->getDevice()->getWidth();
+}
+
+int RT64::View::getHeight() const {
+	return scene->getDevice()->getHeight();
 }
 
 // Public

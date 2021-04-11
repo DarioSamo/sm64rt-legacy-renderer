@@ -8,6 +8,7 @@
 
 namespace RT64 {
 	class Device;
+	class Inspector;
 	class Instance;
 	class View;
 
@@ -32,6 +33,7 @@ namespace RT64 {
 		void removeInstance(Instance *instance);
 		void addView(View *view);
 		void removeView(View *view);
+		const std::vector<View *> &getViews() const;
 		const std::vector<Instance *> &getInstances() const;
 		Device *getDevice() const;
 	};

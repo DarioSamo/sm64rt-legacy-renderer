@@ -5,22 +5,29 @@
 #include "rt64_inspector.h"
 
 #include "rt64_device.h"
+#include "rt64_scene.h"
+#include "rt64_view.h"
+
+#include "im3d/im3d.h"
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_dx12.h"
 #include "imgui/imgui_impl_win32.h"
-
-// Inspector
 
 RT64::Inspector::Inspector(Device* device) {
     this->device = device;
 
     reset();
 
+    // Im3D
+    Im3d::AppData &appData = Im3d::GetAppData();
+
+    // ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
+
 
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -50,15 +57,22 @@ void RT64::Inspector::reset() {
     toPrint.clear();
 }
 
-void RT64::Inspector::render() {
+void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
+    setupWithView(activeView, cursorX, cursorY);
+    
     // Start the frame.
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
+    Im3d::NewFrame();
 
     renderMaterialInspector();
     renderLightInspector();
     renderPrint();
+
+    Im3d::EndFrame();
+
+    activeView->renderInspector(this);
 
     // Send the commands to D3D12.
     device->getD3D12CommandList()->SetDescriptorHeaps(1, &d3dSrvDescHeap);
@@ -150,16 +164,25 @@ void RT64::Inspector::renderLightInspector() {
 
         for (int i = 0; i < *lightCount; i++) {
             ImGui::PushID(i);
+            Im3d::PushId(i);
 
             // Rest of the lights.
             if (i > 0) {
                 if (ImGui::CollapsingHeader("Point light")) {
+                    const int SphereDetail = 64;
                     ImGui::DragFloat3("Position", &lights[i].position.x);
+                    Im3d::GizmoTranslation("GizmoPosition", &lights[i].position.x);
                     ImGui::DragFloat3("Diffuse color", &lights[i].diffuseColor.x, 0.01f);
                     ImGui::DragFloat("Attenuation radius", &lights[i].attenuationRadius);
+                    Im3d::SetColor(lights[i].diffuseColor.x, lights[i].diffuseColor.y, lights[i].diffuseColor.z);
+                    Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].attenuationRadius, SphereDetail);
                     ImGui::DragFloat("Point radius", &lights[i].pointRadius);
+                    Im3d::SetColor(lights[i].diffuseColor.x * 0.5f, lights[i].diffuseColor.y * 0.5f, lights[i].diffuseColor.z * 0.5f);
+                    Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].pointRadius, SphereDetail);
                     ImGui::DragFloat("Specular intensity", &lights[i].specularIntensity);
                     ImGui::DragFloat("Shadow offset", &lights[i].shadowOffset);
+                    Im3d::SetColor(Im3d::Color_Black);
+                    Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].shadowOffset, SphereDetail);
                     ImGui::DragFloat("Attenuation exponent", &lights[i].attenuationExponent);
                     ImGui::DragFloat("Flicker intensity", &lights[i].flickerIntensity);
                     ImGui::InputInt("Group bits", (int *)(&lights[i].groupBits));
@@ -179,6 +202,7 @@ void RT64::Inspector::renderLightInspector() {
                 }
             }
 
+            Im3d::PopId();
             ImGui::PopID();
         }
         ImGui::End();
@@ -193,6 +217,29 @@ void RT64::Inspector::renderPrint() {
         }
         ImGui::End();
     }
+}
+
+void RT64::Inspector::setupWithView(View *view, int cursorX, int cursorY) {
+    assert(view != nullptr);
+
+    Im3d::AppData &appData = Im3d::GetAppData();
+    RT64_VECTOR3 viewPos = view->getEyePosition();
+    RT64_VECTOR3 viewFocus = view->getEyeFocus();
+    RT64_VECTOR3 viewDir = RT64::DirectionFromTo(viewPos, viewFocus);
+    RT64_VECTOR3 rayDir = view->getRayDirectionAt(cursorX, cursorY);
+    appData.m_deltaTime = 1.0f / 60.0f; // TODO
+    appData.m_viewportSize = Im3d::Vec2((float)(view->getWidth()), (float)(view->getHeight()));
+    appData.m_viewOrigin = Im3d::Vec3(viewPos.x, viewPos.y, viewPos.z);
+    appData.m_viewDirection = Im3d::Vec3(viewDir.x, viewDir.y, viewDir.z);
+    appData.m_worldUp = Im3d::Vec3(0.0f, 1.0f, 0.0f);
+    appData.m_projOrtho = false;
+    appData.m_projScaleY = tanf(view->getFOVRadians() * 0.5f) * 2.0f;
+    appData.m_snapTranslation = 0.0f;
+    appData.m_snapRotation = 0.0f;
+    appData.m_snapScale = 0.0f;
+    appData.m_cursorRayOrigin = Im3d::Vec3(viewPos.x, viewPos.y, viewPos.z);
+    appData.m_cursorRayDirection = Im3d::Vec3(rayDir.x, rayDir.y, rayDir.z);
+    appData.m_keyDown[Im3d::Mouse_Left] = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 }
 
 void RT64::Inspector::setMaterial(RT64_MATERIAL* material) {

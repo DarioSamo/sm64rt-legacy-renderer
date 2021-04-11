@@ -8,6 +8,8 @@
 
 namespace RT64 {
 	class Device;
+	class Scene;
+	class View;
 
 	class Inspector {
 	private:
@@ -19,6 +21,7 @@ namespace RT64 {
 		int maxLightCount;
 		std::vector<std::string> toPrint;
 
+		void setupWithView(View *view, int cursorX, int cursorY);
 		void renderMaterialInspector();
 		void renderLightInspector();
 		void renderPrint();
@@ -26,7 +29,7 @@ namespace RT64 {
 		Inspector(Device* device);
 		~Inspector();
 		void reset();
-		void render();
+		void render(View *activeView, int cursorX, int cursorY);
 		void resize();
 		void setMaterial(RT64_MATERIAL *material);
 		void setLights(RT64_LIGHT *lights, int *lightCount, int maxLightCount);

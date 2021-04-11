@@ -12,19 +12,23 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.h" />
-    <ClInclude Include="private\imgui\imconfig.h" />
-    <ClInclude Include="private\imgui\imgui.h" />
-    <ClInclude Include="private\imgui\imgui_impl_dx12.h" />
-    <ClInclude Include="private\imgui\imgui_impl_win32.h" />
-    <ClInclude Include="private\imgui\imgui_internal.h" />
-    <ClInclude Include="private\imgui\imstb_rectpack.h" />
-    <ClInclude Include="private\imgui\imstb_textedit.h" />
-    <ClInclude Include="private\imgui\imstb_truetype.h" />
-    <ClInclude Include="private\nv_helpers_dx12\BottomLevelASGenerator.h" />
-    <ClInclude Include="private\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
-    <ClInclude Include="private\nv_helpers_dx12\RootSignatureGenerator.h" />
-    <ClInclude Include="private\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
-    <ClInclude Include="private\nv_helpers_dx12\TopLevelASGenerator.h" />
+    <ClInclude Include="contrib\d3dx12.h" />
+    <ClInclude Include="contrib\im3d\im3d.h" />
+    <ClInclude Include="contrib\im3d\im3d_config.h" />
+    <ClInclude Include="contrib\im3d\im3d_math.h" />
+    <ClInclude Include="contrib\imgui\imconfig.h" />
+    <ClInclude Include="contrib\imgui\imgui.h" />
+    <ClInclude Include="contrib\imgui\imgui_impl_dx12.h" />
+    <ClInclude Include="contrib\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="contrib\imgui\imgui_internal.h" />
+    <ClInclude Include="contrib\imgui\imstb_rectpack.h" />
+    <ClInclude Include="contrib\imgui\imstb_textedit.h" />
+    <ClInclude Include="contrib\imgui\imstb_truetype.h" />
+    <ClInclude Include="contrib\nv_helpers_dx12\BottomLevelASGenerator.h" />
+    <ClInclude Include="contrib\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
+    <ClInclude Include="contrib\nv_helpers_dx12\RootSignatureGenerator.h" />
+    <ClInclude Include="contrib\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
+    <ClInclude Include="contrib\nv_helpers_dx12\TopLevelASGenerator.h" />
     <ClInclude Include="private\rt64_common.h" />
     <ClInclude Include="private\rt64_device.h" />
     <ClInclude Include="private\rt64_inspector.h" />
@@ -37,17 +41,18 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.cpp" />
-    <ClCompile Include="private\imgui\imgui.cpp" />
-    <ClCompile Include="private\imgui\imgui_demo.cpp" />
-    <ClCompile Include="private\imgui\imgui_draw.cpp" />
-    <ClCompile Include="private\imgui\imgui_impl_dx12.cpp" />
-    <ClCompile Include="private\imgui\imgui_impl_win32.cpp" />
-    <ClCompile Include="private\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="private\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
-    <ClCompile Include="private\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
-    <ClCompile Include="private\nv_helpers_dx12\RootSignatureGenerator.cpp" />
-    <ClCompile Include="private\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
-    <ClCompile Include="private\nv_helpers_dx12\TopLevelASGenerator.cpp" />
+    <ClCompile Include="contrib\im3d\im3d.cpp" />
+    <ClCompile Include="contrib\imgui\imgui.cpp" />
+    <ClCompile Include="contrib\imgui\imgui_demo.cpp" />
+    <ClCompile Include="contrib\imgui\imgui_draw.cpp" />
+    <ClCompile Include="contrib\imgui\imgui_impl_dx12.cpp" />
+    <ClCompile Include="contrib\imgui\imgui_impl_win32.cpp" />
+    <ClCompile Include="contrib\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="contrib\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
+    <ClCompile Include="contrib\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
+    <ClCompile Include="contrib\nv_helpers_dx12\RootSignatureGenerator.cpp" />
+    <ClCompile Include="contrib\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
+    <ClCompile Include="contrib\nv_helpers_dx12\TopLevelASGenerator.cpp" />
     <ClCompile Include="private\rt64_common.cpp" />
     <ClCompile Include="private\rt64_device.cpp" />
     <ClCompile Include="private\rt64_inspector.cpp" />
@@ -61,6 +66,7 @@
     <None Include="shaders\Camera.hlsli" />
     <None Include="shaders\GlobalBuffers.hlsli" />
     <None Include="shaders\GlobalHitBuffers.hlsli" />
+    <None Include="shaders\Im3DCommon.hlsli" />
     <None Include="shaders\Instances.hlsli" />
     <None Include="shaders\Lights.hlsli" />
     <None Include="shaders\Materials.hlsli" />
@@ -119,6 +125,48 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T vs_5_1 -E VSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\Im3DPS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T ps_5_1 -E PSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T ps_5_1 -E PSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\Im3DVS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T vs_5_1 -E VSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T vs_5_1 -E VSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\Im3DGSLines.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T gs_5_1 -E GSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T gs_5_1 -E GSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="shaders\Im3DGSPoints.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T gs_5_1 -E GSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T gs_5_1 -E GSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
     </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -144,6 +144,21 @@ namespace RT64 {
 			return dataSize;
 		}
 	};
+
+	inline float Length(const RT64_VECTOR3 &a) {
+		float sqrLength = a.x * a.x + a.y * a.y + a.z * a.z;
+		return sqrt(sqrLength);
+	}
+
+	inline RT64_VECTOR3 operator/(const RT64_VECTOR3 &a, const float v) {
+		return { a.x / v, a.y / v, a.z / v };
+	}
+
+	inline RT64_VECTOR3 DirectionFromTo(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
+		RT64_VECTOR3 dir = { b.x - a.x,  b.y - a.y, b.z - a.z };
+		float length = Length(dir);
+		return dir / length;
+	}
 };
 
 inline void ThrowIfFailed(HRESULT hr)

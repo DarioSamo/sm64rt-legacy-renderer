@@ -16,6 +16,10 @@
 #include "shaders/Shadow.hlsl.h"
 #include "shaders/Surface.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
+#include "shaders/Im3DPS.hlsl.h"
+#include "shaders/Im3DVS.hlsl.h"
+#include "shaders/Im3DGSPoints.hlsl.h"
+#include "shaders/Im3DGSLines.hlsl.h"
 
 // Private
 
@@ -177,8 +181,20 @@ ID3D12PipelineState* RT64::Device::getD3D12PipelineState() {
 	return d3dPipelineState;
 }
 
-ID3D12PipelineState* RT64::Device::getD3D12ComputePipelineState() {
-	return d3dComputeState;
+ID3D12RootSignature *RT64::Device::getIm3dRootSignature() {
+	return im3dRootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getIm3dPipelineStatePoint() {
+	return im3dPipelineStatePoint;
+}
+
+ID3D12PipelineState *RT64::Device::getIm3dPipelineStateLine() {
+	return im3dPipelineStateLine;
+}
+
+ID3D12PipelineState *RT64::Device::getIm3dPipelineStateTriangle() {
+	return im3dPipelineStateTriangle;
 }
 
 CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() {
@@ -385,6 +401,76 @@ void RT64::Device::loadAssets() {
 		*/
 	}
 
+	// Im3d Root signature.
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
+			{ 2, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 2 },
+			{ 3, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 3 },
+			{ 4, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 8 }
+		});
+
+		im3dRootSignature = rsc.Generate(d3dDevice, false, true, false);
+	}
+
+	// Im3d Pipeline state.
+	{
+		// Define the vertex input layout.
+		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
+		{
+			{ "POSITION_SIZE", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0  }
+		};
+
+		// Describe and create the graphics pipeline state object (PSO).
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+		psoDesc.pRootSignature = im3dRootSignature;
+		psoDesc.VS = CD3DX12_SHADER_BYTECODE(Im3DVSBlob, sizeof(Im3DVSBlob));
+		psoDesc.PS = CD3DX12_SHADER_BYTECODE(Im3DPSBlob, sizeof(Im3DPSBlob));
+		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+		D3D12_BLEND_DESC bd = {};
+		bd.AlphaToCoverageEnable = FALSE;
+		bd.IndependentBlendEnable = FALSE;
+		static const D3D12_RENDER_TARGET_BLEND_DESC default_rtbd = {
+			TRUE, FALSE,
+			D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+			D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+			D3D12_LOGIC_OP_NOOP,
+			D3D12_COLOR_WRITE_ENABLE_ALL
+		};
+
+		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++) {
+			bd.RenderTarget[i] = default_rtbd;
+		}
+
+		psoDesc.BlendState = bd;
+		// else if not opt_alpha psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+
+		psoDesc.DepthStencilState.DepthEnable = FALSE;
+		psoDesc.DepthStencilState.StencilEnable = FALSE;
+		psoDesc.SampleMask = UINT_MAX;
+		psoDesc.NumRenderTargets = 1;
+		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		psoDesc.SampleDesc.Count = 1;
+
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateTriangle)));
+
+		psoDesc.GS = CD3DX12_SHADER_BYTECODE(Im3DGSPointsBlob, sizeof(Im3DGSPointsBlob));
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStatePoint)));
+
+		psoDesc.GS = CD3DX12_SHADER_BYTECODE(Im3DGSLinesBlob, sizeof(Im3DGSLinesBlob));
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateLine)));
+
+	}
+
 	// Create the command list.
 	ThrowIfFailed(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, d3dPipelineState, IID_PPV_ARGS(&d3dCommandList)));
 
@@ -552,9 +638,26 @@ void RT64::Device::draw(int vsyncInterval) {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
 	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-	for (Inspector* inspector : inspectors) {
-		inspector->render();
-		inspector->reset();
+	// Find mouse cursor position.
+	POINT cursorPos = {};
+	GetCursorPos(&cursorPos);
+	ScreenToClient(hwnd, &cursorPos);
+
+	// Determine the active view (use the first available view for now).
+	View *activeView = nullptr;
+	for (Scene *scene : scenes) {
+		auto views = scene->getViews();
+		if (!views.empty()) {
+			activeView = views[0];
+		}
+	}
+
+	// Render the inspectors on the active view.
+	if (activeView != nullptr) {
+		for (Inspector *inspector : inspectors) {
+			inspector->render(activeView, cursorPos.x, cursorPos.y);
+			inspector->reset();
+		}
 	}
 
 	postRender(vsyncInterval);
