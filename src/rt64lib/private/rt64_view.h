@@ -42,6 +42,7 @@ namespace RT64 {
 		float fovRadians;
 		float nearDist;
 		float farDist;
+		bool perspectiveControlActive;
 		AccelerationStructureBuffers topLevelASBuffers;
 		nv_helpers_dx12::TopLevelASGenerator topLevelASGenerator;
 		AllocatedResource rasterResources[2];
@@ -87,9 +88,14 @@ namespace RT64 {
 		void render();
 		void renderInspector(Inspector *inspector);
 		void setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eyeFocus, RT64_VECTOR3 eyeUpDirection, float fovRadians, float nearDist, float farDist);
+		void movePerspective(RT64_VECTOR3 localMovement);
+		void rotatePerspective(float localYaw, float localPitch, float localRoll);
+		void setPerspectiveControlActive(bool v);
 		RT64_VECTOR3 getEyePosition() const;
 		RT64_VECTOR3 getEyeFocus() const;
 		float getFOVRadians() const;
+		float getNearDistance() const;
+		float getFarDistance() const;
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		void resize();
 		int getWidth() const;

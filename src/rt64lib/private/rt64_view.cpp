@@ -30,7 +30,7 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferPropsSize = 0;
 	cameraBufferSize = 0;
-
+	perspectiveControlActive = false;
 	im3dVertexCount = 0;
 
 	setPerspectiveLookAt({ 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0.1f, 1000.0f);
@@ -679,12 +679,37 @@ void RT64::View::renderInspector(Inspector *inspector) {
 }
 
 void RT64::View::setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eyeFocus, RT64_VECTOR3 eyeUpDirection, float fovRadians, float nearDist, float farDist) {
+	// Ignore all external calls to set the perspective when control override is active.
+	if (perspectiveControlActive) {
+		return;
+	}
+
 	this->eyePosition = eyePosition;
 	this->eyeFocus = eyeFocus;
 	this->eyeUpDirection = eyeUpDirection;
 	this->fovRadians = fovRadians;
 	this->nearDist = nearDist;
 	this->farDist = farDist;
+}
+
+void RT64::View::movePerspective(RT64_VECTOR3 localMovement) {
+	XMVECTOR offset = XMVector4Transform(XMVectorSet(localMovement.x, localMovement.y, localMovement.z, 0.0f), cameraBufferData.viewI);
+	RT64_VECTOR3 add = { XMVectorGetX(offset), XMVectorGetY(offset), XMVectorGetZ(offset) };
+	this->eyePosition += add;
+	this->eyeFocus += add;
+	updateCameraBuffer();
+}
+
+void RT64::View::rotatePerspective(float localYaw, float localPitch, float localRoll) {
+	XMVECTOR focus = XMVector4Transform(XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 1.0f), cameraBufferData.view);
+	focus = XMVector4Transform(focus, XMMatrixRotationRollPitchYaw(localRoll, localPitch, localYaw));
+	focus = XMVector4Transform(focus, cameraBufferData.viewI);
+	eyeFocus = { XMVectorGetX(focus), XMVectorGetY(focus), XMVectorGetZ(focus) };
+	updateCameraBuffer();
+}
+
+void RT64::View::setPerspectiveControlActive(bool v) {
+	perspectiveControlActive = v;
 }
 
 RT64_VECTOR3 RT64::View::getEyePosition() const {
@@ -697,6 +722,14 @@ RT64_VECTOR3 RT64::View::getEyeFocus() const {
 
 float RT64::View::getFOVRadians() const {
 	return fovRadians;
+}
+
+float RT64::View::getNearDistance() const {
+	return nearDist;
+}
+
+float RT64::View::getFarDistance() const {
+	return farDist;
 }
 
 RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {

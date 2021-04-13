@@ -107,6 +107,18 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 	float3 selfLight = instanceProps[instanceId].materialProperties.selfLight;
 	float3 resultLight = SceneLights[0].diffuseColor + selfLight;
+	
+	// Eye light.
+	float eyeLightLambertFactor = max(dot(normal, -rayDirection), 0.0f);
+	float3 eyeLightReflected = reflect(rayDirection, normal);
+	float eyeLightSpecularFactor = specularIntensity * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
+
+	// TODO: Make these modifiable.
+	float3 eyeLightDiffuseColor = float3(0.15f, 0.15f, 0.15f);
+	float3 eyeLightSpecularColor = float3(0.05f, 0.05f, 0.05f);
+	resultLight += (eyeLightDiffuseColor * eyeLightLambertFactor + eyeLightSpecularColor * eyeLightSpecularFactor);
+
+	// Light array.
 	uint lightCount, lightStride;
 	SceneLights.GetDimensions(lightCount, lightStride);
 	for (uint l = 1; l < lightCount; l++) {
@@ -116,9 +128,6 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 		}
 	}
 	
-	// Add eye light.
-	float3 eyeLightColor = float3(0.15f, 0.15f, 0.15f);
-	resultLight += eyeLightColor * max(dot(normal, -rayDirection), 0.0f);
 	return resultLight;
 }
 

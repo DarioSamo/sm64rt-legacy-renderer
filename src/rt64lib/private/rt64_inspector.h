@@ -19,12 +19,15 @@ namespace RT64 {
 		RT64_LIGHT* lights;
 		int *lightCount;
 		int maxLightCount;
+		bool cameraControl;
+		int prevCursorX, prevCursorY;
 		std::vector<std::string> toPrint;
 
 		void setupWithView(View *view, int cursorX, int cursorY);
 		void renderMaterialInspector();
 		void renderLightInspector();
 		void renderPrint();
+		void renderCameraControl(View *view, int cursorX, int cursorY);
 	public:
 		Inspector(Device* device);
 		~Inspector();

@@ -150,6 +150,12 @@ namespace RT64 {
 		return sqrt(sqrLength);
 	}
 
+	inline void operator+=(RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
+		a.x += b.x;
+		a.y += b.y;
+		a.z += b.z;
+	}
+
 	inline RT64_VECTOR3 operator/(const RT64_VECTOR3 &a, const float v) {
 		return { a.x / v, a.y / v, a.z / v };
 	}

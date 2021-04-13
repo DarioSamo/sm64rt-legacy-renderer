@@ -16,6 +16,8 @@
 
 RT64::Inspector::Inspector(Device* device) {
     this->device = device;
+    prevCursorX = prevCursorY = 0;
+    cameraControl = false;
 
     reset();
 
@@ -68,6 +70,7 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
 
     renderMaterialInspector();
     renderLightInspector();
+    renderCameraControl(activeView, cursorX, cursorY);
     renderPrint();
 
     Im3d::EndFrame();
@@ -209,6 +212,45 @@ void RT64::Inspector::renderLightInspector() {
     }
 }
 
+void RT64::Inspector::renderCameraControl(View *view, int cursorX, int cursorY) {
+    assert(view != nullptr);
+
+    if (ImGui::Begin("Camera controls")) {
+        ImGui::Checkbox("Enable", &cameraControl);
+        view->setPerspectiveControlActive(cameraControl);
+        if (cameraControl) {
+            if (!ImGui::GetIO().WantCaptureMouse) {
+                float cameraSpeed = (view->getFarDistance() - view->getNearDistance()) / 5.0f;
+                bool leftAlt = GetAsyncKeyState(VK_LMENU) & 0x8000;
+                bool leftCtrl = GetAsyncKeyState(VK_LCONTROL) & 0x8000;
+                float localX = (cursorX - prevCursorX) / (float)(view->getWidth());
+                float localY = (cursorY - prevCursorY) / (float)(view->getHeight());
+                if (GetAsyncKeyState(VK_MBUTTON) & 0x8000) {
+                    if (leftCtrl) {
+                        view->movePerspective({ 0.0f, 0.0f, (localX + localY) * cameraSpeed });
+                    }
+                    else if (leftAlt) {
+                        float cameraRotationSpeed = 5.0f;
+                        view->rotatePerspective(0.0f, -localX * cameraRotationSpeed, -localY * cameraRotationSpeed);
+                    }
+                    else {
+                        view->movePerspective({ -localX * cameraSpeed, localY * cameraSpeed, 0.0f });
+                    }
+                }
+            }
+
+            prevCursorX = cursorX;
+            prevCursorY = cursorY;
+
+            ImGui::Text("Middle Button: Pan");
+            ImGui::Text("Ctrl + Middle Button: Zoom");
+            ImGui::Text("Alt + Middle Button: Rotate");
+        }
+
+        ImGui::End();
+    }
+}
+
 void RT64::Inspector::renderPrint() {
     if (!toPrint.empty()) {
         ImGui::Begin("Print");
@@ -221,7 +263,6 @@ void RT64::Inspector::renderPrint() {
 
 void RT64::Inspector::setupWithView(View *view, int cursorX, int cursorY) {
     assert(view != nullptr);
-
     Im3d::AppData &appData = Im3d::GetAppData();
     RT64_VECTOR3 viewPos = view->getEyePosition();
     RT64_VECTOR3 viewFocus = view->getEyeFocus();
