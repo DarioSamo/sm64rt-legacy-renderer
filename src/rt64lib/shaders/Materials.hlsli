@@ -3,7 +3,6 @@
 //
 
 struct MaterialProperties {
-	int background;
 	int filterMode;
 	int diffuseTexIndex;
 	int normalTexIndex;
@@ -24,4 +23,5 @@ struct MaterialProperties {
 	float4 diffuseColorMix;
 	float fogMul;
 	float fogOffset;
+	int _padA;
 };

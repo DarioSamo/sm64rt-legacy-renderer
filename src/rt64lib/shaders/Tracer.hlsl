@@ -204,7 +204,7 @@ uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	payload.nhits = 0;
 
 	// Make call.
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE, 0xFF, 0, 0, 0, ray, payload);
+	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, ray, payload);
 	return payload.nhits;
 }
 

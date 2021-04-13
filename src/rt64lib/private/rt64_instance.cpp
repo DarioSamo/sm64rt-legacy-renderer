@@ -19,6 +19,7 @@ RT64::Instance::Instance(Scene *scene) {
 	normalTexture = nullptr;
 	transform = XMMatrixIdentity();
 	material = DefaultMaterial;
+	flags = 0;
 
 	scene->addInstance(this);
 }
@@ -72,6 +73,14 @@ XMMATRIX RT64::Instance::getTransform() const {
 	return transform;
 }
 
+void RT64::Instance::setFlags(int v) {
+	flags = v;
+}
+
+unsigned int RT64::Instance::getFlags() const {
+	return flags;
+}
+
 // Public
 
 DLLEXPORT RT64_INSTANCE *RT64_CreateInstance(RT64_SCENE *scenePtr) {
@@ -80,7 +89,7 @@ DLLEXPORT RT64_INSTANCE *RT64_CreateInstance(RT64_SCENE *scenePtr) {
 	return (RT64_INSTANCE *)(instance);
 }
 
-DLLEXPORT void RT64_SetInstance(RT64_INSTANCE *instancePtr, RT64_MESH *meshPtr, RT64_MATRIX4 transform, RT64_TEXTURE *diffuseTexturePtr, RT64_TEXTURE* normalTexturePtr, RT64_MATERIAL material) {
+DLLEXPORT void RT64_SetInstance(RT64_INSTANCE *instancePtr, RT64_MESH *meshPtr, RT64_MATRIX4 transform, RT64_TEXTURE *diffuseTexturePtr, RT64_TEXTURE* normalTexturePtr, RT64_MATERIAL material, unsigned int flags) {
 	assert(instancePtr != nullptr);
 	assert(meshPtr != nullptr);
 	assert(diffuseTexturePtr != nullptr);
@@ -94,6 +103,7 @@ DLLEXPORT void RT64_SetInstance(RT64_INSTANCE *instancePtr, RT64_MESH *meshPtr, 
 	instance->setMaterial(material);
 	instance->setDiffuseTexture(diffuseTexture);
 	instance->setNormalTexture(normalTexture);
+	instance->setFlags(flags);
 }
 
 DLLEXPORT void RT64_DestroyInstance(RT64_INSTANCE *instancePtr) {

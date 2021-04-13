@@ -25,6 +25,7 @@ namespace RT64 {
 			ID3D12Resource* bottomLevelAS;
 			DirectX::XMMATRIX transform;
 			RT64_MATERIAL material;
+			UINT flags;
 		};
 
 		struct CameraBuffer {

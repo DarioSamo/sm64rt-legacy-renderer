@@ -167,7 +167,7 @@ void RT64::View::createTopLevelAS(const std::vector<RenderInstance>& rtInstances
 
 	// Gather all the instances into the builder helper
 	for (size_t i = 0; i < rtInstances.size(); i++) {
-		topLevelASGenerator.AddInstance(rtInstances[i].bottomLevelAS, rtInstances[i].transform, static_cast<UINT>(i), static_cast<UINT>(2 * i));
+		topLevelASGenerator.AddInstance(rtInstances[i].bottomLevelAS, rtInstances[i].transform, static_cast<UINT>(i), static_cast<UINT>(2 * i), rtInstances[i].flags);
 	}
 
 	// As for the bottom-level AS, the building the AS requires some scratch
@@ -434,6 +434,7 @@ void RT64::View::update() {
 			renderInstance.indexBufferView = usedMesh->getIndexBufferView();
 			renderInstance.vertexBufferView = usedMesh->getVertexBufferView();
 			renderInstance.material.diffuseTexIndex = (int)(usedTextures.size());
+			renderInstance.flags = (instance->getFlags() & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE : D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 			usedTextures.push_back(instance->getDiffuseTexture());
 
 			if (instance->getNormalTexture() != nullptr) {
@@ -443,11 +444,11 @@ void RT64::View::update() {
 			else {
 				renderInstance.material.normalTexIndex = -1;
 			}
-
+			
 			if (renderInstance.bottomLevelAS != nullptr) {
 				rtInstances.push_back(renderInstance);
 			}
-			else if (renderInstance.material.background) {
+			else if (instance->getFlags() & RT64_INSTANCE_RASTER_BACKGROUND) {
 				rasterBgInstances.push_back(renderInstance);
 			}
 			else {

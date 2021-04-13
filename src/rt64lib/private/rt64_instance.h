@@ -19,6 +19,7 @@ namespace RT64 {
 		Texture* normalTexture;
 		XMMATRIX transform;
 		RT64_MATERIAL material;
+		unsigned int flags;
 	public:
 		Instance(Scene *scene);
 		virtual ~Instance();
@@ -32,5 +33,7 @@ namespace RT64 {
 		Texture* getNormalTexture() const;
 		void setTransform(float m[4][4]);
 		XMMATRIX getTransform() const;
+		void setFlags(int v);
+		unsigned int getFlags() const;
 	};
 };

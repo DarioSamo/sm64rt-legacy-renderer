@@ -594,7 +594,7 @@ void RT64::Device::preRender() {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
 	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+	const float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	d3dCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 }
 
