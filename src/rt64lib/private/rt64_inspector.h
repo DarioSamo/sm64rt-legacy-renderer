@@ -16,6 +16,7 @@ namespace RT64 {
 		Device* device;
 		ID3D12DescriptorHeap* d3dSrvDescHeap;
 		RT64_MATERIAL* material;
+		std::string materialName;
 		RT64_LIGHT* lights;
 		int *lightCount;
 		int maxLightCount;
@@ -34,7 +35,7 @@ namespace RT64 {
 		void reset();
 		void render(View *activeView, int cursorX, int cursorY);
 		void resize();
-		void setMaterial(RT64_MATERIAL *material);
+		void setMaterial(RT64_MATERIAL *material, const std::string& materialName);
 		void setLights(RT64_LIGHT *lights, int *lightCount, int maxLightCount);
 		void print(const std::string& message);
 		bool handleMessage(UINT msg, WPARAM wParam, LPARAM lParam);

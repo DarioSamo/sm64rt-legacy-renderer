@@ -14,11 +14,13 @@
 namespace RT64 {
 	class Scene;
 	class Inspector;
+	class Instance;
 	class Texture;
 
 	class View {
 	private:
 		struct RenderInstance {
+			Instance *instance;
 			const D3D12_VERTEX_BUFFER_VIEW* vertexBufferView;
 			const D3D12_INDEX_BUFFER_VIEW* indexBufferView;
 			int indexCount;
@@ -53,6 +55,8 @@ namespace RT64 {
 		AllocatedResource rtHitColorResource;
 		AllocatedResource rtHitNormalResource;
 		AllocatedResource rtHitInstanceIdResource;
+		AllocatedResource rtHitInstanceIdReadbackResource;
+		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
 		ID3D12DescriptorHeap *descriptorHeap;
 		UINT descriptorHeapEntryCount;
@@ -98,6 +102,7 @@ namespace RT64 {
 		float getNearDistance() const;
 		float getFarDistance() const;
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
+		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
 		void resize();
 		int getWidth() const;
 		int getHeight() const;

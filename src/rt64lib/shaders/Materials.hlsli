@@ -11,6 +11,7 @@ struct MaterialProperties {
 	float ignoreNormalFactor;
 	float normalMapScale;
 	float reflectionFactor;
+	float reflectionFresnelFactor;
 	float reflectionShineFactor;
 	float refractionFactor;
 	float specularIntensity;
@@ -23,5 +24,4 @@ struct MaterialProperties {
 	float4 diffuseColorMix;
 	float fogMul;
 	float fogOffset;
-	int _padA;
 };

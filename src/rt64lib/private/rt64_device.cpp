@@ -524,7 +524,7 @@ void RT64::Device::createRaytracingPipeline() {
 	pipeline.AddRootSignatureAssociation(d3dSurfaceShadowSignature, { L"ShadowHitGroup" });
 	
 	// Pipeline configuration. Path tracing only needs one recursion level at most.
-	pipeline.SetMaxPayloadSize(1 * sizeof(float));
+	pipeline.SetMaxPayloadSize(2 * sizeof(float));
 	pipeline.SetMaxAttributeSize(2 * sizeof(float));
 	pipeline.SetMaxRecursionDepth(1);
 

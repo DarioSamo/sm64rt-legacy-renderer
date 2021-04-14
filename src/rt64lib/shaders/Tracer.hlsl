@@ -146,7 +146,7 @@ float4 ComputeFog(uint instanceId, float3 position) {
 	return fogColor;
 }
 
-float3 SimpleShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims) {
+float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims) {
 	float2 bgPos = float2(rayDirection.z / sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z), rayDirection.y);
 	float3 bgColor = SampleTexture(gBackground, bgPos, 1, 1, 1).rgb;
 	float4 resColor = float4(0, 0, 0, 1);
@@ -156,7 +156,7 @@ float3 SimpleShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirect
 	uint hitInstanceIds[MAX_HIT_QUERIES];
 	int hit;
 	uint hitBufferIndex;
-	for (hit = 0; hit < hitCount; hit++) {
+	for (hit = hitOffset; hit < hitCount; hit++) {
 		hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
 		hitDistances[hit] = gHitDistance[hitBufferIndex];
 		hitColors[hit] = gHitColor[hitBufferIndex];
@@ -164,7 +164,7 @@ float3 SimpleShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirect
 		hitInstanceIds[hit] = gHitInstanceId[hitBufferIndex];
 	}
 
-	for (hit = 0; hit < hitCount; hit++) {
+	for (hit = hitOffset; hit < hitCount; hit++) {
 		float alphaContrib = (resColor.a * hitColors[hit].a);
 		if (alphaContrib >= EPSILON) {
 			uint instanceId = hitInstanceIds[hit];
@@ -191,7 +191,7 @@ float3 SimpleShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirect
 	return lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a));
 }
 
-uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist) {
+uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint rayHitOffset) {
 	// Fill ray.
 	RayDesc ray;
 	ray.Origin = rayOrigin;
@@ -201,7 +201,8 @@ uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 
 	// Fill payload.
 	HitInfo payload;
-	payload.nhits = 0;
+	payload.nhits = rayHitOffset;
+	payload.ohits = rayHitOffset;
 
 	// Make call.
 	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, ray, payload);
@@ -209,34 +210,17 @@ uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 }
 
 float3 TraceSimple(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims) {
-	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist);
-	return SimpleShadeFromGBuffers(min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims);
+	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, 1);
+	return SimpleShadeFromGBuffers(1, min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims);
 }
 
-float FresnelReflectAmount(float n1, float n2, float3 normal, float3 incident, float reflectivity) {
-	// Schlick aproximation
-	float r0 = (n1 - n2) / (n1 + n2);
-	r0 *= r0;
-	float cosX = -dot(normal, incident);
-	if (n1 > n2) {
-		float n = n1 / n2;
-		float sinT2 = n * n * (1.0 - cosX * cosX);
-		// Total internal reflection
-		if (sinT2 > 1.0)
-			return 1.0;
-
-		cosX = sqrt(1.0 - sinT2);
-	}
-
-	float x = 1.0 - cosX;
-	float ret = r0 + (1.0 - r0) * x * x * x * x * x;
-
-	// adjust reflect multiplier for object reflectivity
-	ret = (reflectivity + (1.0 - reflectivity) * ret);
-	return ret;
+float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
+	// TODO: Probably use a more accurate approximation than this.
+	float ret = pow(clamp(1.0f + dot(normal, incident), EPSILON, 1.0f), 5.0f);
+	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
-float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, float3 rayDirection, float3 position, float3 normal, uint2 launchIndex, uint2 pixelDims) {
+float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, float reflectionFresnelFactor, float3 rayDirection, float3 position, float3 normal, uint2 launchIndex, uint2 pixelDims) {
 	float3 reflectionDirection = reflect(rayDirection, normal);
 	float4 reflectionColor = float4(TraceSimple(position, reflectionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims), 0.0f);
 	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);
@@ -244,9 +228,7 @@ float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, fl
 	const float BlendingExponent = 3.0f;
 	reflectionColor.rgb = lerp(reflectionColor.rgb, HighlightColor, pow(max(reflectionDirection.y, 0.0f) * reflectionShineFactor, BlendingExponent));
 	reflectionColor.rgb = lerp(reflectionColor.rgb, ShadowColor, pow(max(-reflectionDirection.y, 0.0f) * reflectionShineFactor, BlendingExponent));
-	const float N1 = 1.0f;
-	const float N2 = 1.33f;
-	reflectionColor.a = FresnelReflectAmount(N1, N2, normal, rayDirection, reflectionFactor);
+	reflectionColor.a = FresnelReflectAmount(normal, rayDirection, reflectionFactor, reflectionFresnelFactor);
 	return reflectionColor;
 }
 
@@ -280,8 +262,9 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 			// Add reflections.
 			float reflectionFactor = instanceProps[instanceId].materialProperties.reflectionFactor;
 			if (reflectionFactor > 0.0f) {
+				float reflectionFresnelFactor = instanceProps[instanceId].materialProperties.reflectionFresnelFactor;
 				float reflectionShineFactor = instanceProps[instanceId].materialProperties.reflectionShineFactor;
-				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, rayDirection, vertexPosition, vertexNormal, launchIndex, pixelDims);
+				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, launchIndex, pixelDims);
 				hitColors[hit].rgb = lerp(hitColors[hit].rgb, reflectionColor.rgb, reflectionColor.a);
 			}
 
@@ -306,8 +289,9 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 			float3 refractionDirection = refract(rayDirection, vertexNormal, refractionFactor);
 			
 			// Perform another trace and fill the buffers again. Restart the for loop.
-			hitCount = TraceSurface(vertexPosition, refractionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE);
-			for (hit = 0; hit < hitCount; hit++) {
+			uint hitOffset = hit + 1;
+			hitCount = TraceSurface(vertexPosition, refractionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, hitOffset);
+			for (hit = hitOffset; hit < hitCount; hit++) {
 				hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
 				hitDistances[hit] = gHitDistance[hitBufferIndex];
 				hitColors[hit] = gHitColor[hitBufferIndex];
@@ -315,7 +299,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 				hitInstanceIds[hit] = gHitInstanceId[hitBufferIndex];
 			}
 
-			hit = -1;
+			hit = hitOffset - 1;
 			rayOrigin = vertexPosition;
 			rayDirection = refractionDirection;
 			maxRefractions--;
@@ -331,7 +315,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 }
 
 float3 TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims) {
-	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist);
+	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, 0);
 	return FullShadeFromGBuffers(min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims);
 }
 

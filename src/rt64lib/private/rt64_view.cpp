@@ -32,6 +32,7 @@ RT64::View::View(Scene *scene) {
 	cameraBufferSize = 0;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
+	rtHitInstanceIdReadbackUpdated = false;
 
 	setPerspectiveLookAt({ 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0.1f, 1000.0f);
 
@@ -80,11 +81,13 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	rtOutputResource = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr);
 	
-	UINT64 hitCountBufferSize = scene->getDevice()->getWidth() * scene->getDevice()->getHeight() * MaxQueries;
-	rtHitDistanceResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSize * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitColorResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSize * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitNormalResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSize * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitInstanceIdResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSize * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	UINT64 hitCountBufferSizeOne = scene->getDevice()->getWidth() * scene->getDevice()->getHeight();
+	UINT64 hitCountBufferSizeAll = hitCountBufferSizeOne * MaxQueries;
+	rtHitDistanceResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitColorResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitNormalResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitInstanceIdResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitInstanceIdReadbackResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, hitCountBufferSizeOne * 2, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 	// Create the RTVs for the raster resources.
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
@@ -427,6 +430,7 @@ void RT64::View::update() {
 
 		for (Instance *instance : scene->getInstances()) {
 			usedMesh = instance->getMesh();
+			renderInstance.instance = instance;
 			renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
 			renderInstance.transform = instance->getTransform();
 			renderInstance.material = instance->getMaterial();
@@ -600,6 +604,9 @@ void RT64::View::render() {
 		targetBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3d12RenderTarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		d3dCommandList->ResourceBarrier(1, &targetBarrier);
 	}
+
+	// Clear flags.
+	rtHitInstanceIdReadbackUpdated = false;
 }
 
 void RT64::View::renderInspector(Inspector *inspector) {
@@ -742,6 +749,45 @@ RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {
 	return { XMVectorGetX(rayDirection), XMVectorGetY(rayDirection), XMVectorGetZ(rayDirection) };
 }
 
+RT64_INSTANCE *RT64::View::getRaytracedInstanceAt(int x, int y) {
+	// TODO: This doesn't handle cases properly when nothing was hit at the target pixel and returns
+	// the first instance instead. We need to determine what's the best solution for that.
+
+	// Copy instance id resource to readback if necessary.
+	if (!rtHitInstanceIdReadbackUpdated) {
+		auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
+		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceIdResource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		d3dCommandList->ResourceBarrier(1, &rtBarrier);
+		d3dCommandList->CopyResource(rtHitInstanceIdReadbackResource.Get(), rtHitInstanceIdResource.Get());
+		rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceIdResource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		d3dCommandList->ResourceBarrier(1, &rtBarrier);
+		scene->getDevice()->waitForGPU();
+		rtHitInstanceIdReadbackUpdated = true;
+	}
+
+	// Check resource's bounds.
+	int width = scene->getDevice()->getWidth();
+	int height = scene->getDevice()->getHeight();
+	if ((x < 0) || (x >= width) || (y < 0) || (y >= height)) {
+		return nullptr;
+	}
+	
+	// Map the resource read the pixel.
+	size_t index = (width * y + x) * 2;
+	uint16_t instanceId = 0;
+	uint8_t *pData;
+	ThrowIfFailed(rtHitInstanceIdReadbackResource.Get()->Map(0, nullptr, (void **)(&pData)));
+	memcpy(&instanceId, pData + index, sizeof(instanceId));
+	rtHitInstanceIdReadbackResource.Get()->Unmap(0, nullptr);
+	
+	// Check the matching instance.
+	if (instanceId >= rtInstances.size()) {
+		return nullptr;
+	}
+	
+	return (RT64_INSTANCE *)(rtInstances[instanceId].instance);
+}
+
 void RT64::View::resize() {
 	createOutputBuffers();
 }
@@ -766,6 +812,12 @@ DLLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_VECTOR3 eyePosit
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setPerspectiveLookAt(eyePosition, eyeFocus, eyeUpDirection, fovRadians, nearDist, farDist);
+}
+
+DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int x, int y) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	return view->getRaytracedInstanceAt(x, y);
 }
 
 DLLEXPORT void RT64_DestroyView(RT64_VIEW *viewPtr) {

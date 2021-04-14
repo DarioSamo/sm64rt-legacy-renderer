@@ -91,6 +91,7 @@ void RT64::Inspector::resize() {
 void RT64::Inspector::renderMaterialInspector() {
     if (material != nullptr) {
         ImGui::Begin("Material Inspector");
+        ImGui::Text("Name: %s", materialName.c_str());
 
         auto pushCommon = [](const char* name, int mask, int* attributes) {
             bool checkboxValue = *attributes & mask;
@@ -142,10 +143,20 @@ void RT64::Inspector::renderMaterialInspector() {
             
             ImGui::PopID();
         };
+
+        auto pushInt = [pushCommon](const char *name, int mask, int *v, int *attributes) {
+            if (pushCommon(name, mask, attributes)) {
+                ImGui::SameLine();
+                ImGui::InputInt("V", v);
+            }
+
+            ImGui::PopID();
+        };
         
         pushFloat("Ignore normal factor", RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR, &material->ignoreNormalFactor, &material->enabledAttributes, 1.0f, 0.0f, 1.0f);
         pushFloat("Normal map scale", RT64_ATTRIBUTE_NORMAL_MAP_SCALE, &material->normalMapScale, &material->enabledAttributes, 0.01f, -50.0f, 50.0f);
         pushFloat("Reflection factor", RT64_ATTRIBUTE_REFLECTION_FACTOR, &material->reflectionFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
+        pushFloat("Reflection fresnel factor", RT64_ATTRIBUTE_REFLECTION_FRESNEL_FACTOR, &material->reflectionFresnelFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Reflection shine factor", RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR, &material->reflectionShineFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Refraction factor", RT64_ATTRIBUTE_REFRACTION_FACTOR, &material->refractionFactor, &material->enabledAttributes, 0.01f, 0.0f, 2.0f);
         pushFloat("Specular intensity", RT64_ATTRIBUTE_SPECULAR_INTENSITY, &material->specularIntensity, &material->enabledAttributes, 0.01f, 0.0f, 100.0f);
@@ -154,6 +165,7 @@ void RT64::Inspector::renderMaterialInspector() {
         pushFloat("Shadow alpha multiplier", RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER, &material->shadowAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushVector3("Self light", RT64_ATTRIBUTE_SELF_LIGHT, &material->selfLight, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushVector4("Diffuse color mix", RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX, &material->diffuseColorMix, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
+        pushInt("Light group mask bits", RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS, (int *)(&material->lightGroupMaskBits), &material->enabledAttributes);
 
         ImGui::End();
     }
@@ -283,8 +295,9 @@ void RT64::Inspector::setupWithView(View *view, int cursorX, int cursorY) {
     appData.m_keyDown[Im3d::Mouse_Left] = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 }
 
-void RT64::Inspector::setMaterial(RT64_MATERIAL* material) {
+void RT64::Inspector::setMaterial(RT64_MATERIAL* material, const std::string &materialName) {
     this->material = material;
+    this->materialName = materialName;
 }
 
 void RT64::Inspector::setLights(RT64_LIGHT* lights, int *lightCount, int maxLightCount) {
@@ -318,10 +331,10 @@ DLLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT ms
     return inspector->handleMessage(msg, wParam, lParam);
 }
 
-DLLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material) {
+DLLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char *materialName) {
     assert(inspectorPtr != nullptr);
     RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    inspector->setMaterial(material);
+    inspector->setMaterial(material, std::string(materialName));
 }
 
 DLLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT *lights, int *lightCount, int maxLightCount) {

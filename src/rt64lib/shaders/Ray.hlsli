@@ -6,6 +6,7 @@
 
 struct HitInfo {
 	uint nhits;
+	uint ohits;
 };
 
 struct Attributes {

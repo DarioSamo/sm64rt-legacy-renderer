@@ -51,9 +51,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		PostQuitMessage(0);
 		break;
 	case WM_PAINT:
-		RT64.lib.SetViewPerspective(RT64.view, { 1.0f, 0.5f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0 }, (45.0f * M_PI) / 180.0f, 0.1f, 100.0f);
+		RT64.lib.SetViewPerspective(RT64.view, { 1.0f, 0.5f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0 }, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
 
-		RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods);
+		RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
 
 		RT64.frameMaterial = RT64.baseMaterial;
 		RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
@@ -176,6 +176,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.normalMapScale = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
+	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
 	RT64.baseMaterial.specularIntensity = 1.0f;
