@@ -32,6 +32,7 @@ RT64::View::View(Scene *scene) {
 	viewParamsBufferData.frameCount = 0;
 	viewParamsBufferData.softLightSamples = 1;
 	viewParamsBufferData.giBounces = 1;
+	viewParamsBufferData.ambGIMixWeight = 0.8f;
 	viewParamsBufferSize = 0;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
@@ -759,6 +760,14 @@ void RT64::View::setGIBounces(int v) {
 
 int RT64::View::getGIBounces() const {
 	return viewParamsBufferData.giBounces;
+}
+
+void RT64::View::setAmbGIMixWeight(float v) {
+	viewParamsBufferData.ambGIMixWeight = v;
+}
+
+float RT64::View::getAmbGIMixWeight() const {
+	return viewParamsBufferData.ambGIMixWeight;
 }
 
 RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {

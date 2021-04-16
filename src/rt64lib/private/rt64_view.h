@@ -39,6 +39,7 @@ namespace RT64 {
 			unsigned int frameCount;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
+			float ambGIMixWeight;
 		};
 
 		Scene *scene;
@@ -108,6 +109,8 @@ namespace RT64 {
 		int getSoftLightSamples() const;
 		void setGIBounces(int v);
 		int getGIBounces() const;
+		void setAmbGIMixWeight(float v);
+		float getAmbGIMixWeight() const;
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
 		void resize();

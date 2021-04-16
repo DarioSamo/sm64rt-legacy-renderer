@@ -95,10 +95,13 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::Begin("View Params Inspector");
     int softLightSamples = view->getSoftLightSamples();
     int giBounces = view->getGIBounces();
-    ImGui::DragInt("Soft light samples", &softLightSamples, 1, 0, 32);
-    ImGui::DragInt("Global illumination bounces", &giBounces, 1, 0, 32);
+	float ambGIMix = view->getAmbGIMixWeight();
+    ImGui::DragInt("Light samples", &softLightSamples, 1, 0, 32);
+    ImGui::DragInt("GI Bounces", &giBounces, 1, 0, 32);
+	ImGui::DragFloat("Ambient GI Mix", &ambGIMix, 0.01f, 0.0f, 1.0f);
     view->setSoftLightSamples(softLightSamples);
     view->setGIBounces(giBounces);
+	view->setAmbGIMixWeight(ambGIMix);
     ImGui::End();
 }
 
