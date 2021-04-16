@@ -304,6 +304,12 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 			float3 ambientLight = SceneLights[0].diffuseColor;
 			float lumAmb = dot(ambientLight, float3(1.0f, 1.0f, 1.0f));
 			float lumGI = dot(resultGiLight, float3(1.0f, 1.0f, 1.0f));
+			
+			// Assign bigger influence to GI.
+			const float GiWeight = 0.8f;
+			lumAmb = lumAmb * (1.0f - GiWeight);
+			lumGI = lumGI * GiWeight;
+
 			float invSum = 1.0f / (lumAmb + lumGI);
 			resultLight += ambientLight * lumAmb * invSum + resultGiLight * lumGI * invSum;
 
