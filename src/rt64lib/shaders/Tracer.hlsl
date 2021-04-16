@@ -17,6 +17,7 @@
 #define RAY_MIN_DISTANCE					0.2f
 #define RAY_MAX_DISTANCE					100000.0f
 #define MAX_LIGHTS							16
+#define FULL_QUALITY_ALPHA					0.999f
 
 float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist) {
 	RayDesc ray;
@@ -304,8 +305,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 		if (alphaContrib >= EPSILON) {
 			float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
-			bool highQuality = (hitColorA > (1.0f - EPSILON));
-			if (highQuality) {
+			if ((hitColorA >= FULL_QUALITY_ALPHA) && (maxFullQuality > 0)) {
 				resultLight += ComputeLightsFull(rayDirection, instanceId, vertexPosition, vertexNormal, seed + hit);
 				maxFullQuality--;
 
