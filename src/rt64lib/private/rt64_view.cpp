@@ -32,7 +32,7 @@ RT64::View::View(Scene *scene) {
 	viewParamsBufferData.frameCount = 0;
 	viewParamsBufferData.softLightSamples = 1;
 	viewParamsBufferData.giBounces = 1;
-	viewParamsBufferData.maxLightSamples = 8;
+	viewParamsBufferData.maxLightSamples = 12;
 	viewParamsBufferData.ambGIMixWeight = 0.8f;
 	viewParamsBufferSize = 0;
 	perspectiveControlActive = false;
