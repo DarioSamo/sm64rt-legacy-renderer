@@ -11,5 +11,6 @@ cbuffer ViewParams : register(b0) {
 	uint frameCount;
 	uint softLightSamples;
 	uint giBounces;
+	uint maxLightSamples;
 	float ambGIMixWeight;
 }

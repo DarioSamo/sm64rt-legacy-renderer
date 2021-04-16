@@ -16,11 +16,7 @@
 #define M_PI								3.14159265f
 #define RAY_MIN_DISTANCE					0.2f
 #define RAY_MAX_DISTANCE					100000.0f
-
-// Disable multisampling for any hits that contribute less than the
-// percentage specified in the constant. Helps performance when multiple
-// layers of transparent effects are overlaid on top of each other.
-#define MULTISAMPLE_MIN_ALPHA_CONTRIB		0.4f
+#define MAX_LIGHTS							16
 
 float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist) {
 	RayDesc ray;
@@ -35,112 +31,144 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	return shadowPayload.shadowHit;
 }
 
-float3 ComputeSampleFactors(float3 rayDirection, float3 perpX, float3 perpY, float3 position, float3 normal, float specularIntensity, float specularExponent,
-	float ignoreNormalFactor, float3 lightPosition, float lightRadius, float lightAttenuation, float pointRadius, float2 sampleCoordinate, float maxShadowDist)
-{
-	float3 samplePosition = lightPosition + perpX * sampleCoordinate.x * pointRadius + perpY * sampleCoordinate.y * pointRadius;
-	float sampleDistance = length(position - samplePosition);
-	float3 sampleDirection = normalize(samplePosition - position);
-	float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
-	float sampleLambertFactor = lerp(max(dot(normal, sampleDirection), 0.0f), 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
-	float3 reflectedLight = reflect(-sampleDirection, normal);
-	float sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, maxShadowDist);
-	return float3(
-		sampleLambertFactor,
-		specularIntensity * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent),
-		sampleShadowFactor
-	);
-}
-
-float3 ComputeLightingFactors(float3 rayDirection, float3 position, float3 normal, float specularIntensity, float specularExponent, float ignoreNormalFactor,
-	uint l, bool multisamplingEnabled, inout uint seed)
-{
-	float3 lightingFactors = float3(0.0f, 0.0f, 0.0f);
+float CalculateLightIntensitySimple(uint l, float3 position) {
 	float3 lightPosition = SceneLights[l].position;
-	float3 lightDelta = position - lightPosition;
-	float lightDistance = length(lightDelta);
 	float lightRadius = SceneLights[l].attenuationRadius;
 	float lightAttenuation = SceneLights[l].attenuationExponent;
-	float lightPointRadius = multisamplingEnabled ? SceneLights[l].pointRadius : 0.0f;
-	if (lightDistance < lightRadius) {
-		float3 lightDirection = normalize(lightDelta);
+	float lightDistance = length(position - lightPosition);
+	float3 lightDirection = normalize(lightPosition - position);
+	float sampleIntensityFactor = pow(max(1.0f - (lightDistance / lightRadius), 0.0f), lightAttenuation);
+	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
+}
+
+float3 ComputeLightsSimple(float3 rayDirection, uint instanceId, float3 position, float3 normal, uint seed) {
+	float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+	
+	// Find the light with the biggest intensity.
+	uint lightCount, lightStride;
+	uint sLightIndex = 0;
+	float sLightIntensity = EPSILON;
+	SceneLights.GetDimensions(lightCount, lightStride);
+	for (uint l = 1; l < lightCount; l++) {
+		if (lightGroupMaskBits & SceneLights[l].groupBits) {
+			float lightIntensityFactor = CalculateLightIntensitySimple(l, position);
+			if (sLightIntensity < lightIntensityFactor) {
+				sLightIntensity = lightIntensityFactor;
+				sLightIndex = l;
+			}
+		}
+	}
+
+	// Sample that light with a simplified shading model.
+	if (sLightIndex > 0) {
+		float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
+		float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
+		float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
+		float3 lightPosition = SceneLights[sLightIndex].position;
+		float3 lightDirection = normalize(lightPosition - position);
+		float lightRadius = SceneLights[sLightIndex].attenuationRadius;
+		float lightAttenuation = SceneLights[sLightIndex].attenuationExponent;
+		float shadowOffset = SceneLights[sLightIndex].shadowOffset;
+		float2 sampleCoordinate = float2(nextRand(seed), nextRand(seed)) * 2.0f - 1.0f;
+		sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
+		float lightPointRadius = (softLightSamples > 0) ? SceneLights[sLightIndex].pointRadius : 0.0f;
 		float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
 		if (all(perpX == 0.0f)) {
 			perpX.x = 1.0;
 		}
 
 		float3 perpY = cross(perpX, -lightDirection);
-		float maxShadowDist = lightDistance - SceneLights[l].shadowOffset;
-		float shadowFactorVariance = 0.0f;
-
-		// Always compute first sample.
-		const uint maxSamples = multisamplingEnabled ? softLightSamples : 1;
-		uint samples = maxSamples;
-		while (samples > 0) {
-			// Random point on the light's disk.
-			float2 sampleCoordinate = float2(nextRand(seed), nextRand(seed)) * 2.0f - 1.0f;
-			sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
-			float3 sampleFactors = ComputeSampleFactors(rayDirection, perpX, perpY, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, lightPosition, lightRadius, lightAttenuation, lightPointRadius, sampleCoordinate, maxShadowDist);
-			lightingFactors += sampleFactors / maxSamples;
-			samples--;
-		}
-	}
-
-	return lightingFactors;
-}
-
-float3 ComputeLightsSimple(float3 rayDirection, uint instanceId, float3 position, float3 normal, inout uint seed) {
-	float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
-	float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
-	float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
-	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
-	float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
-
-	// Find the light with the highest lambert factor.
-	uint lightCount, lightStride;
-	uint winnerLight = 0;
-	float winnerLightLambertFactor = EPSILON;
-	SceneLights.GetDimensions(lightCount, lightStride);
-	for (uint l = 1; l < lightCount; l++) {
-		if (lightGroupMaskBits & SceneLights[l].groupBits) {
-			float3 lightPosition = SceneLights[l].position;
-			float lightRadius = SceneLights[l].attenuationRadius;
-			float lightAttenuation = SceneLights[l].attenuationExponent;
-			float lightDistance = length(position - lightPosition);
-			float3 lightDirection = normalize(lightPosition - position);
-			float sampleIntensityFactor = pow(max(1.0f - (lightDistance / lightRadius), 0.0f), lightAttenuation);
-			float lightLambertFactor = lerp(max(dot(normal, lightDirection), 0.0f), 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
-			if (winnerLightLambertFactor < lightLambertFactor) {
-				winnerLightLambertFactor = lightLambertFactor;
-				winnerLight = l;
-			}
-		}
-	}
-
-	// Only process the most intense light.
-	if (winnerLight > 0) {
-		float3 lightingFactors = ComputeLightingFactors(rayDirection, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, winnerLight, false, seed);
-		resultLight += (SceneLights[winnerLight].diffuseColor * lightingFactors.x + SceneLights[winnerLight].diffuseColor * SceneLights[winnerLight].specularIntensity * lightingFactors.y) * lightingFactors.z;
+		float3 samplePosition = lightPosition + perpX * sampleCoordinate.x * lightPointRadius + perpY * sampleCoordinate.y * lightPointRadius;
+		float sampleDistance = length(position - samplePosition);
+		float3 sampleDirection = normalize(samplePosition - position);
+		float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
+		float3 reflectedLight = reflect(-sampleDirection, normal);
+		float sampleLambertFactor = lerp(max(dot(normal, sampleDirection), 0.0f), 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
+		float sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
+		float sampleSpecularityFactor = specularIntensity * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+		resultLight += (SceneLights[sLightIndex].diffuseColor * sampleLambertFactor + SceneLights[sLightIndex].diffuseColor * SceneLights[sLightIndex].specularIntensity * sampleSpecularityFactor) * sampleShadowFactor;
 	}
 
 	return resultLight;
 }
 
-float3 ComputeLightsFull(float3 rayDirection, uint instanceId, float3 position, float3 normal, bool multisamplingEnabled, inout uint seed) {
+float3 ComputeLightsFull(float3 rayDirection, uint instanceId, float3 position, float3 normal, uint seed) {
+	float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+
+	// Build an array of the n closest lights by measuring their intensity.
+	uint sMaxLightCount = min(maxLightSamples, MAX_LIGHTS);
+	float sLightIntensityFactors[MAX_LIGHTS + 1];
+	uint sLightIndices[MAX_LIGHTS + 1];
+	uint sLightCount = 0;
+	uint gLightCount, gLightStride;
+	SceneLights.GetDimensions(gLightCount, gLightStride);
+	for (uint l = 1; l < gLightCount; l++) {
+		if (lightGroupMaskBits & SceneLights[l].groupBits) {
+			float lightIntensityFactor = CalculateLightIntensitySimple(l, position);
+			if (lightIntensityFactor > EPSILON) {
+				uint hi = min(sLightCount, sMaxLightCount);
+				uint lo = hi - 1;
+				while ((hi > 0) && (lightIntensityFactor > sLightIntensityFactors[lo])) {
+					sLightIntensityFactors[hi] = sLightIntensityFactors[lo];
+					sLightIndices[hi] = sLightIndices[lo];
+					hi--;
+					lo--;
+				}
+				
+				sLightIntensityFactors[hi] = lightIntensityFactor;
+				sLightIndices[hi] = l;
+				sLightCount++;
+			}
+		}
+	}
+	
 	float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
 	float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
 	float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
-	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
-	float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+	float3 lightingFactors;
+	sLightCount = min(sLightCount, sMaxLightCount);
+	for (uint s = 0; s < sLightCount; s++) {
+		uint l = sLightIndices[s];
 
-	// Light array.
-	uint lightCount, lightStride;
-	SceneLights.GetDimensions(lightCount, lightStride);
-	for (uint l = 1; l < lightCount; l++) {
-		if (lightGroupMaskBits & SceneLights[l].groupBits) {
-			float3 lightingFactors = ComputeLightingFactors(rayDirection, position, normal, specularIntensity, specularExponent, ignoreNormalFactor, l, multisamplingEnabled, seed);
-			resultLight += (SceneLights[l].diffuseColor * lightingFactors.x + SceneLights[l].diffuseColor * SceneLights[l].specularIntensity * lightingFactors.y) * lightingFactors.z;
+		float3 lightPosition = SceneLights[l].position;
+		float3 lightDirection = normalize(lightPosition - position);
+		float lightRadius = SceneLights[l].attenuationRadius;
+		float lightAttenuation = SceneLights[l].attenuationExponent;
+		float lightPointRadius = (softLightSamples > 0) ? SceneLights[l].pointRadius : 0.0f;
+		float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
+		if (all(perpX == 0.0f)) {
+			perpX.x = 1.0;
 		}
+
+		float3 perpY = cross(perpX, -lightDirection);
+		float shadowOffset = SceneLights[l].shadowOffset;
+		const uint maxSamples = max(softLightSamples, 1);
+		uint samples = maxSamples;
+		float lLambertFactor = 0.0f;
+		float lSpecularityFactor = 0.0f;
+		float lShadowFactor = 0.0f;
+		while (samples > 0) {
+			float2 sampleCoordinate = float2(nextRand(seed), nextRand(seed)) * 2.0f - 1.0f;
+			sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
+
+			float3 samplePosition = lightPosition + perpX * sampleCoordinate.x * lightPointRadius + perpY * sampleCoordinate.y * lightPointRadius;
+			float sampleDistance = length(position - samplePosition);
+			float3 sampleDirection = normalize(samplePosition - position);
+			float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
+			float3 reflectedLight = reflect(-sampleDirection, normal);
+			float sampleLambertFactor = lerp(max(dot(normal, sampleDirection), 0.0f), 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
+			float sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
+			float sampleSpecularityFactor = specularIntensity * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+			lLambertFactor += sampleLambertFactor / maxSamples;
+			lSpecularityFactor += sampleSpecularityFactor / maxSamples;
+			lShadowFactor += sampleShadowFactor / maxSamples;
+
+			samples--;
+		}
+
+		resultLight += (SceneLights[l].diffuseColor * lLambertFactor + SceneLights[l].diffuseColor * SceneLights[l].specularIntensity * lSpecularityFactor) * lShadowFactor;
 	}
 
 	return resultLight;
@@ -161,7 +189,7 @@ float4 ComputeFog(uint instanceId, float3 position) {
 	return fogColor;
 }
 
-float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, inout uint seed) {
+float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	float2 bgPos = float2(rayDirection.z / sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z), rayDirection.y);
 	float3 bgColor = SampleTexture(gBackground, bgPos, 1, 1, 1).rgb;
 	float4 resColor = float4(0, 0, 0, 1);
@@ -185,7 +213,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 			uint instanceId = hitInstanceIds[hit];
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(hitDistances[hit], instanceId);
 			float3 vertexNormal = hitNormals[hit].xyz;
-			float3 resultLight = ComputeLightsSimple(rayDirection, instanceId, vertexPosition, vertexNormal, seed);
+			float3 resultLight = ComputeLightsSimple(rayDirection, instanceId, vertexPosition, vertexNormal, seed + hit);
 			resultLight += SceneLights[0].diffuseColor;
 			hitColors[hit].rgb *= resultLight;
 
@@ -225,7 +253,7 @@ uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	return payload.nhits;
 }
 
-float3 TraceSimple(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, inout uint seed) {
+float3 TraceSimple(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, 1);
 	return SimpleShadeFromGBuffers(1, min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, seed);
 }
@@ -236,7 +264,7 @@ float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, f
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
-float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, float reflectionFresnelFactor, float3 rayDirection, float3 position, float3 normal, uint2 launchIndex, uint2 pixelDims, inout uint seed) {
+float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, float reflectionFresnelFactor, float3 rayDirection, float3 position, float3 normal, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	float3 reflectionDirection = reflect(rayDirection, normal);
 	float4 reflectionColor = float4(TraceSimple(position, reflectionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, seed), 0.0f);
 	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);
@@ -248,7 +276,7 @@ float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, fl
 	return reflectionColor;
 }
 
-float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, inout uint seed) {
+float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	float3 bgColor = gBackground[launchIndex].rgb;
 	float4 resColor = float4(0, 0, 0, 1);
 	float hitDistances[MAX_HIT_QUERIES];
@@ -266,16 +294,33 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 	}
 	
 	uint maxRefractions = 1;
-	uint maxGiSamples = giBounces;
-	bool multisamplingEnabled = softLightSamples > 0;
+	uint maxFullQuality = 1;
 	for (hit = 0; hit < hitCount; hit++) {
 		uint instanceId = hitInstanceIds[hit];
 		float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(hitDistances[hit], instanceId);
 		float3 vertexNormal = hitNormals[hit].xyz;
-		float alphaContrib = (resColor.a * hitColors[hit].a);
+		float hitColorA = hitColors[hit].a;
+		float alphaContrib = (resColor.a * hitColorA);
 		if (alphaContrib >= EPSILON) {
-			bool highQuality = alphaContrib >= MULTISAMPLE_MIN_ALPHA_CONTRIB;
-			float3 resultLight = ComputeLightsFull(rayDirection, instanceId, vertexPosition, vertexNormal, multisamplingEnabled && highQuality, seed);
+			float3 resultLight = float3(0.0f, 0.0f, 0.0f);
+			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
+			bool highQuality = (hitColorA > (1.0f - EPSILON));
+			if (highQuality) {
+				resultLight += ComputeLightsFull(rayDirection, instanceId, vertexPosition, vertexNormal, seed + hit);
+				maxFullQuality--;
+
+				// Global illumination.
+				uint giSamples = giBounces;
+				while (giSamples > 0) {
+					float3 bounceDir = getCosHemisphereSample(seed, vertexNormal);
+					float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, seed + giSamples);
+					resultGiLight += bounceColor / giBounces;
+					giSamples--;
+				}
+			}
+			else {
+				resultLight += ComputeLightsSimple(rayDirection, instanceId, vertexPosition, vertexNormal, seed + hit);
+			}
 
 			// Eye light.
 			float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
@@ -289,22 +334,11 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 			float3 eyeLightSpecularColor = float3(0.05f, 0.05f, 0.05f);
 			resultLight += (eyeLightDiffuseColor * eyeLightLambertFactor + eyeLightSpecularColor * eyeLightSpecularFactor);
 
-			// Global illumination.
-			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
-			if (highQuality) {
-				while (maxGiSamples > 0) {
-					float3 bounceDir = getCosHemisphereSample(seed, vertexNormal);
-					float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, seed);
-					resultGiLight += bounceColor / giBounces;
-					maxGiSamples--;
-				}
-			}
-			
 			// Mix ambient light and GI.
 			float3 ambientLight = SceneLights[0].diffuseColor;
 			float lumAmb = dot(ambientLight, float3(1.0f, 1.0f, 1.0f));
 			float lumGI = dot(resultGiLight, float3(1.0f, 1.0f, 1.0f));
-			
+
 			// Assign intensity based on weight configuration.
 			lumAmb = lumAmb * (1.0f - ambGIMixWeight);
 			lumGI = lumGI * ambGIMixWeight;
@@ -319,7 +353,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 			if (reflectionFactor > 0.0f) {
 				float reflectionFresnelFactor = instanceProps[instanceId].materialProperties.reflectionFresnelFactor;
 				float reflectionShineFactor = instanceProps[instanceId].materialProperties.reflectionShineFactor;
-				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, launchIndex, pixelDims, seed);
+				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, launchIndex, pixelDims, seed + hit);
 				hitColors[hit].rgb = lerp(hitColors[hit].rgb, reflectionColor.rgb, reflectionColor.a);
 			}
 
@@ -369,7 +403,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 	return lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a));
 }
 
-float3 TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, inout uint seed) {
+float3 TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, 0);
 	return FullShadeFromGBuffers(min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, seed);
 }

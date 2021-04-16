@@ -39,6 +39,7 @@ namespace RT64 {
 			unsigned int frameCount;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
+			unsigned int maxLightSamples;
 			float ambGIMixWeight;
 		};
 
@@ -109,6 +110,8 @@ namespace RT64 {
 		int getSoftLightSamples() const;
 		void setGIBounces(int v);
 		int getGIBounces() const;
+		void setMaxLightSamples(int v);
+		int getMaxLightSamples() const;
 		void setAmbGIMixWeight(float v);
 		float getAmbGIMixWeight() const;
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
