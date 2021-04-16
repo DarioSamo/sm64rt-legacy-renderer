@@ -2,8 +2,8 @@
 // Im3d Dx12
 //
 
-#include "Camera.hlsli"
 #include "Im3DCommon.hlsli"
+#include "ViewParams.hlsli"
 
 struct VS_INPUT {
 	float4 m_positionSize : POSITION_SIZE;

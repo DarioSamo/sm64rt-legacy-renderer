@@ -178,7 +178,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\Camera.hlsli">
+    <None Include="shaders\ViewParams.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\GlobalBuffers.hlsli">
@@ -218,6 +218,9 @@
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Im3DCommon.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Random.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
   </ItemGroup>

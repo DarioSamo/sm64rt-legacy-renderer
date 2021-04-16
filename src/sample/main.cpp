@@ -101,7 +101,7 @@ void setupRT64Scene() {
 	RT64.lights[0].diffuseColor = { 0.3f, 0.35f, 0.45f };
 	RT64.lights[1].position = { 15000.0f, 30000.0f, -15000.0f };
 	RT64.lights[1].attenuationRadius = 1e9;
-	RT64.lights[1].pointRadius = 1000.0f;
+	RT64.lights[1].pointRadius = 5000.0f;
 	RT64.lights[1].diffuseColor = { 0.8f, 0.75f, 0.65f };
 	RT64.lights[1].specularIntensity = 1.0f;
 	RT64.lights[1].shadowOffset = 0.0f;

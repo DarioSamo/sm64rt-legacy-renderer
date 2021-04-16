@@ -30,12 +30,15 @@ namespace RT64 {
 			UINT flags;
 		};
 
-		struct CameraBuffer {
+		struct ViewParamsBuffer {
 			XMMATRIX view;
 			XMMATRIX projection;
 			XMMATRIX viewI;
 			XMMATRIX projectionI;
 			float viewport[4];
+			unsigned int frameCount;
+			unsigned int softLightSamples;
+			unsigned int giBounces;
 		};
 
 		Scene *scene;
@@ -63,9 +66,9 @@ namespace RT64 {
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;
-		AllocatedResource cameraBufferResource;
-		CameraBuffer cameraBufferData;
-		uint32_t cameraBufferSize;
+		AllocatedResource viewParamBufferResource;
+		ViewParamsBuffer viewParamsBufferData;
+		uint32_t viewParamsBufferSize;
 		AllocatedResource activeInstancesBufferProps;
 		uint32_t activeInstancesBufferPropsSize;
 		std::vector<RenderInstance> rasterBgInstances;
@@ -84,8 +87,8 @@ namespace RT64 {
 		void createTopLevelAS(const std::vector<RenderInstance> &rtInstances);
 		void createShaderResourceHeap();
 		void createShaderBindingTable();
-		void createCameraBuffer();
-		void updateCameraBuffer();
+		void createViewParamsBuffer();
+		void updateViewParamsBuffer();
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -101,6 +104,10 @@ namespace RT64 {
 		float getFOVRadians() const;
 		float getNearDistance() const;
 		float getFarDistance() const;
+		void setSoftLightSamples(int v);
+		int getSoftLightSamples() const;
+		void setGIBounces(int v);
+		int getGIBounces() const;
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
 		void resize();

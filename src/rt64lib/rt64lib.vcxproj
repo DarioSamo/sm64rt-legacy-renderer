@@ -63,7 +63,8 @@
     <ClCompile Include="private\rt64_view.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\Camera.hlsli" />
+    <None Include="shaders\Random.hlsli" />
+    <None Include="shaders\ViewParams.hlsli" />
     <None Include="shaders\GlobalBuffers.hlsli" />
     <None Include="shaders\GlobalHitBuffers.hlsli" />
     <None Include="shaders\Im3DCommon.hlsli" />

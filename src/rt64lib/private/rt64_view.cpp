@@ -29,21 +29,19 @@ RT64::View::View(Scene *scene) {
 	descriptorHeapEntryCount = 0;
 	sbtStorageSize = 0;
 	activeInstancesBufferPropsSize = 0;
-	cameraBufferSize = 0;
+	viewParamsBufferData.frameCount = 0;
+	viewParamsBufferData.softLightSamples = 1;
+	viewParamsBufferData.giBounces = 1;
+	viewParamsBufferSize = 0;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
 
 	setPerspectiveLookAt({ 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0.1f, 1000.0f);
-
-	// Add this view to the parent scene.
-	scene->addView(this);
-
-	// Allocate the buffer storing the raytracing output, with the same dimensions as the target image.
 	createOutputBuffers();
+	createViewParamsBuffer();
 
-	// Create a buffer to store the modelview and perspective camera matrices
-	createCameraBuffer();
+	scene->addView(this);
 }
 
 RT64::View::~View() {
@@ -284,8 +282,8 @@ void RT64::View::createShaderResourceHeap() {
 
 	// Describe and create a constant buffer view for the camera
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = cameraBufferResource.Get()->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = cameraBufferSize;
+	cbvDesc.BufferLocation = viewParamBufferResource.Get()->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = viewParamsBufferSize;
 	scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
 	handle.ptr += handleIncrement;
 
@@ -380,36 +378,34 @@ void RT64::View::createShaderBindingTable() {
 	sbtHelper.Generate(sbtStorage.Get(), scene->getDevice()->getD3D12RtStateObjectProperties());
 }
 
-void RT64::View::createCameraBuffer() {
-	cameraBufferSize = ROUND_UP(4 * sizeof(XMMATRIX) + 8, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-
-	// Create the constant buffer for all matrices
-	cameraBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, cameraBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+void RT64::View::createViewParamsBuffer() {
+	viewParamsBufferSize = ROUND_UP(4 * sizeof(XMMATRIX) + 8, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	viewParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, viewParamsBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
-void RT64::View::updateCameraBuffer() {
+void RT64::View::updateViewParamsBuffer() {
 	assert(fovRadians > 0.0f);
 
 	// View and projection matrices.
-	cameraBufferData.view = XMMatrixLookAtRH(XMVectorSet(eyePosition.x, eyePosition.y, eyePosition.z, 0.0f), XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 0.0f), XMVectorSet(eyeUpDirection.x, eyeUpDirection.y, eyeUpDirection.z, 0.0f));
-	cameraBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
+	viewParamsBufferData.view = XMMatrixLookAtRH(XMVectorSet(eyePosition.x, eyePosition.y, eyePosition.z, 0.0f), XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 0.0f), XMVectorSet(eyeUpDirection.x, eyeUpDirection.y, eyeUpDirection.z, 0.0f));
+	viewParamsBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
 
 	// Inverse matrices required for raytracing.
 	XMVECTOR det;
-	cameraBufferData.viewI = XMMatrixInverse(&det, cameraBufferData.view);
-	cameraBufferData.projectionI = XMMatrixInverse(&det, cameraBufferData.projection);
+	viewParamsBufferData.viewI = XMMatrixInverse(&det, viewParamsBufferData.view);
+	viewParamsBufferData.projectionI = XMMatrixInverse(&det, viewParamsBufferData.projection);
 
 	// Viewport dimensions.
-	cameraBufferData.viewport[0] = 0.0f;
-	cameraBufferData.viewport[1] = 0.0f;
-	cameraBufferData.viewport[2] = (float)(getWidth());
-	cameraBufferData.viewport[3] = (float)(getHeight());
-
+	viewParamsBufferData.viewport[0] = 0.0f;
+	viewParamsBufferData.viewport[1] = 0.0f;
+	viewParamsBufferData.viewport[2] = (float)(getWidth());
+	viewParamsBufferData.viewport[3] = (float)(getHeight());
+	
 	// Copy the camera buffer data to the resource.
 	uint8_t *pData;
-	ThrowIfFailed(cameraBufferResource.Get()->Map(0, nullptr, (void **)&pData));
-	memcpy(pData, &cameraBufferData, sizeof(CameraBuffer));
-	cameraBufferResource.Get()->Unmap(0, nullptr);
+	ThrowIfFailed(viewParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &viewParamsBufferData, sizeof(ViewParamsBuffer));
+	viewParamBufferResource.Get()->Unmap(0, nullptr);
 }
 
 void RT64::View::update() {
@@ -486,8 +482,8 @@ void RT64::View::update() {
 		rasterFgInstances.clear();
 	}
 
-	// Update the camera buffer.
-	updateCameraBuffer();
+	// Update the view parameters buffer.
+	updateViewParamsBuffer();
 }
 
 void RT64::View::render() {
@@ -605,6 +601,9 @@ void RT64::View::render() {
 		d3dCommandList->ResourceBarrier(1, &targetBarrier);
 	}
 
+	// Increment the view's frame counter.
+	viewParamsBufferData.frameCount++;
+
 	// Clear flags.
 	rtHitInstanceIdReadbackUpdated = false;
 }
@@ -701,19 +700,19 @@ void RT64::View::setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eye
 }
 
 void RT64::View::movePerspective(RT64_VECTOR3 localMovement) {
-	XMVECTOR offset = XMVector4Transform(XMVectorSet(localMovement.x, localMovement.y, localMovement.z, 0.0f), cameraBufferData.viewI);
+	XMVECTOR offset = XMVector4Transform(XMVectorSet(localMovement.x, localMovement.y, localMovement.z, 0.0f), viewParamsBufferData.viewI);
 	RT64_VECTOR3 add = { XMVectorGetX(offset), XMVectorGetY(offset), XMVectorGetZ(offset) };
 	this->eyePosition += add;
 	this->eyeFocus += add;
-	updateCameraBuffer();
+	updateViewParamsBuffer();
 }
 
 void RT64::View::rotatePerspective(float localYaw, float localPitch, float localRoll) {
-	XMVECTOR focus = XMVector4Transform(XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 1.0f), cameraBufferData.view);
+	XMVECTOR focus = XMVector4Transform(XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 1.0f), viewParamsBufferData.view);
 	focus = XMVector4Transform(focus, XMMatrixRotationRollPitchYaw(localRoll, localPitch, localYaw));
-	focus = XMVector4Transform(focus, cameraBufferData.viewI);
+	focus = XMVector4Transform(focus, viewParamsBufferData.viewI);
 	eyeFocus = { XMVectorGetX(focus), XMVectorGetY(focus), XMVectorGetZ(focus) };
-	updateCameraBuffer();
+	updateViewParamsBuffer();
 }
 
 void RT64::View::setPerspectiveControlActive(bool v) {
@@ -740,11 +739,33 @@ float RT64::View::getFarDistance() const {
 	return farDist;
 }
 
+void RT64::View::setSoftLightSamples(int v) {
+	if (viewParamsBufferData.softLightSamples != v) {
+		viewParamsBufferData.softLightSamples = v;
+		updateViewParamsBuffer();
+	}
+}
+
+int RT64::View::getSoftLightSamples() const {
+	return viewParamsBufferData.softLightSamples;
+}
+
+void RT64::View::setGIBounces(int v) {
+	if (viewParamsBufferData.giBounces != v) {
+		viewParamsBufferData.giBounces = v;
+		updateViewParamsBuffer();
+	}
+}
+
+int RT64::View::getGIBounces() const {
+	return viewParamsBufferData.giBounces;
+}
+
 RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {
 	float x = ((px + 0.5f) / getWidth()) * 2.0f - 1.0f;
 	float y = ((py + 0.5f) / getHeight()) * 2.0f - 1.0f;
-	XMVECTOR target = XMVector4Transform(XMVectorSet(x, -y, 1.0f, 1.0f), cameraBufferData.projectionI);
-	XMVECTOR rayDirection = XMVector4Transform(XMVectorSetW(target, 0.0f), cameraBufferData.viewI);
+	XMVECTOR target = XMVector4Transform(XMVectorSet(x, -y, 1.0f, 1.0f), viewParamsBufferData.projectionI);
+	XMVECTOR rayDirection = XMVector4Transform(XMVectorSetW(target, 0.0f), viewParamsBufferData.viewI);
 	rayDirection = XMVector4Normalize(rayDirection);
 	return { XMVectorGetX(rayDirection), XMVectorGetY(rayDirection), XMVectorGetZ(rayDirection) };
 }

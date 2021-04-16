@@ -25,6 +25,7 @@ namespace RT64 {
 		std::vector<std::string> toPrint;
 
 		void setupWithView(View *view, int cursorX, int cursorY);
+		void renderViewParams(View *view);
 		void renderMaterialInspector();
 		void renderLightInspector();
 		void renderPrint();

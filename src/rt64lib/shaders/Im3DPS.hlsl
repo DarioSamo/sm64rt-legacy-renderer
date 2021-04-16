@@ -2,9 +2,9 @@
 // Im3d Dx12
 //
 
-#include "Camera.hlsli"
 #include "Im3DCommon.hlsli"
 #include "GlobalHitBuffers.hlsli"
+#include "ViewParams.hlsli"
 
 float4 PSMain(VS_OUTPUT _in) : SV_Target {
 	uint2 pixelDims = round(viewport.zw);

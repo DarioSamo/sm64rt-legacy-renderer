@@ -2,8 +2,8 @@
 // Im3d Dx12
 //
 
-#include "Camera.hlsli"
 #include "Im3DCommon.hlsli"
+#include "ViewParams.hlsli"
 
 [maxvertexcount(4)]
 void GSMain(line VS_OUTPUT _in[2], inout TriangleStream<VS_OUTPUT> out_)

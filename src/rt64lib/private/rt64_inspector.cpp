@@ -68,6 +68,7 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
     ImGui::NewFrame();
     Im3d::NewFrame();
 
+    renderViewParams(activeView);
     renderMaterialInspector();
     renderLightInspector();
     renderCameraControl(activeView, cursorX, cursorY);
@@ -86,6 +87,19 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
 void RT64::Inspector::resize() {
     ImGui_ImplDX12_InvalidateDeviceObjects();
     ImGui_ImplDX12_CreateDeviceObjects();
+}
+
+void RT64::Inspector::renderViewParams(View *view) {
+    assert(view != nullptr);
+
+    ImGui::Begin("View Params Inspector");
+    int softLightSamples = view->getSoftLightSamples();
+    int giBounces = view->getGIBounces();
+    ImGui::DragInt("Soft light samples", &softLightSamples, 1, 0, 32);
+    ImGui::DragInt("Global illumination bounces", &giBounces, 1, 0, 32);
+    view->setSoftLightSamples(softLightSamples);
+    view->setGIBounces(giBounces);
+    ImGui::End();
 }
 
 void RT64::Inspector::renderMaterialInspector() {

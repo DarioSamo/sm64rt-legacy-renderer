@@ -2,8 +2,8 @@
 // Im3d Dx12
 //
 
-#include "Camera.hlsli"
 #include "Im3DCommon.hlsli"
+#include "ViewParams.hlsli"
 
 // expand point -> triangle strip (quad)
 [maxvertexcount(4)]
