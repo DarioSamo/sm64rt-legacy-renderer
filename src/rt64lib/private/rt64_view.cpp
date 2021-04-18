@@ -33,8 +33,10 @@ RT64::View::View(Scene *scene) {
 	viewParamsBufferData.softLightSamples = 1;
 	viewParamsBufferData.giBounces = 1;
 	viewParamsBufferData.maxLightSamples = 12;
-	viewParamsBufferData.ambGIMixWeight = 0.8f;
+	viewParamsBufferData.ambGIMixWeight = 0.75f;
 	viewParamsBufferSize = 0;
+	viewParamsBufferUpdatedThisFrame = false;
+	rtCurrentFrame = 0;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
@@ -74,13 +76,18 @@ void RT64::View::createOutputBuffers() {
 	resDesc.MipLevels = 1;
 	resDesc.SampleDesc.Count = 1;
 
+	// Create buffers for raster output.
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 	rasterResources[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, &clearValue);
 	rasterResources[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, &clearValue);
 
+	// Create buffers for raytracing output.
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-	rtOutputResource = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr);
+	for (int i = 0; i < 2; i++) {
+		rtOutputResources[i] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr);
+	}
 	
+	// Create hit result buffers.
 	UINT64 hitCountBufferSizeOne = scene->getDevice()->getWidth() * scene->getDevice()->getHeight();
 	UINT64 hitCountBufferSizeAll = hitCountBufferSizeOne * MaxQueries;
 	rtHitDistanceResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -104,9 +111,11 @@ void RT64::View::createOutputBuffers() {
 }
 
 void RT64::View::releaseOutputBuffers() {
-	rasterResources[0].Release();
-	rasterResources[1].Release();
-	rtOutputResource.Release();
+	for (int i = 0; i < 2; i++) {
+		rasterResources[i].Release();
+		rtOutputResources[i].Release();
+	}
+
 	rtHitDistanceResource.Release();
 	rtHitColorResource.Release();
 	rtHitNormalResource.Release();
@@ -209,7 +218,7 @@ void RT64::View::createTopLevelAS(const std::vector<RenderInstance>& rtInstances
 void RT64::View::createShaderResourceHeap() {
 	assert(usedTextures.size() <= 1024);
 
-	uint32_t entryCount = 11 + (uint32_t)(usedTextures.size());
+	uint32_t entryCount = ((uint32_t)(HeapIndices::MAX) - 1) + (uint32_t)(usedTextures.size());
 
 	// Recreate descriptor heap to be bigger if necessary.
 	if (descriptorHeapEntryCount < entryCount) {
@@ -228,12 +237,13 @@ void RT64::View::createShaderResourceHeap() {
 	// descriptors directly
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
-	// UAV for output buffer.
+	// UAV for output buffer and previous one.
+	const int rtPrevFrame = (rtCurrentFrame > 0) ? 0 : 1;
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutputResource.Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutputResources[rtCurrentFrame].Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
-	
+
 	// UAV for hit distance buffer.
 	uavDesc.Buffer.FirstElement = 0;
 	uavDesc.Buffer.NumElements = scene->getDevice()->getWidth() * scene->getDevice()->getHeight() * MaxQueries;
@@ -387,6 +397,12 @@ void RT64::View::createViewParamsBuffer() {
 
 void RT64::View::updateViewParamsBuffer() {
 	assert(fovRadians > 0.0f);
+
+	// Previous view and projection matrices.
+	if (!viewParamsBufferUpdatedThisFrame) {
+		viewParamsBufferData.prevViewProj = XMMatrixMultiply(viewParamsBufferData.view, viewParamsBufferData.projection);
+		viewParamsBufferUpdatedThisFrame = true;
+	}
 
 	// View and projection matrices.
 	viewParamsBufferData.view = XMMatrixLookAtRH(XMVectorSet(eyePosition.x, eyePosition.y, eyePosition.z, 0.0f), XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 0.0f), XMVectorSet(eyeUpDirection.x, eyeUpDirection.y, eyeUpDirection.z, 0.0f));
@@ -551,7 +567,7 @@ void RT64::View::render() {
 	// Raytracing.
 	{
 		// Transition the output resource from a copy source to a UAV.
-		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResources[rtCurrentFrame].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
 
 		if (!rtInstances.empty()) {
@@ -583,12 +599,24 @@ void RT64::View::render() {
 			d3dCommandList->SetPipelineState1(scene->getDevice()->getD3D12RtStateObject());
 			d3dCommandList->DispatchRays(&desc);
 		}
+		
+		/*
+		// Coompute shader template.
+		// Postprocess.
+		rtBarrier = CD3DX12_RESOURCE_BARRIER::UAV(rtOutputResources[rtCurrentFrame].Get());
+		d3dCommandList->ResourceBarrier(1, &rtBarrier);
+
+		d3dCommandList->SetPipelineState(scene->getDevice()->getPostprocessPipelineState());
+		d3dCommandList->SetComputeRootSignature(scene->getDevice()->getPostprocessRootSignature());
+		d3dCommandList->SetComputeRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		d3dCommandList->Dispatch(scene->getDevice()->getWidth(), scene->getDevice()->getHeight(), 1);
+		*/
 
 		// Transition the output resource from a UAV to a copy source.
-		rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResources[rtCurrentFrame].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
 	}
-	
+
 	// Copy raytracing output to render target.
 	{
 		// Transition the render target into a copy destination.
@@ -596,7 +624,7 @@ void RT64::View::render() {
 		d3dCommandList->ResourceBarrier(1, &targetBarrier);
 
 		// Copy from output resource to render target.
-		d3dCommandList->CopyResource(d3d12RenderTarget, rtOutputResource.Get());
+		d3dCommandList->CopyResource(d3d12RenderTarget, rtOutputResources[rtCurrentFrame].Get());
 
 		// Transition the render target back into its original state.
 		targetBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3d12RenderTarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -608,6 +636,10 @@ void RT64::View::render() {
 
 	// Clear flags.
 	rtHitInstanceIdReadbackUpdated = false;
+	viewParamsBufferUpdatedThisFrame = false;
+
+	// Switch buffers in use.
+	rtCurrentFrame = (rtCurrentFrame > 0) ? 0 : 1;
 }
 
 void RT64::View::renderInspector(Inspector *inspector) {

@@ -27,7 +27,52 @@
 
 using namespace DirectX;
 
+#define HEAP_INDEX(x) (int)(RT64::HeapIndices::x)
+#define UAV_INDEX(x) (int)(RT64::UAVIndices::x)
+#define SRV_INDEX(x) (int)(RT64::SRVIndices::x)
+#define CBV_INDEX(x) (int)(RT64::CBVIndices::x)
+
 namespace RT64 {
+	// Matches order in heap used in shader binding table.
+	enum class HeapIndices : int {
+		gOutput,
+		gHitDistance,
+		gHitColor,
+		gHitNormal,
+		gHitInstanceId,
+		gBackground,
+		gForeground,
+		SceneBVH,
+		ViewParams,
+		SceneLights,
+		instanceProps,
+		gTextures,
+		MAX
+	};
+
+	enum class UAVIndices : int {
+		gOutput,
+		gHitDistance,
+		gHitColor,
+		gHitNormal,
+		gHitInstanceId
+	};
+
+	enum class SRVIndices : int {
+		SceneBVH,
+		gBackground,
+		gForeground,
+		vertexBuffer,
+		indexBuffer,
+		SceneLights,
+		instanceProps,
+		gTextures
+	};
+
+	enum class CBVIndices : int {
+		ViewParams
+	};
+
 	class AllocatedResource {
 	private:
 		D3D12MA::Allocation *d3dMaAllocation;

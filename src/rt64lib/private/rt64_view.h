@@ -35,12 +35,14 @@ namespace RT64 {
 			XMMATRIX projection;
 			XMMATRIX viewI;
 			XMMATRIX projectionI;
+			XMMATRIX prevViewProj;
 			float viewport[4];
 			unsigned int frameCount;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
 			unsigned int maxLightSamples;
 			float ambGIMixWeight;
+			unsigned int horizontalBlocksCount;
 		};
 
 		Scene *scene;
@@ -55,12 +57,14 @@ namespace RT64 {
 		nv_helpers_dx12::TopLevelASGenerator topLevelASGenerator;
 		AllocatedResource rasterResources[2];
 		ID3D12DescriptorHeap *rasterRtvHeaps[2];
-		AllocatedResource rtOutputResource;
+		AllocatedResource rtOutputResources[2];
 		AllocatedResource rtHitDistanceResource;
 		AllocatedResource rtHitColorResource;
 		AllocatedResource rtHitNormalResource;
 		AllocatedResource rtHitInstanceIdResource;
 		AllocatedResource rtHitInstanceIdReadbackResource;
+		int rtCurrentFrame;
+
 		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
 		ID3D12DescriptorHeap *descriptorHeap;
@@ -71,6 +75,7 @@ namespace RT64 {
 		AllocatedResource viewParamBufferResource;
 		ViewParamsBuffer viewParamsBufferData;
 		uint32_t viewParamsBufferSize;
+		bool viewParamsBufferUpdatedThisFrame;
 		AllocatedResource activeInstancesBufferProps;
 		uint32_t activeInstancesBufferPropsSize;
 		std::vector<RenderInstance> rasterBgInstances;

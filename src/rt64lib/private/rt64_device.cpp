@@ -11,15 +11,15 @@
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
 
+#include "shaders/Im3DPS.hlsl.h"
+#include "shaders/Im3DVS.hlsl.h"
+#include "shaders/Im3DGSPoints.hlsl.h"
+#include "shaders/Im3DGSLines.hlsl.h"
 #include "shaders/RasterPS.hlsl.h"
 #include "shaders/RasterVS.hlsl.h"
 #include "shaders/Shadow.hlsl.h"
 #include "shaders/Surface.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
-#include "shaders/Im3DPS.hlsl.h"
-#include "shaders/Im3DVS.hlsl.h"
-#include "shaders/Im3DGSPoints.hlsl.h"
-#include "shaders/Im3DGSLines.hlsl.h"
 
 // Private
 
@@ -330,15 +330,52 @@ void RT64::Device::loadPipeline() {
 }
 
 void RT64::Device::loadAssets() {
+	auto setPsoDefaults = [](D3D12_GRAPHICS_PIPELINE_STATE_DESC &psoDesc) {
+		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+		D3D12_BLEND_DESC bd = {};
+		bd.AlphaToCoverageEnable = FALSE;
+		bd.IndependentBlendEnable = FALSE;
+		static const D3D12_RENDER_TARGET_BLEND_DESC default_rtbd = {
+			TRUE, FALSE,
+			D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+			D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+			D3D12_LOGIC_OP_NOOP,
+			D3D12_COLOR_WRITE_ENABLE_ALL
+		};
+
+		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++) {
+			bd.RenderTarget[i] = default_rtbd;
+		}
+
+		psoDesc.BlendState = bd;
+		// else if not opt_alpha psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+
+		psoDesc.DepthStencilState.DepthEnable = FALSE;
+		psoDesc.DepthStencilState.StencilEnable = FALSE;
+		psoDesc.SampleMask = UINT_MAX;
+		psoDesc.NumRenderTargets = 1;
+		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		psoDesc.SampleDesc.Count = 1;
+
+		/*
+		desc.DepthStencilState.DepthEnable = d3d.depth_test;
+		desc.DepthStencilState.DepthWriteMask = d3d.depth_mask ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+		desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+		desc.DSVFormat = d3d.depth_test ? DXGI_FORMAT_D32_FLOAT : DXGI_FORMAT_UNKNOWN;
+		*/
+	};
+	
 	// Create an empty root signature.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS, 0);
 		rsc.AddHeapRangesParameter({
-			{ 6, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10 },
-			{ 7, 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 11 }
+			{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
+			{ SRV_INDEX(gTextures), 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) }
 		});
-		
+
 		d3dRootSignature = rsc.Generate(d3dDevice, false, true, true);
 	}
 
@@ -359,57 +396,24 @@ void RT64::Device::loadAssets() {
 
 		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+		setPsoDefaults(psoDesc);
 		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
 		psoDesc.pRootSignature = d3dRootSignature;
 		psoDesc.VS = CD3DX12_SHADER_BYTECODE(RasterVSBlob, sizeof(RasterVSBlob));
 		psoDesc.PS = CD3DX12_SHADER_BYTECODE(RasterPSBlob, sizeof(RasterPSBlob));
-		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
-		D3D12_BLEND_DESC bd = {};
-		bd.AlphaToCoverageEnable = FALSE;
-		bd.IndependentBlendEnable = FALSE;
-		static const D3D12_RENDER_TARGET_BLEND_DESC default_rtbd = {
-			TRUE, FALSE,
-			D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-			D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-			D3D12_LOGIC_OP_NOOP,
-			D3D12_COLOR_WRITE_ENABLE_ALL
-		};
-
-		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++) {
-			bd.RenderTarget[i] = default_rtbd;
-		}
-
-		psoDesc.BlendState = bd;
-		// else if not opt_alpha psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-
-		psoDesc.DepthStencilState.DepthEnable = FALSE;
-		psoDesc.DepthStencilState.StencilEnable = FALSE;
-		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		psoDesc.NumRenderTargets = 1;
-		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		psoDesc.SampleDesc.Count = 1;
 		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dPipelineState)));
-
-		/*
-        desc.DepthStencilState.DepthEnable = d3d.depth_test;
-        desc.DepthStencilState.DepthWriteMask = d3d.depth_mask ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
-        desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-        desc.DSVFormat = d3d.depth_test ? DXGI_FORMAT_D32_FLOAT : DXGI_FORMAT_UNKNOWN;
-		*/
 	}
 
 	// Im3d Root signature.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
-			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
-			{ 2, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 2 },
-			{ 3, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 3 },
-			{ 4, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4 },
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 8 }
+			{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
+			{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
+			{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
+			{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
+			{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 		});
 
 		im3dRootSignature = rsc.Generate(d3dDevice, false, true, false);
@@ -426,37 +430,12 @@ void RT64::Device::loadAssets() {
 
 		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+		setPsoDefaults(psoDesc);
+
 		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
 		psoDesc.pRootSignature = im3dRootSignature;
 		psoDesc.VS = CD3DX12_SHADER_BYTECODE(Im3DVSBlob, sizeof(Im3DVSBlob));
 		psoDesc.PS = CD3DX12_SHADER_BYTECODE(Im3DPSBlob, sizeof(Im3DPSBlob));
-		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
-		D3D12_BLEND_DESC bd = {};
-		bd.AlphaToCoverageEnable = FALSE;
-		bd.IndependentBlendEnable = FALSE;
-		static const D3D12_RENDER_TARGET_BLEND_DESC default_rtbd = {
-			TRUE, FALSE,
-			D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-			D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-			D3D12_LOGIC_OP_NOOP,
-			D3D12_COLOR_WRITE_ENABLE_ALL
-		};
-
-		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++) {
-			bd.RenderTarget[i] = default_rtbd;
-		}
-
-		psoDesc.BlendState = bd;
-		// else if not opt_alpha psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-
-		psoDesc.DepthStencilState.DepthEnable = FALSE;
-		psoDesc.DepthStencilState.StencilEnable = FALSE;
-		psoDesc.SampleMask = UINT_MAX;
-		psoDesc.NumRenderTargets = 1;
-		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		psoDesc.SampleDesc.Count = 1;
 
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateTriangle)));
@@ -468,8 +447,22 @@ void RT64::Device::loadAssets() {
 		psoDesc.GS = CD3DX12_SHADER_BYTECODE(Im3DGSLinesBlob, sizeof(Im3DGSLinesBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
 		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateLine)));
-
 	}
+
+	// Computer shader template.
+	/*
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		d3dPostprocessRootSignature = rsc.Generate(d3dDevice, false, true, false);
+	}
+
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC computeDesc = {};
+		computeDesc.pRootSignature = d3dPostprocessRootSignature;
+		computeDesc.CS = CD3DX12_SHADER_BYTECODE(PostprocessCSBlob, sizeof(PostprocessCSBlob));
+		ThrowIfFailed(d3dDevice->CreateComputePipelineState(&computeDesc, IID_PPV_ARGS(&d3dPostprocessPipelineState)));
+	}
+	*/
 
 	// Create the command list.
 	ThrowIfFailed(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, d3dPipelineState, IID_PPV_ARGS(&d3dCommandList)));
@@ -538,17 +531,17 @@ void RT64::Device::createRaytracingPipeline() {
 ID3D12RootSignature *RT64::Device::createTracerSignature() {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
 	rsc.AddHeapRangesParameter({
-		{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 0 },
-		{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
-		{ 2, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 2 },
-		{ 3, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 3 },
-		{ 4, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4 },
-		{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5 },
-		{ 2, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6 },
-		{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7 },
-		{ 5, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 9 },
-		{ 6, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10 },
-		{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 8 }
+		{ UAV_INDEX(gOutput), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gOutput) },
+		{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
+		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
+		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
+		{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
+		{ SRV_INDEX(gBackground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBackground) },
+		{ SRV_INDEX(gForeground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gForeground) },
+		{ SRV_INDEX(SceneBVH), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneBVH) },
+		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
+		{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
+		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 	});
 
 	return rsc.Generate(d3dDevice, true, false, true);
@@ -556,18 +549,18 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 
 ID3D12RootSignature *RT64::Device::createSurfaceShadowSignature() {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
-	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 3);
-	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 4);
+	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, SRV_INDEX(vertexBuffer));
+	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, SRV_INDEX(indexBuffer));
 	rsc.AddHeapRangesParameter({
-		{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
-		{ 2, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 2 },
-		{ 3, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 3 },
-		{ 4, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4 },
-		{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7 },
-		{ 5, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 9 },
-		{ 6, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10 },
-		{ 7, 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 11 },
-		{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 8 }
+		{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
+		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
+		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
+		{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
+		{ SRV_INDEX(SceneBVH), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneBVH) },
+		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
+		{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
+		{ SRV_INDEX(gTextures), 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) },
+		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 	});
 
 	return rsc.Generate(d3dDevice, true, false, true);
