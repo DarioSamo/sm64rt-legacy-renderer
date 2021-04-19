@@ -36,6 +36,10 @@ namespace RT64 {
 	// Matches order in heap used in shader binding table.
 	enum class HeapIndices : int {
 		gOutput,
+		gColor,
+		gAlbedo,
+		gNormal,
+		gDenoised,
 		gHitDistance,
 		gHitColor,
 		gHitNormal,
@@ -46,12 +50,17 @@ namespace RT64 {
 		ViewParams,
 		SceneLights,
 		instanceProps,
+		gBlueNoise,
 		gTextures,
 		MAX
 	};
 
 	enum class UAVIndices : int {
 		gOutput,
+		gColor,
+		gAlbedo,
+		gNormal,
+		gDenoised,
 		gHitDistance,
 		gHitColor,
 		gHitNormal,
@@ -66,6 +75,7 @@ namespace RT64 {
 		indexBuffer,
 		SceneLights,
 		instanceProps,
+		gBlueNoise,
 		gTextures
 	};
 

@@ -105,6 +105,11 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
 	view->setAmbGIMixWeight(ambGIMix);
+
+    if (ImGui::Button("Save Buffers")) {
+        view->saveBuffers();
+    }
+
     ImGui::End();
 }
 
@@ -195,7 +200,7 @@ void RT64::Inspector::renderLightInspector() {
     if (lights != nullptr) {
         ImGui::Begin("Light Inspector");
         ImGui::InputInt("Light count", lightCount);
-        *lightCount = min(max(*lightCount, 1), maxLightCount);
+        *lightCount = std::min(std::max(*lightCount, 1), maxLightCount);
 
         for (int i = 0; i < *lightCount; i++) {
             ImGui::PushID(i);

@@ -9,7 +9,7 @@
 #include "Ray.hlsli"
 #include "Random.hlsli"
 #include "Samplers.hlsli"
-#include "ShadowSamples.hlsli"
+#include "BlueNoise.hlsli"
 #include "ViewParams.hlsli"
 
 #define EPSILON								0.000001f
@@ -242,6 +242,8 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 		hitInstanceIds[hit] = gHitInstanceId[hitBufferIndex];
 	}
 	
+	float4 finalAlbedo = float4(bgColor, 1.0f);
+	float4 finalNormal = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
 	uint maxFullQuality = 1;
 	for (hit = 0; hit < hitCount; hit++) {
@@ -254,6 +256,8 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 			float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 			if ((hitColorA >= FULL_QUALITY_ALPHA) && (maxFullQuality > 0)) {
+				finalAlbedo = hitColors[hit];
+				finalNormal = float4(vertexNormal, 0.0f);
 				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, seed + hit);
 				maxFullQuality--;
 
@@ -348,7 +352,12 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 		bgColor = hitColors[hitCount - 1].rgb;
 	}
 
-	return lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a));
+	float3 finalColor = lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a));
+	int gIndex = launchIndex.y * pixelDims.x + launchIndex.x;
+	gColor[gIndex] = float4(finalColor, 1.0f);
+	gAlbedo[gIndex] = finalAlbedo;
+	gNormal[gIndex] = finalNormal;
+	return finalColor;
 }
 
 float3 TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, uint seed) {
@@ -360,19 +369,21 @@ float3 TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float 
 void TraceRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 launchDims = DispatchRaysDimensions().xy;
-	uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, frameCount, 16);
 
 	// Don't trace rays on pixels covered by the foreground.
 	float4 fgColor = gForeground[launchIndex];
-	if (fgColor.a < 1.0f) {
+	//if (fgColor.a < 1.0f) {
 		float2 d = (((launchIndex.xy + 0.5f) / float2(launchDims)) * 2.f - 1.f);
 		float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 		float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 		float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
+		uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, /*frameCount*/(int)(rayOrigin.x + rayOrigin.y + rayOrigin.z), 16);
 		float3 fullColor = TraceFull(rayOrigin, rayDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, launchDims, seed);
 		gOutput[launchIndex] = float4(lerp(fullColor, fgColor.rgb, fgColor.a), 1.0f);
+	/*
 	}
 	else {
 		gOutput[launchIndex] = fgColor;
 	}
+	*/
 }

@@ -77,7 +77,7 @@ class RayTracingPipelineGenerator
 public:
   /// The pipeline helper requires access to the device, as well as the
   /// raytracing device prior to Windows 10 RS5.
-  RayTracingPipelineGenerator(ID3D12Device5* device);
+  RayTracingPipelineGenerator(ID3D12Device8* device);
 
   /// Add a DXIL library to the pipeline. Note that this library has to be
   /// compiled with dxc, using a lib_6_3 target. The exported symbols must correspond exactly to the
@@ -187,7 +187,7 @@ private:
   /// Maximum recursion depth, initialized to 1 to at least allow tracing primary rays
   UINT m_maxRecursionDepth = 1;
 
-  ID3D12Device5* m_device;
+  ID3D12Device8* m_device;
   ID3D12RootSignature* m_dummyLocalRootSignature;
   ID3D12RootSignature* m_dummyGlobalRootSignature;
 

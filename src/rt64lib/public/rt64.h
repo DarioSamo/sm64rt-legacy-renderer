@@ -285,6 +285,11 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.PrintToInspector = (PrintToInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintToInspector"));
 		lib.DestroyInspector = (DestroyInspectorPtr)(GetProcAddress(lib.handle, "RT64_DestroyInspector"));
 	}
+	else {
+		char errorMessage[256];
+		FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), errorMessage, sizeof(errorMessage), NULL);
+		fprintf(stderr, "Error when loading library: %s\n", errorMessage);
+	}
 
 	return lib;
 }

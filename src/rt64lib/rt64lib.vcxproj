@@ -29,7 +29,11 @@
     <ClInclude Include="contrib\nv_helpers_dx12\RootSignatureGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\TopLevelASGenerator.h" />
+    <ClInclude Include="contrib\optixDenoiser\OptiXDenoiser.h" />
+    <ClInclude Include="contrib\optixDenoiser\OptiXError.h" />
+    <ClInclude Include="private\rt64_bluenoise.h" />
     <ClInclude Include="private\rt64_common.h" />
+    <ClInclude Include="private\rt64_denoiser.h" />
     <ClInclude Include="private\rt64_device.h" />
     <ClInclude Include="private\rt64_inspector.h" />
     <ClInclude Include="private\rt64_instance.h" />
@@ -53,7 +57,9 @@
     <ClCompile Include="contrib\nv_helpers_dx12\RootSignatureGenerator.cpp" />
     <ClCompile Include="contrib\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
     <ClCompile Include="contrib\nv_helpers_dx12\TopLevelASGenerator.cpp" />
+    <ClCompile Include="private\rt64_bluenoise.cpp" />
     <ClCompile Include="private\rt64_common.cpp" />
+    <ClCompile Include="private\rt64_denoiser.cpp" />
     <ClCompile Include="private\rt64_device.cpp" />
     <ClCompile Include="private\rt64_inspector.cpp" />
     <ClCompile Include="private\rt64_instance.cpp" />
@@ -76,7 +82,7 @@
     <None Include="shaders\PSInput.hlsli" />
     <None Include="shaders\Ray.hlsli" />
     <None Include="shaders\Samplers.hlsli" />
-    <None Include="shaders\ShadowSamples.hlsli" />
+    <None Include="shaders\BlueNoise.hlsli" />
     <None Include="shaders\Textures.hlsli" />
   </ItemGroup>
   <ItemGroup>
@@ -170,6 +176,17 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\ComposeCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_5_1 -E CSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_5_1 -E CSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{F367D911-6ABC-49D8-A59E-3BF758F6D19A}</ProjectGuid>
@@ -192,6 +209,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.3.props" />
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
@@ -215,11 +233,11 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>./;./contrib/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optixDenoiser/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>../../lib/Debug/rt64libd.lib</ImportLibrary>
     </Link>
     <PostBuildEvent>
@@ -234,14 +252,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>./;./contrib/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optixDenoiser/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <ImportLibrary>../../lib/Release/rt64lib.lib</ImportLibrary>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>
@@ -250,5 +268,6 @@
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.3.targets" />
   </ImportGroup>
 </Project>

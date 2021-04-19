@@ -14,6 +14,7 @@
 namespace RT64 {
 	class Scene;
 	class Inspector;
+	class Texture;
 
 	class Device {
 	private:
@@ -32,7 +33,7 @@ namespace RT64 {
 		HANDLE d3dFenceEvent;
 		ID3D12Fence *d3dFence;
 		UINT64 d3dFenceValue;
-		ID3D12Device5 *d3dDevice;
+		ID3D12Device8 *d3dDevice;
 		D3D12MA::Allocator *d3dAllocator;
 		ID3D12CommandQueue *d3dCommandQueue;
 		ID3D12GraphicsCommandList4 *d3dCommandList;
@@ -43,6 +44,8 @@ namespace RT64 {
 		ID3D12DescriptorHeap *d3dRtvHeap;
 		ID3D12PipelineState *d3dPipelineState;
 		ID3D12DescriptorHeap *d3dDsvHeap;
+		ID3D12RootSignature *d3dComposeRootSignature;
+		ID3D12PipelineState *d3dComposePipelineState;
 		UINT d3dRtvDescriptorSize;
 		IDxcBlob *d3dTracerLibrary;
 		IDxcBlob *d3dSurfaceLibrary;
@@ -60,6 +63,7 @@ namespace RT64 {
 		D3D12_RESOURCE_BARRIER lastCopyQueueBarrier;
 		bool lastCopyQueueBarrierActive;
 		bool d3dCommandListOpen;
+		Texture *blueNoiseTexture;
 
 		void updateSize();
 		void releaseRTVs();
@@ -82,21 +86,24 @@ namespace RT64 {
 		void addInspector(Inspector* inspector);
 		void removeInspector(Inspector* inspector);
 		HWND getHwnd() const;
-		ID3D12Device5 *getD3D12Device();
+		ID3D12Device8 *getD3D12Device();
 		ID3D12GraphicsCommandList4 *getD3D12CommandList();
 		ID3D12StateObject *getD3D12RtStateObject();
 		ID3D12StateObjectProperties *getD3D12RtStateObjectProperties();
 		ID3D12Resource *getD3D12RenderTarget();
 		ID3D12RootSignature* getD3D12RootSignature();
 		ID3D12PipelineState *getD3D12PipelineState();
+		ID3D12RootSignature *getComposeRootSignature();
+		ID3D12PipelineState *getComposePipelineState();
 		ID3D12RootSignature *getIm3dRootSignature();
 		ID3D12PipelineState *getIm3dPipelineStatePoint();
 		ID3D12PipelineState *getIm3dPipelineStateLine();
 		ID3D12PipelineState *getIm3dPipelineStateTriangle();
+		Texture *getBlueNoiseTexture() const;
 		CD3DX12_VIEWPORT getD3D12Viewport();
 		CD3DX12_RECT getD3D12ScissorRect(); 
 		AllocatedResource allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue);
-		AllocatedResource allocateBuffer(D3D12_HEAP_TYPE HeapType, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState);
+		AllocatedResource allocateBuffer(D3D12_HEAP_TYPE HeapType, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState, bool committed = false, bool shared = false);
 		void setLastCommandQueueBarrier(const D3D12_RESOURCE_BARRIER &barrier);
 		void submitCommandQueueBarrier();
 		void setLastCopyQueueBarrier(const D3D12_RESOURCE_BARRIER &barrier);

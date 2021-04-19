@@ -121,6 +121,7 @@ namespace RT64 {
 		float getAmbGIMixWeight() const;
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
+		void saveBuffers();
 		void resize();
 		int getWidth() const;
 		int getHeight() const;

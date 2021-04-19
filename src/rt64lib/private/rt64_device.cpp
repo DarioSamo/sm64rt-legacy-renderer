@@ -6,11 +6,13 @@
 
 #include <dwmapi.h>
 
-#include "rt64_common.h"
+#include "rt64_bluenoise.h"
 #include "rt64_device.h"
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
+#include "rt64_texture.h"
 
+#include "shaders/ComposeCS.hlsl.h"
 #include "shaders/Im3DPS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
@@ -153,7 +155,7 @@ HWND RT64::Device::getHwnd() const {
 	return hwnd;
 }
 
-ID3D12Device5 *RT64::Device::getD3D12Device() {
+ID3D12Device8 *RT64::Device::getD3D12Device() {
 	return d3dDevice;
 }
 
@@ -181,6 +183,14 @@ ID3D12PipelineState* RT64::Device::getD3D12PipelineState() {
 	return d3dPipelineState;
 }
 
+ID3D12RootSignature *RT64::Device::getComposeRootSignature() {
+	return d3dComposeRootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getComposePipelineState() {
+	return d3dComposePipelineState;
+}
+
 ID3D12RootSignature *RT64::Device::getIm3dRootSignature() {
 	return im3dRootSignature;
 }
@@ -195,6 +205,10 @@ ID3D12PipelineState *RT64::Device::getIm3dPipelineStateLine() {
 
 ID3D12PipelineState *RT64::Device::getIm3dPipelineStateTriangle() {
 	return im3dPipelineStateTriangle;
+}
+
+RT64::Texture *RT64::Device::getBlueNoiseTexture() const {
+	return blueNoiseTexture;
 }
 
 CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() {
@@ -215,9 +229,11 @@ RT64::AllocatedResource RT64::Device::allocateResource(D3D12_HEAP_TYPE HeapType,
 	return AllocatedResource(allocation);
 }
 
-RT64::AllocatedResource RT64::Device::allocateBuffer(D3D12_HEAP_TYPE HeapType, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState) {
+RT64::AllocatedResource RT64::Device::allocateBuffer(D3D12_HEAP_TYPE HeapType, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState, bool committed, bool shared) {
 	D3D12MA::ALLOCATION_DESC allocationDesc = {};
 	allocationDesc.HeapType = HeapType;
+	allocationDesc.ExtraHeapFlags = shared ? D3D12_HEAP_FLAG_SHARED : D3D12_HEAP_FLAG_NONE;
+	allocationDesc.Flags = committed ? D3D12MA::ALLOCATION_FLAG_COMMITTED : D3D12MA::ALLOCATION_FLAG_NONE;
 
 	D3D12_RESOURCE_DESC bufDesc = {};
 	bufDesc.Alignment = 0;
@@ -366,7 +382,7 @@ void RT64::Device::loadAssets() {
 		desc.DSVFormat = d3d.depth_test ? DXGI_FORMAT_D32_FLOAT : DXGI_FORMAT_UNKNOWN;
 		*/
 	};
-	
+
 	// Create an empty root signature.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
@@ -374,7 +390,7 @@ void RT64::Device::loadAssets() {
 		rsc.AddHeapRangesParameter({
 			{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
 			{ SRV_INDEX(gTextures), 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) }
-		});
+			});
 
 		d3dRootSignature = rsc.Generate(d3dDevice, false, true, true);
 	}
@@ -414,7 +430,7 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
 			{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 			{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
-		});
+			});
 
 		im3dRootSignature = rsc.Generate(d3dDevice, false, true, false);
 	}
@@ -449,38 +465,48 @@ void RT64::Device::loadAssets() {
 		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateLine)));
 	}
 
-	// Computer shader template.
-	/*
+	// Compose shader.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
-		d3dPostprocessRootSignature = rsc.Generate(d3dDevice, false, true, false);
+		rsc.AddHeapRangesParameter({
+			{ UAV_INDEX(gOutput), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gOutput) },
+			{ UAV_INDEX(gColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gColor) },
+			{ UAV_INDEX(gAlbedo), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gAlbedo) },
+			{ UAV_INDEX(gNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gNormal) },
+			{ UAV_INDEX(gDenoised), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDenoised) },
+			{ SRV_INDEX(gBackground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBackground) },
+			{ SRV_INDEX(gForeground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gForeground) },
+			{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
+		});
+
+		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, false);
 	}
 
 	{
 		D3D12_COMPUTE_PIPELINE_STATE_DESC computeDesc = {};
-		computeDesc.pRootSignature = d3dPostprocessRootSignature;
-		computeDesc.CS = CD3DX12_SHADER_BYTECODE(PostprocessCSBlob, sizeof(PostprocessCSBlob));
-		ThrowIfFailed(d3dDevice->CreateComputePipelineState(&computeDesc, IID_PPV_ARGS(&d3dPostprocessPipelineState)));
+		computeDesc.pRootSignature = d3dComposeRootSignature;
+		computeDesc.CS = CD3DX12_SHADER_BYTECODE(ComposeCSBlob, sizeof(ComposeCSBlob));
+		ThrowIfFailed(d3dDevice->CreateComputePipelineState(&computeDesc, IID_PPV_ARGS(&d3dComposePipelineState)));
 	}
-	*/
 
 	// Create the command list.
 	ThrowIfFailed(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, d3dPipelineState, IID_PPV_ARGS(&d3dCommandList)));
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
-	{
-		ThrowIfFailed(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));
-		d3dFenceValue = 1;
+	ThrowIfFailed(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));
+	d3dFenceValue = 1;
 
-		// Create an event handle to use for frame synchronization.
-		d3dFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-		if (d3dFenceEvent == nullptr) {
-			ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
-		}
-
-		// Close command list and wait for it to finish.
-		waitForGPU();
+	// Create an event handle to use for frame synchronization.
+	d3dFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	if (d3dFenceEvent == nullptr) {
+		ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
 	}
+
+	// Load blue noise texture.
+	blueNoiseTexture = new Texture(this, BlueNoiseRGBA, BlueNoiseWidth, BlueNoiseHeight, 4);
+
+	// Close command list and wait for it to finish.
+	waitForGPU();
 }
 
 void RT64::Device::checkRaytracingSupport() {
@@ -526,12 +552,17 @@ void RT64::Device::createRaytracingPipeline() {
 
 	// Cast the state object into a properties object, allowing to later access the shader pointers by name.
 	ThrowIfFailed(d3dRtStateObject->QueryInterface(IID_PPV_ARGS(&d3dRtStateObjectProps)));
+
 }
 
 ID3D12RootSignature *RT64::Device::createTracerSignature() {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
 	rsc.AddHeapRangesParameter({
 		{ UAV_INDEX(gOutput), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gOutput) },
+		{ UAV_INDEX(gColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gColor) },
+		{ UAV_INDEX(gAlbedo), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gAlbedo) },
+		{ UAV_INDEX(gNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gNormal) },
+		{ UAV_INDEX(gDenoised), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDenoised) },
 		{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
@@ -541,6 +572,7 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 		{ SRV_INDEX(SceneBVH), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneBVH) },
 		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
 		{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
+		{ SRV_INDEX(gBlueNoise), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBlueNoise) },
 		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 	});
 

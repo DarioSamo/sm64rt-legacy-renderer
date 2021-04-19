@@ -51,7 +51,7 @@ namespace nv_helpers_dx12
 //--------------------------------------------------------------------------------------------------
 // The pipeline helper requires access to the device, as well as the
 // raytracing device prior to Windows 10 RS5.
-RayTracingPipelineGenerator::RayTracingPipelineGenerator(ID3D12Device5* device)
+RayTracingPipelineGenerator::RayTracingPipelineGenerator(ID3D12Device8* device)
     : m_device(device)
 {
   // The pipeline creation requires having at least one empty global and local root signatures, so
@@ -278,6 +278,7 @@ ID3D12StateObject* RayTracingPipelineGenerator::Generate()
   {
     throw std::logic_error("Could not create the raytracing state object");
   }
+
   return rtStateObject;
 }
 
