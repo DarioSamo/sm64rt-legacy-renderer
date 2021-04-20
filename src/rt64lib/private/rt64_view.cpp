@@ -21,6 +21,8 @@ namespace {
 	const int MaxQueries = 12 + 1;
 };
 
+// TODO: Move this hacky denoiser implementation and hide it to its own context until NVIDIA fixes the driver crash.
+///
 #include <condition_variable>
 #include <queue>
 #include <mutex>
@@ -83,7 +85,31 @@ void denoiserRun() {
 	}
 }
 
+void denoiserInit(RT64::Device *device) {
+	std::unique_lock<std::mutex> finishLock(denoiserFinishedMutex);
+	{
+		std::unique_lock<std::mutex> queueLock(denoiserQueueMutex);
+		if (denoiser == nullptr) {
+			DenoiserAction denAction;
+			denAction.action = DenoiserAction::Create;
+			denAction.device = device;
+			denoiserActions.push(denAction);
+		}
+
+		DenoiserAction denAction;
+		denAction.action = DenoiserAction::Resize;
+		denAction.width = device->getWidth();
+		denAction.height = device->getHeight();
+		denoiserActions.push(denAction);
+	}
+
+	denoiserQueueCondition.notify_all();
+	denoiserFinishedCondition.wait(finishLock);
+}
+
 std::thread *denoiserThread = new std::thread(denoiserRun);
+
+///
 
 // Private
 
@@ -101,6 +127,7 @@ RT64::View::View(Scene *scene) {
 	viewParamsBufferData.ambGIMixWeight = 0.75f;
 	viewParamsBufferSize = 0;
 	viewParamsBufferUpdatedThisFrame = false;
+	denoiserEnabled = false;
 	rtCurrentFrame = 0;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
@@ -175,25 +202,9 @@ void RT64::View::createOutputBuffers() {
 	}
 
 	{
-		std::unique_lock<std::mutex> finishLock(denoiserFinishedMutex);
-		{
-			std::unique_lock<std::mutex> queueLock(denoiserQueueMutex);
-			if (denoiser == nullptr) {
-				DenoiserAction denAction;
-				denAction.action = DenoiserAction::Create;
-				denAction.device = scene->getDevice();
-				denoiserActions.push(denAction);
-			}
-
-			DenoiserAction denAction;
-			denAction.action = DenoiserAction::Resize;
-			denAction.width = scene->getDevice()->getWidth();
-			denAction.height = scene->getDevice()->getHeight();
-			denoiserActions.push(denAction);
+		if (denoiserEnabled && (denoiser == nullptr)) {
+			denoiserInit(scene->getDevice());
 		}
-
-		denoiserQueueCondition.notify_all();
-		denoiserFinishedCondition.wait(finishLock);
 	}
 }
 
@@ -336,20 +347,25 @@ void RT64::View::createShaderResourceHeap() {
 	uavDesc.Buffer.FirstElement = 0;
 	uavDesc.Buffer.NumElements = scene->getDevice()->getWidth() * scene->getDevice()->getHeight();
 	uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getColor(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
+	if (denoiserEnabled) {
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getColor(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
 
-	// UAV for albedo output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getAlbedo(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
+		// UAV for albedo output buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getAlbedo(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
 
-	// UAV for normal output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getNormal(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
+		// UAV for normal output buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getNormal(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
 
-	// UAV for denoised output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getOutput(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
+		// UAV for denoised output buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getOutput(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+	}
+	else {
+		handle.ptr += handleIncrement * 4;
+	}
 
 	// UAV for hit distance buffer.
 	uavDesc.Buffer.NumElements = scene->getDevice()->getWidth() * scene->getDevice()->getHeight() * MaxQueries;
@@ -698,14 +714,10 @@ void RT64::View::render() {
 			d3dCommandList->SetPipelineState1(scene->getDevice()->getD3D12RtStateObject());
 			d3dCommandList->DispatchRays(&desc);
 		}
-		
-		// Transition the output resource from a UAV to a copy source.
-		//rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResources[rtCurrentFrame].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		//d3dCommandList->ResourceBarrier(1, &rtBarrier);
 	}
 
 	/// DENOISE
-	{
+	if (denoiserEnabled) {
 		CD3DX12_RESOURCE_BARRIER barriers[] = {
 			CD3DX12_RESOURCE_BARRIER::UAV(rtOutputResources[rtCurrentFrame].Get()),
 			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getColor()),
@@ -731,15 +743,16 @@ void RT64::View::render() {
 		denoiserFinishedCondition.wait(finishLock);
 
 		// Compose shader.
+		// TODO: Switch to a fullscreen triangle instead.
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
 		d3dCommandList->SetPipelineState(scene->getDevice()->getComposePipelineState());
 		d3dCommandList->SetComputeRootSignature(scene->getDevice()->getComposeRootSignature());
 		d3dCommandList->SetComputeRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		d3dCommandList->Dispatch(scene->getDevice()->getWidth(), scene->getDevice()->getHeight(), 1);
-
-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResources[rtCurrentFrame].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		d3dCommandList->ResourceBarrier(1, &barrier);
 	}
+
+	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResources[rtCurrentFrame].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	d3dCommandList->ResourceBarrier(1, &barrier);
 
 	// Copy raytracing output to render target.
 	{
@@ -933,6 +946,18 @@ void RT64::View::setAmbGIMixWeight(float v) {
 
 float RT64::View::getAmbGIMixWeight() const {
 	return viewParamsBufferData.ambGIMixWeight;
+}
+
+void RT64::View::setDenoiserEnabled(bool v) {
+	if (v && (denoiser == nullptr)) {
+		denoiserInit(scene->getDevice());
+	}
+
+	denoiserEnabled = v;
+}
+
+bool RT64::View::getDenoiserEnabled() const {
+	return denoiserEnabled;
 }
 
 RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {

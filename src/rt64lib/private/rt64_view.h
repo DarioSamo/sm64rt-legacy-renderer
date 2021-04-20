@@ -64,6 +64,7 @@ namespace RT64 {
 		AllocatedResource rtHitInstanceIdResource;
 		AllocatedResource rtHitInstanceIdReadbackResource;
 		int rtCurrentFrame;
+		bool denoiserEnabled;
 
 		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
@@ -119,6 +120,8 @@ namespace RT64 {
 		int getMaxLightSamples() const;
 		void setAmbGIMixWeight(float v);
 		float getAmbGIMixWeight() const;
+		void setDenoiserEnabled(bool v);
+		bool getDenoiserEnabled() const;
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
 		void resize();

@@ -13,6 +13,8 @@
 
 // Private
 
+// TODO: Switch to texture based implementation instead of using buffers.
+
 class RT64::Denoiser::Context {
 private:
     struct Image {
