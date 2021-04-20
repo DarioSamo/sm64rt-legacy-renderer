@@ -105,11 +105,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
 	view->setAmbGIMixWeight(ambGIMix);
-
-    if (ImGui::Button("Save Buffers")) {
-        view->saveBuffers();
-    }
-
     ImGui::End();
 }
 

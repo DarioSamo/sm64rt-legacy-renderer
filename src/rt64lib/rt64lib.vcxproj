@@ -29,9 +29,6 @@
     <ClInclude Include="contrib\nv_helpers_dx12\RootSignatureGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\TopLevelASGenerator.h" />
-    <ClInclude Include="contrib\optixDenoiser\OptiXDenoiser.h" />
-    <ClInclude Include="contrib\optixDenoiser\OptiXError.h" />
-    <ClInclude Include="private\rt64_bluenoise.h" />
     <ClInclude Include="private\rt64_common.h" />
     <ClInclude Include="private\rt64_denoiser.h" />
     <ClInclude Include="private\rt64_device.h" />
@@ -57,7 +54,6 @@
     <ClCompile Include="contrib\nv_helpers_dx12\RootSignatureGenerator.cpp" />
     <ClCompile Include="contrib\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
     <ClCompile Include="contrib\nv_helpers_dx12\TopLevelASGenerator.cpp" />
-    <ClCompile Include="private\rt64_bluenoise.cpp" />
     <ClCompile Include="private\rt64_common.cpp" />
     <ClCompile Include="private\rt64_denoiser.cpp" />
     <ClCompile Include="private\rt64_device.cpp" />
@@ -82,7 +78,6 @@
     <None Include="shaders\PSInput.hlsli" />
     <None Include="shaders\Ray.hlsli" />
     <None Include="shaders\Samplers.hlsli" />
-    <None Include="shaders\BlueNoise.hlsli" />
     <None Include="shaders\Textures.hlsli" />
   </ItemGroup>
   <ItemGroup>
@@ -233,7 +228,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optixDenoiser/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -253,7 +248,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optixDenoiser/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

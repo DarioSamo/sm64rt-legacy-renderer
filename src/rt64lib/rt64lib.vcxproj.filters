@@ -28,9 +28,6 @@
     <Filter Include="contrib\nv_helpers_dx12">
       <UniqueIdentifier>{cc7d3886-bac3-4ec3-b22e-069a27f07a2b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="contrib\optix">
-      <UniqueIdentifier>{0b1305b4-7c75-4285-b6d0-365dec9952f9}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="private\rt64_device.h">
@@ -114,16 +111,7 @@
     <ClInclude Include="contrib\nv_helpers_dx12\TopLevelASGenerator.h">
       <Filter>contrib\nv_helpers_dx12</Filter>
     </ClInclude>
-    <ClInclude Include="contrib\optixDenoiser\OptiXDenoiser.h">
-      <Filter>contrib\optix</Filter>
-    </ClInclude>
     <ClInclude Include="private\rt64_denoiser.h">
-      <Filter>private</Filter>
-    </ClInclude>
-    <ClInclude Include="contrib\optixDenoiser\OptiXError.h">
-      <Filter>contrib\optix</Filter>
-    </ClInclude>
-    <ClInclude Include="private\rt64_bluenoise.h">
       <Filter>private</Filter>
     </ClInclude>
   </ItemGroup>
@@ -194,9 +182,6 @@
     <ClCompile Include="private\rt64_denoiser.cpp">
       <Filter>private</Filter>
     </ClCompile>
-    <ClCompile Include="private\rt64_bluenoise.cpp">
-      <Filter>private</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\ViewParams.hlsli">
@@ -227,9 +212,6 @@
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Samplers.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\BlueNoise.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Textures.hlsli">

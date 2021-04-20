@@ -9,7 +9,6 @@
 #include "Ray.hlsli"
 #include "Random.hlsli"
 #include "Samplers.hlsli"
-#include "BlueNoise.hlsli"
 #include "ViewParams.hlsli"
 
 #define EPSILON								0.000001f

@@ -17,9 +17,6 @@
 
 #include "im3d/im3d.h"
 
-#define TINYEXR_IMPLEMENTATION
-#include "tinyexr/tinyexr.h"
-
 namespace {
 	const int MaxQueries = 12 + 1;
 };
@@ -339,19 +336,19 @@ void RT64::View::createShaderResourceHeap() {
 	uavDesc.Buffer.FirstElement = 0;
 	uavDesc.Buffer.NumElements = scene->getDevice()->getWidth() * scene->getDevice()->getHeight();
 	uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getInputColorResource(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getColor(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for albedo output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getInputAlbedoResource(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getAlbedo(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for normal output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getInputNormalResource(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getNormal(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for denoised output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getOutputDenoisedResource(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getOutput(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for hit distance buffer.
@@ -430,11 +427,6 @@ void RT64::View::createShaderResourceHeap() {
 	srvDesc.Buffer.StructureByteStride = sizeof(InstanceProperties);
 	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(activeInstancesBufferProps.Get(), &srvDesc, handle);
-	handle.ptr += handleIncrement;
-
-	// Add the blue noise SRV.
-	Texture *blueNoise = scene->getDevice()->getBlueNoiseTexture();
-	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(blueNoise->getTexture(), &textureSRVDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// Add the texture SRV.
@@ -716,9 +708,9 @@ void RT64::View::render() {
 	{
 		CD3DX12_RESOURCE_BARRIER barriers[] = {
 			CD3DX12_RESOURCE_BARRIER::UAV(rtOutputResources[rtCurrentFrame].Get()),
-			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getInputColorResource()),
-			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getInputAlbedoResource()),
-			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getInputNormalResource())
+			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getColor()),
+			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getAlbedo()),
+			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getNormal())
 		};
 
 		d3dCommandList->ResourceBarrier(4, barriers);
@@ -989,124 +981,6 @@ RT64_INSTANCE *RT64::View::getRaytracedInstanceAt(int x, int y) {
 	}
 	
 	return (RT64_INSTANCE *)(rtInstances[instanceId].instance);
-}
-
-bool SaveEXR(const float *rgba, int width, int height, const char *outfilename) {
-	EXRHeader header;
-	InitEXRHeader(&header);
-
-	EXRImage image;
-	InitEXRImage(&image);
-
-	image.num_channels = 4;
-
-	std::vector<float> images[4];
-	images[0].resize(width * height);
-	images[1].resize(width * height);
-	images[2].resize(width * height);
-	images[3].resize(width * height);
-
-	// Split RGBRGBRGB... into R, G and B layer
-	for (int i = 0; i < width * height; i++) {
-		images[0][i] = rgba[4 * i + 0];
-		images[1][i] = rgba[4 * i + 1];
-		images[2][i] = rgba[4 * i + 2];
-		images[3][i] = rgba[4 * i + 3];
-	}
-
-	float *image_ptr[4];
-	image_ptr[0] = &(images[3].at(0)); // A
-	image_ptr[1] = &(images[2].at(0)); // B
-	image_ptr[2] = &(images[1].at(0)); // G
-	image_ptr[3] = &(images[0].at(0)); // R
-
-	image.images = (unsigned char **)image_ptr;
-	image.width = width;
-	image.height = height;
-
-	header.num_channels = 4;
-	header.channels = (EXRChannelInfo *)malloc(sizeof(EXRChannelInfo) * header.num_channels);
-	// Must be (A)BGR order, since most of EXR viewers expect this channel order.
-	strncpy(header.channels[0].name, "A", 255); header.channels[0].name[strlen("A")] = '\0';
-	strncpy(header.channels[1].name, "B", 255); header.channels[1].name[strlen("B")] = '\0';
-	strncpy(header.channels[2].name, "G", 255); header.channels[2].name[strlen("G")] = '\0';
-	strncpy(header.channels[3].name, "R", 255); header.channels[3].name[strlen("R")] = '\0';
-
-	header.pixel_types = (int *)malloc(sizeof(int) * header.num_channels);
-	header.requested_pixel_types = (int *)malloc(sizeof(int) * header.num_channels);
-	for (int i = 0; i < header.num_channels; i++) {
-		header.pixel_types[i] = TINYEXR_PIXELTYPE_FLOAT; // pixel type of input image
-		header.requested_pixel_types[i] = TINYEXR_PIXELTYPE_FLOAT; // pixel type of output image to be stored in .EXR
-	}
-
-	const char *err = NULL; // or nullptr in C++11 or later.
-	int ret = SaveEXRImageToFile(&image, &header, outfilename, &err);
-	if (ret != TINYEXR_SUCCESS) {
-		fprintf(stderr, "Save EXR err: %s\n", err);
-		FreeEXRErrorMessage(err); // free's buffer for an error message
-		return ret;
-	}
-	printf("Saved exr file. [ %s ] \n", outfilename);
-
-	free(header.channels);
-	free(header.pixel_types);
-	free(header.requested_pixel_types);
-
-	return true;
-}
-
-void RT64::View::saveBuffers() {
-	/*
-	auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
-
-	auto copyBarrier = [&d3dCommandList](AllocatedResource &sourceRes, AllocatedResource &readbackRes) {
-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(sourceRes.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		d3dCommandList->ResourceBarrier(1, &barrier);
-	};
-
-	auto uavBarrier = [&d3dCommandList](AllocatedResource &sourceRes, AllocatedResource &readbackRes) {
-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(sourceRes.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		d3dCommandList->ResourceBarrier(1, &barrier);
-	};
-
-	copyBarrier(rtOutputColor, rtOutputColorReadback);
-	copyBarrier(rtOutputAlbedo, rtOutputAlbedoReadback);
-	copyBarrier(rtOutputNormal, rtOutputNormalReadback);
-	d3dCommandList->CopyResource(rtOutputColorReadback.Get(), rtOutputColor.Get());
-	d3dCommandList->CopyResource(rtOutputAlbedoReadback.Get(), rtOutputAlbedo.Get());
-	d3dCommandList->CopyResource(rtOutputNormalReadback.Get(), rtOutputNormal.Get());
-	scene->getDevice()->submitCommandList();
-	scene->getDevice()->waitForGPU();
-	scene->getDevice()->resetCommandList();
-	void *colorData;
-	void *albedoData;
-	void *normalData;
-	ThrowIfFailed(rtOutputColorReadback.Get()->Map(0, nullptr, &colorData));
-	ThrowIfFailed(rtOutputAlbedoReadback.Get()->Map(0, nullptr, &albedoData));
-	ThrowIfFailed(rtOutputNormalReadback.Get()->Map(0, nullptr, &normalData));
-
-	{
-		std::unique_lock<std::mutex> finishLock(denoiserFinishedMutex);
-		{
-			std::unique_lock<std::mutex> queueLock(denoiserQueueMutex);
-			DenoiserAction denAction;
-			denAction.action = DenoiserAction::Denoise;
-			denAction.colorData = (float *)(colorData);
-			denAction.albedoData = (float *)(albedoData);
-			denAction.normalData = (float *)(normalData);
-			denoiserActions.push(denAction);
-		}
-
-		denoiserQueueCondition.notify_all();
-		denoiserFinishedCondition.wait(finishLock);
-
-		SaveEXR(denoiserLastResult, scene->getDevice()->getWidth(), scene->getDevice()->getHeight(), "denoised.exr");
-	}
-
-	rtOutputColorReadback.Get()->Unmap(0, nullptr);
-	rtOutputAlbedoReadback.Get()->Unmap(0, nullptr);
-	rtOutputNormalReadback.Get()->Unmap(0, nullptr);
-	*/
 }
 
 void RT64::View::resize() {

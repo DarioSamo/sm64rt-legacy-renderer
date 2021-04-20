@@ -50,7 +50,6 @@ namespace RT64 {
 		ViewParams,
 		SceneLights,
 		instanceProps,
-		gBlueNoise,
 		gTextures,
 		MAX
 	};
@@ -75,7 +74,6 @@ namespace RT64 {
 		indexBuffer,
 		SceneLights,
 		instanceProps,
-		gBlueNoise,
 		gTextures
 	};
 

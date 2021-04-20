@@ -6,7 +6,6 @@
 
 #include <dwmapi.h>
 
-#include "rt64_bluenoise.h"
 #include "rt64_device.h"
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
@@ -205,10 +204,6 @@ ID3D12PipelineState *RT64::Device::getIm3dPipelineStateLine() {
 
 ID3D12PipelineState *RT64::Device::getIm3dPipelineStateTriangle() {
 	return im3dPipelineStateTriangle;
-}
-
-RT64::Texture *RT64::Device::getBlueNoiseTexture() const {
-	return blueNoiseTexture;
 }
 
 CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() {
@@ -502,9 +497,6 @@ void RT64::Device::loadAssets() {
 		ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
 	}
 
-	// Load blue noise texture.
-	blueNoiseTexture = new Texture(this, BlueNoiseRGBA, BlueNoiseWidth, BlueNoiseHeight, 4);
-
 	// Close command list and wait for it to finish.
 	waitForGPU();
 }
@@ -572,7 +564,6 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 		{ SRV_INDEX(SceneBVH), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneBVH) },
 		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
 		{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
-		{ SRV_INDEX(gBlueNoise), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBlueNoise) },
 		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 	});
 

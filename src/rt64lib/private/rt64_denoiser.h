@@ -18,9 +18,9 @@ namespace RT64 {
 		virtual ~Denoiser();
 		void denoise();
 		void resize(unsigned int width, unsigned int height);
-		ID3D12Resource *getInputColorResource() const;
-		ID3D12Resource *getInputAlbedoResource() const;
-		ID3D12Resource *getInputNormalResource() const;
-		ID3D12Resource *getOutputDenoisedResource() const;
+		ID3D12Resource *getColor() const;
+		ID3D12Resource *getAlbedo() const;
+		ID3D12Resource *getNormal() const;
+		ID3D12Resource *getOutput() const;
 	};
 };
