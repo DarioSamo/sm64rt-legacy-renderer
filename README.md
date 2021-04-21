@@ -4,7 +4,7 @@ RT64 is a hardware-accelerated real-time raytracer that aims to recreate the vis
 
 The library is not meant to be used in the traditional way by linking it as an static or dynamic library. It can be loaded during runtime by other processes as long as they can include the basic C-style header and call the provided function pointers. This is mostly meant for ease of use as it allows to run the renderer and hook it to another process without having to port it to the build system used by the host application.
 
-[sm64rtx](https://github.com/DarioSamo/sm64rtx) makes heavy use of this library, and its reliance on MinGW presented some problems when making D3D12 code that uses the latest raytracing features. This design allows both projects to communicate without issue.
+[sm64rt](https://github.com/DarioSamo/sm64rt) makes heavy use of this library, and its reliance on MinGW presented some problems when making D3D12 code that uses the latest raytracing features. This design allows both projects to communicate without issue.
 
 ## Current support
 * D3D12 backend for Windows 10
