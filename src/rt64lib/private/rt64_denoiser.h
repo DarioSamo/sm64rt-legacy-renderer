@@ -16,11 +16,9 @@ namespace RT64 {
 	public:
 		Denoiser(Device *device);
 		virtual ~Denoiser();
+
+		// Requires R32G32B32A32 textures.
+		void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal);
 		void denoise();
-		void resize(unsigned int width, unsigned int height);
-		ID3D12Resource *getColor() const;
-		ID3D12Resource *getAlbedo() const;
-		ID3D12Resource *getNormal() const;
-		ID3D12Resource *getOutput() const;
 	};
 };

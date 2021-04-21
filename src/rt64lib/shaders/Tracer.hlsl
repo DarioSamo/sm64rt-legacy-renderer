@@ -224,8 +224,9 @@ float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, fl
 	return reflectionColor;
 }
 
-float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
-	float3 bgColor = gBackground[launchIndex].rgb;
+void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
+	float2 bgPos = float2(launchIndex / viewport.xy);
+	float3 bgColor = gBackground.SampleLevel(linearClampClamp, bgPos, 0).rgb;
 	float4 resColor = float4(0, 0, 0, 1);
 	float hitDistances[MAX_HIT_QUERIES];
 	float4 hitColors[MAX_HIT_QUERIES];
@@ -247,30 +248,35 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 	uint maxFullQuality = 1;
 	for (hit = 0; hit < hitCount; hit++) {
 		uint instanceId = hitInstanceIds[hit];
-		float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(hitDistances[hit], instanceId);
+		float hitDistance = WithoutDistanceBias(hitDistances[hit], instanceId);
+		seed += asuint(hitDistance);
+
+		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
 		float3 vertexNormal = hitNormals[hit].xyz;
 		float hitColorA = hitColors[hit].a;
 		float alphaContrib = (resColor.a * hitColorA);
 		if (alphaContrib >= EPSILON) {
 			float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
+			
 			if ((hitColorA >= FULL_QUALITY_ALPHA) && (maxFullQuality > 0)) {
 				finalAlbedo = hitColors[hit];
 				finalNormal = float4(vertexNormal, 0.0f);
-				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, seed + hit);
+				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, seed);
 				maxFullQuality--;
 
 				// Global illumination.
 				uint giSamples = giBounces;
+				uint seedCopy = seed;
 				while (giSamples > 0) {
-					float3 bounceDir = getCosHemisphereSample(seed, vertexNormal);
+					float3 bounceDir = getCosHemisphereSample(seedCopy, vertexNormal);
 					float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, seed + giSamples);
 					resultGiLight += bounceColor / giBounces;
 					giSamples--;
 				}
 			}
 			else {
-				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 2, seed + hit);
+				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 2, seed);
 			}
 
 			// Eye light.
@@ -304,7 +310,7 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 			if (reflectionFactor > 0.0f) {
 				float reflectionFresnelFactor = instanceProps[instanceId].materialProperties.reflectionFresnelFactor;
 				float reflectionShineFactor = instanceProps[instanceId].materialProperties.reflectionShineFactor;
-				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, launchIndex, pixelDims, seed + hit);
+				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, launchIndex, pixelDims, seed);
 				hitColors[hit].rgb = lerp(hitColors[hit].rgb, reflectionColor.rgb, reflectionColor.a);
 			}
 
@@ -351,38 +357,24 @@ float3 FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirectio
 		bgColor = hitColors[hitCount - 1].rgb;
 	}
 
-	float3 finalColor = lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a));
-	int gIndex = launchIndex.y * pixelDims.x + launchIndex.x;
-	gColor[gIndex] = float4(finalColor, 1.0f);
-	gAlbedo[gIndex] = finalAlbedo;
-	gNormal[gIndex] = finalNormal;
-	return finalColor;
+	gOutput[launchIndex] = float4(lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a)), 1.0f);
+	gAlbedo[launchIndex] = finalAlbedo;
+	gNormal[launchIndex] = finalNormal;
 }
 
-float3 TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, uint seed) {
+void TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, 0);
-	return FullShadeFromGBuffers(min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, seed);
+	FullShadeFromGBuffers(min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, seed);
 }
 
 [shader("raygeneration")]
 void TraceRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 launchDims = DispatchRaysDimensions().xy;
-
-	// Don't trace rays on pixels covered by the foreground.
-	float4 fgColor = gForeground[launchIndex];
-	//if (fgColor.a < 1.0f) {
-		float2 d = (((launchIndex.xy + 0.5f) / float2(launchDims)) * 2.f - 1.f);
-		float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
-		float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
-		float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
-		uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, /*frameCount*/(int)(rayOrigin.x + rayOrigin.y + rayOrigin.z), 16);
-		float3 fullColor = TraceFull(rayOrigin, rayDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, launchDims, seed);
-		gOutput[launchIndex] = float4(lerp(fullColor, fgColor.rgb, fgColor.a), 1.0f);
-	/*
-	}
-	else {
-		gOutput[launchIndex] = fgColor;
-	}
-	*/
+	float2 d = (((launchIndex.xy + 0.5f) / float2(launchDims)) * 2.f - 1.f);
+	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
+	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
+	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
+	uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
+	TraceFull(rayOrigin, rayDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, launchDims, seed);
 }

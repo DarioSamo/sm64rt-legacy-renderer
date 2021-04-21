@@ -90,6 +90,7 @@ namespace RT64 {
 		ID3D12StateObject *getD3D12RtStateObject();
 		ID3D12StateObjectProperties *getD3D12RtStateObjectProperties();
 		ID3D12Resource *getD3D12RenderTarget();
+		CD3DX12_CPU_DESCRIPTOR_HANDLE getD3D12RTV();
 		ID3D12RootSignature* getD3D12RootSignature();
 		ID3D12PipelineState *getD3D12PipelineState();
 		ID3D12RootSignature *getComposeRootSignature();
@@ -100,7 +101,7 @@ namespace RT64 {
 		ID3D12PipelineState *getIm3dPipelineStateTriangle();
 		CD3DX12_VIEWPORT getD3D12Viewport();
 		CD3DX12_RECT getD3D12ScissorRect(); 
-		AllocatedResource allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue);
+		AllocatedResource allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue, bool committed = false, bool shared = false);
 		AllocatedResource allocateBuffer(D3D12_HEAP_TYPE HeapType, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES InitialResourceState, bool committed = false, bool shared = false);
 		void setLastCommandQueueBarrier(const D3D12_RESOURCE_BARRIER &barrier);
 		void submitCommandQueueBarrier();

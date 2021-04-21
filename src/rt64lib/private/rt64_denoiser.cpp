@@ -18,8 +18,10 @@
 class RT64::Denoiser::Context {
 private:
     struct Image {
-        AllocatedResource resource;
+        ID3D12Resource *resource;
         HANDLE sharedHandle;
+        cudaMipmappedArray_t mipmappedArray;
+        cudaArray_t extArray;
         cudaExternalMemory_t extMemory;
         OptixImage2D optixImage;
     };
@@ -77,13 +79,16 @@ public:
         optixDeviceContextDestroy(optixContext);
 	}
 
-    Image createImage(unsigned int width, unsigned int height) {
+    Image createFromResource(unsigned int width, unsigned int height, ID3D12Resource *resource) {
         Image image;
-        image.resource = device->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, width * height * sizeof(float) * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, true, true);
+        image.resource = resource;
 
-        HRESULT result = device->getD3D12Device()->CreateSharedHandle(image.resource.Get(), NULL, GENERIC_ALL, NULL, &image.sharedHandle);
-        D3D12_RESOURCE_DESC resDesc = image.resource.Get()->GetDesc();
+        // Create shared handle for texture resource.
+        D3D12_RESOURCE_DESC resDesc = resource->GetDesc();
+        HRESULT result = device->getD3D12Device()->CreateSharedHandle(resource, NULL, GENERIC_ALL, NULL, &image.sharedHandle);
         D3D12_RESOURCE_ALLOCATION_INFO resAllocInfo = device->getD3D12Device()->GetResourceAllocationInfo(d3dNodeMask, 1, &resDesc);
+
+        // Import shared handle as external memory for CUDA.
         cudaExternalMemoryHandleDesc extHandleDesc = {};
         extHandleDesc.type = cudaExternalMemoryHandleTypeD3D12Resource;
         extHandleDesc.handle.win32.handle = image.sharedHandle;
@@ -91,26 +96,44 @@ public:
         extHandleDesc.flags = cudaExternalMemoryDedicated;
         cudaImportExternalMemory(&image.extMemory, &extHandleDesc);
 
-        cudaExternalMemoryBufferDesc bufferDesc = {};
-        bufferDesc.offset = 0;
-        bufferDesc.size = resAllocInfo.SizeInBytes;
-        bufferDesc.flags = 0;
-        cudaExternalMemoryGetMappedBuffer(reinterpret_cast<void **>(&image.optixImage.data), image.extMemory, &bufferDesc);
-        
+        // Get the mipmapped array from the external memory.
+        cudaExternalMemoryMipmappedArrayDesc mipmappedArrayDesc;
+        mipmappedArrayDesc.offset = 0;
+        mipmappedArrayDesc.numLevels = 1;
+        mipmappedArrayDesc.formatDesc = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
+        mipmappedArrayDesc.extent.width = width;
+        mipmappedArrayDesc.extent.height = height;
+        mipmappedArrayDesc.extent.depth = 0;
+        mipmappedArrayDesc.flags = cudaArrayColorAttachment;
+        cudaExternalMemoryGetMappedMipmappedArray(&image.mipmappedArray, image.extMemory, &mipmappedArrayDesc);
+
+        // Get the first level as a CUDA array.
+        cudaGetMipmappedArrayLevel(&image.extArray, image.mipmappedArray, 0);
+
+        // Allocate the dedicated memory packed for the denoiser.
         image.optixImage.width = width;
         image.optixImage.height = height;
         image.optixImage.rowStrideInBytes = width * sizeof(float4);
         image.optixImage.pixelStrideInBytes = sizeof(float4);
         image.optixImage.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+        cudaMalloc(reinterpret_cast<void **>(&image.optixImage.data), width * height * sizeof(float4));
 
         return image;
     }
 
+    void copyImageResToCuda(Image &image) {
+        cudaMemcpy2DFromArray(reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.extArray, 0, 0, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice);
+    }
+
+    void copyImageCudaToRes(Image &image) {
+        cudaMemcpy2DToArray(image.extArray, 0, 0, reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice);
+    }
+
     void releaseImage(Image &image) {
         cudaFree(reinterpret_cast<void *>(image.optixImage.data));
+        cudaFreeMipmappedArray(image.mipmappedArray);
         cudaDestroyExternalMemory(image.extMemory);
         CloseHandle(image.sharedHandle);
-        image.resource.Release();
     }
 
     void releaseResources() {
@@ -124,23 +147,30 @@ public:
     }
     
     void denoise() {
+        copyImageResToCuda(color);
+        copyImageResToCuda(albedo);
+        copyImageResToCuda(normal);
         optixDenoiserComputeIntensity(optixDenoiser, nullptr, &color.optixImage, optixIntensity, optixScratch, optixScratchSize);
         optixUtilDenoiserInvokeTiled(optixDenoiser, nullptr, &optixParams, optixState, optixStateSize, &optixGuideLayer, &optixDenoiserLayer, 1, optixScratch, optixScratchSize, 0, width, height);
+        copyImageCudaToRes(output);
         cudaDeviceSynchronize();
     }
 
-	void resize(unsigned int width, unsigned int height) {
+    void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
         releaseResources();
 
         this->width = width;
         this->height = height;
 
-        // Create new resources.
-		color = createImage(width, height);
-        albedo = createImage(width, height);
-        normal = createImage(width, height);
-        output = createImage(width, height);
+        // Create the Optix images with references to the resources.
+        // Since Optix allocates its own CUDA memory, it is safe to create more
+        // than one reference to the same resource.
+        color = createFromResource(width, height, inOutColor);
+        albedo = createFromResource(width, height, inAlbedo);
+        normal = createFromResource(width, height, inNormal);
+        output = createFromResource(width, height, inOutColor);
 
+        // Setup Optix denoiser.
         OptixDenoiserSizes denoiserSizes;
         optixDenoiserComputeMemoryResources(optixDenoiser, width, height, &denoiserSizes);
         optixScratchSize = static_cast<uint32_t>(denoiserSizes.withoutOverlapScratchSizeInBytes);
@@ -157,23 +187,7 @@ public:
         optixParams.hdrIntensity = optixIntensity;
         optixParams.hdrAverageColor = 0;
         optixParams.blendFactor = 0.0f;
-	}
-
-	ID3D12Resource *getColor() const {
-		return color.resource.Get();
-	}
-
-	ID3D12Resource *getAlbedo() const {
-		return albedo.resource.Get();
-	}
-
-	ID3D12Resource *getNormal() const {
-		return normal.resource.Get();
-	}
-
-	ID3D12Resource *getOutput() const {
-		return output.resource.Get();
-	}
+    }
 };
 
 RT64::Denoiser::Denoiser(Device *device) {
@@ -188,22 +202,6 @@ void RT64::Denoiser::denoise() {
     ctx->denoise();
 }
 
-void RT64::Denoiser::resize(unsigned int width, unsigned int height) {
-	ctx->resize(width, height);
-}
-
-ID3D12Resource *RT64::Denoiser::getColor() const {
-	return ctx->getColor();
-}
-
-ID3D12Resource *RT64::Denoiser::getAlbedo() const {
-	return ctx->getAlbedo();
-}
-
-ID3D12Resource *RT64::Denoiser::getNormal() const {
-	return ctx->getNormal();
-}
-
-ID3D12Resource *RT64::Denoiser::getOutput() const {
-	return ctx->getOutput();
+void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
+    ctx->set(width, height, inOutColor, inAlbedo, inNormal);
 }

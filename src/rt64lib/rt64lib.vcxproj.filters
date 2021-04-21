@@ -255,7 +255,10 @@
     <CustomBuild Include="shaders\Im3DGSPoints.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\ComposeCS.hlsl">
+    <CustomBuild Include="shaders\ComposePS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\ComposeVS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>

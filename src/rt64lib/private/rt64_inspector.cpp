@@ -97,16 +97,19 @@ void RT64::Inspector::renderViewParams(View *view) {
     int giBounces = view->getGIBounces();
     int maxLightSamples = view->getMaxLightSamples();
 	float ambGIMix = view->getAmbGIMixWeight();
+    int resScale = lround(view->getResolutionScale() * 100.0f);
     bool denoiser = view->getDenoiserEnabled();
     ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI Bounces", &giBounces, 0.1f, 0, 32);
     ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
 	ImGui::DragFloat("Ambient GI Mix", &ambGIMix, 0.01f, 0.0f, 1.0f);
-    ImGui::Checkbox("Denoiser", &denoiser);
+    ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+    ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
     view->setSoftLightSamples(softLightSamples);
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
 	view->setAmbGIMixWeight(ambGIMix);
+    view->setResolutionScale(resScale / 100.0f);
     view->setDenoiserEnabled(denoiser);
     ImGui::End();
 }

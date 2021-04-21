@@ -11,7 +11,8 @@
 #include "rt64_scene.h"
 #include "rt64_texture.h"
 
-#include "shaders/ComposeCS.hlsl.h"
+#include "shaders/ComposePS.hlsl.h"
+#include "shaders/ComposeVS.hlsl.h"
 #include "shaders/Im3DPS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
@@ -174,6 +175,10 @@ ID3D12Resource *RT64::Device::getD3D12RenderTarget() {
 	return d3dRenderTargets[d3dFrameIndex];
 }
 
+CD3DX12_CPU_DESCRIPTOR_HANDLE RT64::Device::getD3D12RTV() {
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
+}
+
 ID3D12RootSignature* RT64::Device::getD3D12RootSignature() {
 	return d3dRootSignature;
 }
@@ -214,9 +219,11 @@ CD3DX12_RECT RT64::Device::getD3D12ScissorRect() {
 	return d3dScissorRect;
 }
 
-RT64::AllocatedResource RT64::Device::allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue) {
+RT64::AllocatedResource RT64::Device::allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue, bool committed, bool shared) {
 	D3D12MA::ALLOCATION_DESC allocationDesc = {};
 	allocationDesc.HeapType = HeapType;
+	allocationDesc.ExtraHeapFlags = shared ? D3D12_HEAP_FLAG_SHARED : D3D12_HEAP_FLAG_NONE;
+	allocationDesc.Flags = committed ? D3D12MA::ALLOCATION_FLAG_COMMITTED : D3D12MA::ALLOCATION_FLAG_NONE;
 
 	D3D12MA::Allocation *allocation = nullptr;
 	ID3D12Resource *resource = nullptr;
@@ -378,14 +385,14 @@ void RT64::Device::loadAssets() {
 		*/
 	};
 
-	// Create an empty root signature.
+	// Raster root signature.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS, 0);
 		rsc.AddHeapRangesParameter({
 			{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
 			{ SRV_INDEX(gTextures), 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) }
-			});
+		});
 
 		d3dRootSignature = rsc.Generate(d3dDevice, false, true, true);
 	}
@@ -464,24 +471,23 @@ void RT64::Device::loadAssets() {
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
-			{ UAV_INDEX(gOutput), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gOutput) },
-			{ UAV_INDEX(gColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gColor) },
-			{ UAV_INDEX(gAlbedo), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gAlbedo) },
-			{ UAV_INDEX(gNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gNormal) },
-			{ UAV_INDEX(gDenoised), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDenoised) },
-			{ SRV_INDEX(gBackground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBackground) },
-			{ SRV_INDEX(gForeground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gForeground) },
-			{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
+			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 }
 		});
 
-		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, false);
+		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, true);
 	}
 
 	{
-		D3D12_COMPUTE_PIPELINE_STATE_DESC computeDesc = {};
-		computeDesc.pRootSignature = d3dComposeRootSignature;
-		computeDesc.CS = CD3DX12_SHADER_BYTECODE(ComposeCSBlob, sizeof(ComposeCSBlob));
-		ThrowIfFailed(d3dDevice->CreateComputePipelineState(&computeDesc, IID_PPV_ARGS(&d3dComposePipelineState)));
+		// Describe and create the graphics pipeline state object (PSO).
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+		setPsoDefaults(psoDesc);
+		psoDesc.InputLayout = { nullptr, 0 };
+		psoDesc.pRootSignature = d3dComposeRootSignature;
+		psoDesc.VS = CD3DX12_SHADER_BYTECODE(ComposeVSBlob, sizeof(ComposeVSBlob));
+		psoDesc.PS = CD3DX12_SHADER_BYTECODE(ComposePSBlob, sizeof(ComposePSBlob));
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dComposePipelineState)));
 	}
 
 	// Create the command list.
@@ -551,10 +557,8 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
 	rsc.AddHeapRangesParameter({
 		{ UAV_INDEX(gOutput), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gOutput) },
-		{ UAV_INDEX(gColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gColor) },
 		{ UAV_INDEX(gAlbedo), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gAlbedo) },
 		{ UAV_INDEX(gNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gNormal) },
-		{ UAV_INDEX(gDenoised), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDenoised) },
 		{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
@@ -607,7 +611,7 @@ void RT64::Device::preRender() {
 	CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3dRenderTargets[d3dFrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	d3dCommandList->ResourceBarrier(1, &transitionBarrier);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = getD3D12RTV();
 	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
 	const float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -651,7 +655,7 @@ void RT64::Device::draw(int vsyncInterval) {
 	}
 
 	// Scene has most likely changed the render target. Set it again for the inspectors to work properly.
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = getD3D12RTV();
 	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
 	// Find mouse cursor position.

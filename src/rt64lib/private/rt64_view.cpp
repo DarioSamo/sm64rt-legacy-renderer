@@ -16,6 +16,7 @@
 #include "rt64_view.h"
 
 #include "im3d/im3d.h"
+#include "xxhash/xxhash32.h"
 
 namespace {
 	const int MaxQueries = 12 + 1;
@@ -31,14 +32,17 @@ namespace {
 struct DenoiserAction {
 	enum Action {
 		Create,
-		Resize,
+		Set,
 		Denoise
 	};
 
 	Action action;
 	RT64::Device *device;
-	int width;
-	int height;
+	unsigned int width;
+	unsigned int height;
+	ID3D12Resource *inOutColor;
+	ID3D12Resource *inAlbedo;
+	ID3D12Resource *inNormal;
 };
 
 RT64::Denoiser *denoiser = nullptr;
@@ -62,9 +66,9 @@ void denoiserRun() {
 				denoiser = new RT64::Denoiser(denAction.device);
 				break;
 			}
-			case DenoiserAction::Resize: {
+			case DenoiserAction::Set: {
 				assert(denoiser != nullptr);
-				denoiser->resize(denAction.width, denAction.height);
+				denoiser->set(denAction.width, denAction.height, denAction.inOutColor, denAction.inAlbedo, denAction.inNormal);
 				break;
 			}
 			case DenoiserAction::Denoise: {
@@ -85,7 +89,7 @@ void denoiserRun() {
 	}
 }
 
-void denoiserInit(RT64::Device *device) {
+void denoiserInit(RT64::Device *device, unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
 	std::unique_lock<std::mutex> finishLock(denoiserFinishedMutex);
 	{
 		std::unique_lock<std::mutex> queueLock(denoiserQueueMutex);
@@ -97,9 +101,12 @@ void denoiserInit(RT64::Device *device) {
 		}
 
 		DenoiserAction denAction;
-		denAction.action = DenoiserAction::Resize;
-		denAction.width = device->getWidth();
-		denAction.height = device->getHeight();
+		denAction.action = DenoiserAction::Set;
+		denAction.width = width;
+		denAction.height = height;
+		denAction.inOutColor = inOutColor;
+		denAction.inAlbedo = inAlbedo;
+		denAction.inNormal = inNormal;
 		denoiserActions.push(denAction);
 	}
 
@@ -118,17 +125,21 @@ RT64::View::View(Scene *scene) {
 	this->scene = scene;
 	descriptorHeap = nullptr;
 	descriptorHeapEntryCount = 0;
+	composeHeap = nullptr;
 	sbtStorageSize = 0;
 	activeInstancesBufferPropsSize = 0;
-	viewParamsBufferData.frameCount = 0;
+	viewParamsBufferData.randomSeed = 0;
 	viewParamsBufferData.softLightSamples = 1;
 	viewParamsBufferData.giBounces = 1;
 	viewParamsBufferData.maxLightSamples = 12;
 	viewParamsBufferData.ambGIMixWeight = 0.75f;
 	viewParamsBufferSize = 0;
 	viewParamsBufferUpdatedThisFrame = false;
+	rtWidth = 0;
+	rtHeight = 0;
+	rtScale = 1.0f;
+	resolutionScale = 1.0f;
 	denoiserEnabled = false;
-	rtCurrentFrame = 0;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
@@ -150,6 +161,10 @@ void RT64::View::createOutputBuffers() {
 	releaseOutputBuffers();
 
 	outputRtvDescriptorSize = scene->getDevice()->getD3D12Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	int screenWidth = scene->getDevice()->getWidth();
+	int screenHeight = scene->getDevice()->getHeight();
+	rtWidth = lround(screenWidth * rtScale);
+	rtHeight = lround(screenHeight * rtScale);
 
 	D3D12_CLEAR_VALUE clearValue = { };
 	clearValue.Color[0] = 0.0f;
@@ -162,31 +177,34 @@ void RT64::View::createOutputBuffers() {
 	resDesc.DepthOrArraySize = 1;
 	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	resDesc.Width = scene->getDevice()->getWidth();
-	resDesc.Height = scene->getDevice()->getHeight();
+	resDesc.Width = screenWidth;
+	resDesc.Height = screenHeight;
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resDesc.MipLevels = 1;
 	resDesc.SampleDesc.Count = 1;
 
 	// Create buffers for raster output.
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-	rasterResources[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, &clearValue);
-	rasterResources[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, &clearValue);
+	rasterBg = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, &clearValue);
+	rasterFg = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue);
 
 	// Create buffers for raytracing output.
+	resDesc.Width = rtWidth;
+	resDesc.Height = rtHeight;
+	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-	for (int i = 0; i < 2; i++) {
-		rtOutputResources[i] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr);
-	}
+	rtOutput = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
+	rtAlbedo = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
+	rtNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 
 	// Create hit result buffers.
-	UINT64 hitCountBufferSizeOne = scene->getDevice()->getWidth() * scene->getDevice()->getHeight();
+	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
 	UINT64 hitCountBufferSizeAll = hitCountBufferSizeOne * MaxQueries;
-	rtHitDistanceResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitColorResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitNormalResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitInstanceIdResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitInstanceIdReadbackResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, hitCountBufferSizeOne * 2, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
+	rtHitDistance = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitColor = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitNormal = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitInstanceId = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, hitCountBufferSizeOne * 2, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 	// Create the RTVs for the raster resources.
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
@@ -194,30 +212,31 @@ void RT64::View::createOutputBuffers() {
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-	for (int i = 0; i < 2; i++) {
-		ThrowIfFailed(scene->getDevice()->getD3D12Device()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rasterRtvHeaps[i])));
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rasterRtvHeaps[i]->GetCPUDescriptorHandleForHeapStart());
-		scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rasterResources[i].Get(), nullptr, rtvHandle);
-		rtvHandle.Offset(1, outputRtvDescriptorSize);
-	}
+	ThrowIfFailed(scene->getDevice()->getD3D12Device()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rasterBgHeap)));
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvBgHandle(rasterBgHeap->GetCPUDescriptorHandleForHeapStart());
+	scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rasterBg.Get(), nullptr, rtvBgHandle);
+	rtvBgHandle.Offset(1, outputRtvDescriptorSize);
 
-	{
-		if (denoiserEnabled && (denoiser == nullptr)) {
-			denoiserInit(scene->getDevice());
-		}
+	ThrowIfFailed(scene->getDevice()->getD3D12Device()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rasterFgHeap)));
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvFgHandle(rasterFgHeap->GetCPUDescriptorHandleForHeapStart());
+	scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rasterFg.Get(), nullptr, rtvFgHandle);
+	rtvFgHandle.Offset(1, outputRtvDescriptorSize);
+
+	if (denoiserEnabled) {
+		denoiserInit(scene->getDevice(), rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
 	}
 }
 
 void RT64::View::releaseOutputBuffers() {
-	for (int i = 0; i < 2; i++) {
-		rasterResources[i].Release();
-		rtOutputResources[i].Release();
-	}
-
-	rtHitDistanceResource.Release();
-	rtHitColorResource.Release();
-	rtHitNormalResource.Release();
-	rtHitInstanceIdResource.Release();
+	rasterBg.Release();
+	rasterFg.Release();
+	rtOutput.Release();
+	rtAlbedo.Release();
+	rtNormal.Release();
+	rtHitDistance.Release();
+	rtHitColor.Release();
+	rtHitNormal.Release();
+	rtHitInstanceId.Release();
 }
 
 void RT64::View::createInstancePropertiesBuffer() {
@@ -335,57 +354,41 @@ void RT64::View::createShaderResourceHeap() {
 	// descriptors directly
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
-	// UAV for output buffer and previous one.
-	const int rtPrevFrame = (rtCurrentFrame > 0) ? 0 : 1;
+	// UAV for output buffer.
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutputResources[rtCurrentFrame].Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutput.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
-	// UAV for color output buffer.
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-	uavDesc.Buffer.FirstElement = 0;
-	uavDesc.Buffer.NumElements = scene->getDevice()->getWidth() * scene->getDevice()->getHeight();
-	uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	if (denoiserEnabled) {
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getColor(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
+	// UAV for albedo output buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtAlbedo.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
 
-		// UAV for albedo output buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getAlbedo(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for normal output buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getNormal(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for denoised output buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(denoiser->getOutput(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-	}
-	else {
-		handle.ptr += handleIncrement * 4;
-	}
+	// UAV for normal output buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtNormal.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
 
 	// UAV for hit distance buffer.
-	uavDesc.Buffer.NumElements = scene->getDevice()->getWidth() * scene->getDevice()->getHeight() * MaxQueries;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+	uavDesc.Buffer.FirstElement = 0;
+	uavDesc.Buffer.NumElements = rtWidth * rtHeight * MaxQueries;
 	uavDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitDistanceResource.Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitDistance.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for hit color buffer.
 	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitColorResource.Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitColor.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 	
 	// UAV for hit normal buffer.
 	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitNormalResource.Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitNormal.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for hit shading buffer.
 	uavDesc.Format = DXGI_FORMAT_R16_UINT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceIdResource.Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceId.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// SRVs for background and foreground textures.
@@ -395,10 +398,10 @@ void RT64::View::createShaderResourceHeap() {
 	textureSRVDesc.Texture2D.MostDetailedMip = 0;
 	textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterResources[0].Get(), &textureSRVDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterBg.Get(), &textureSRVDesc, handle);
 	handle.ptr += handleIncrement;
 
-	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterResources[1].Get(), &textureSRVDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterFg.Get(), &textureSRVDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// Add the Top Level AS SRV right after the raytracing output buffer
@@ -449,6 +452,39 @@ void RT64::View::createShaderResourceHeap() {
 	for (size_t i = 0; i < usedTextures.size(); i++) {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(usedTextures[i]->getTexture(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
+	}
+
+	{
+		// Create the heap for the compose shader.
+		if (composeHeap == nullptr) {
+			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), 2, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = composeHeap->GetCPUDescriptorHandleForHeapStart();
+
+		// SRV for denoised texture.
+		{
+			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			textureSRVDesc.Texture2D.MipLevels = 1;
+			textureSRVDesc.Texture2D.MostDetailedMip = 0;
+			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput.Get(), &textureSRVDesc, handle);
+			handle.ptr += handleIncrement;
+		}
+
+		// SRV for foreground texture.
+		{
+			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			textureSRVDesc.Texture2D.MipLevels = 1;
+			textureSRVDesc.Texture2D.MostDetailedMip = 0;
+			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterFg.Get(), &textureSRVDesc, handle);
+			handle.ptr += handleIncrement;
+		}
 	}
 }
 
@@ -523,14 +559,21 @@ void RT64::View::updateViewParamsBuffer() {
 	viewParamsBufferData.view = XMMatrixLookAtRH(XMVectorSet(eyePosition.x, eyePosition.y, eyePosition.z, 0.0f), XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 0.0f), XMVectorSet(eyeUpDirection.x, eyeUpDirection.y, eyeUpDirection.z, 0.0f));
 	viewParamsBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
 
+	// Compute the hash of the view and projection matrices and use it as the random seed.
+	// This is to prevent the denoiser from showing movement when the game is paused.
+	XXHash32 viewProjHash(0);
+	viewProjHash.add(&viewParamsBufferData.view, sizeof(XMMATRIX));
+	viewProjHash.add(&viewParamsBufferData.projection, sizeof(XMMATRIX));
+	viewParamsBufferData.randomSeed = viewProjHash.hash();
+
 	// Inverse matrices required for raytracing.
 	XMVECTOR det;
 	viewParamsBufferData.viewI = XMMatrixInverse(&det, viewParamsBufferData.view);
 	viewParamsBufferData.projectionI = XMMatrixInverse(&det, viewParamsBufferData.projection);
 
 	// Viewport dimensions.
-	viewParamsBufferData.viewport[0] = 0.0f;
-	viewParamsBufferData.viewport[1] = 0.0f;
+	viewParamsBufferData.viewport[0] = (float)(rtWidth);
+	viewParamsBufferData.viewport[1] = (float)(rtHeight);
 	viewParamsBufferData.viewport[2] = (float)(getWidth());
 	viewParamsBufferData.viewport[3] = (float)(getHeight());
 	
@@ -542,6 +585,12 @@ void RT64::View::updateViewParamsBuffer() {
 }
 
 void RT64::View::update() {
+	if (rtScale != resolutionScale) {
+		rtScale = std::max(std::min(resolutionScale, 2.0f), 0.01f);
+		resolutionScale = rtScale;
+		createOutputBuffers();
+	}
+
 	if (!scene->getInstances().empty()) {
 		// Create the active instance vectors.
 		RenderInstance renderInstance;
@@ -648,14 +697,14 @@ void RT64::View::render() {
 	// Rasterization.
 	{
 		// Transition the background and foreground to Render Targets.
-		rasterBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rasterResources[0].Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		rasterBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rasterResources[1].Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		rasterBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		rasterBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		d3dCommandList->ResourceBarrier(_countof(rasterBarriers), rasterBarriers);
 
 		UINT instanceIndex = (UINT)(rtInstances.size());
-		for (int i = 0; i < 2; i++) {
+		auto drawInstances = [d3dCommandList, &instanceIndex, this](ID3D12DescriptorHeap *heap, const std::vector<RT64::View::RenderInstance> &rasterInstances) {
 			// Set the output resource as the render target and clear it.
-			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rasterRtvHeaps[i]->GetCPUDescriptorHandleForHeapStart(), 0, outputRtvDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(heap->GetCPUDescriptorHandleForHeapStart(), 0, outputRtvDescriptorSize);
 			d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
 			const float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -663,26 +712,28 @@ void RT64::View::render() {
 
 			// Render all rasterization instances.
 			d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			const std::vector<RenderInstance>& rasterInstances = i ? rasterFgInstances : rasterBgInstances;
 			for (size_t j = 0; j < rasterInstances.size(); j++) {
-				const RenderInstance& renderInstance = rasterInstances[j];
+				const RenderInstance &renderInstance = rasterInstances[j];
 				d3dCommandList->SetGraphicsRoot32BitConstant(0, instanceIndex++, 0);
 				d3dCommandList->IASetVertexBuffers(0, 1, renderInstance.vertexBufferView);
 				d3dCommandList->IASetIndexBuffer(renderInstance.indexBufferView);
 				d3dCommandList->DrawIndexedInstanced(renderInstance.indexCount, 1, 0, 0, 0);
 			}
-		}
+		};
+
+		// Draw the background and foreground raster instances.
+		drawInstances(rasterBgHeap, rasterBgInstances);
+		drawInstances(rasterFgHeap, rasterFgInstances);
 
 		// Transition the the background and foreground from render targets to SRV.
-		rasterBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rasterResources[0].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		rasterBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rasterResources[1].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		rasterBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		rasterBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		d3dCommandList->ResourceBarrier(_countof(rasterBarriers), rasterBarriers);
 	}
 
 	// Raytracing.
 	{
-		// Transition the output resource from a copy source to a UAV.
-		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResources[rtCurrentFrame].Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
 
 		if (!rtInstances.empty()) {
@@ -706,26 +757,27 @@ void RT64::View::render() {
 			desc.HitGroupTable.StrideInBytes = sbtHelper.GetHitGroupEntrySize();
 
 			// Dimensions.
-			desc.Width = scene->getDevice()->getWidth();
-			desc.Height = scene->getDevice()->getHeight();
+			desc.Width = rtWidth;
+			desc.Height = rtHeight;
 			desc.Depth = 1;
 
 			// Bind pipeline and dispatch rays.
 			d3dCommandList->SetPipelineState1(scene->getDevice()->getD3D12RtStateObject());
 			d3dCommandList->DispatchRays(&desc);
 		}
+
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		d3dCommandList->ResourceBarrier(1, &barrier);
 	}
 
 	/// DENOISE
 	if (denoiserEnabled) {
 		CD3DX12_RESOURCE_BARRIER barriers[] = {
-			CD3DX12_RESOURCE_BARRIER::UAV(rtOutputResources[rtCurrentFrame].Get()),
-			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getColor()),
-			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getAlbedo()),
-			CD3DX12_RESOURCE_BARRIER::UAV(denoiser->getNormal())
+			CD3DX12_RESOURCE_BARRIER::UAV(rtAlbedo.Get()),
+			CD3DX12_RESOURCE_BARRIER::UAV(rtNormal.Get())
 		};
 
-		d3dCommandList->ResourceBarrier(4, barriers);
+		d3dCommandList->ResourceBarrier(_countof(barriers), barriers);
 
 		scene->getDevice()->submitCommandList();
 		scene->getDevice()->waitForGPU();
@@ -741,42 +793,29 @@ void RT64::View::render() {
 
 		denoiserQueueCondition.notify_all();
 		denoiserFinishedCondition.wait(finishLock);
-
-		// Compose shader.
-		// TODO: Switch to a fullscreen triangle instead.
-		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
-		d3dCommandList->SetPipelineState(scene->getDevice()->getComposePipelineState());
-		d3dCommandList->SetComputeRootSignature(scene->getDevice()->getComposeRootSignature());
-		d3dCommandList->SetComputeRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		d3dCommandList->Dispatch(scene->getDevice()->getWidth(), scene->getDevice()->getHeight(), 1);
 	}
 
-	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputResources[rtCurrentFrame].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	d3dCommandList->ResourceBarrier(1, &barrier);
+	// Transition the foreground to use it on the compose shader.
+	CD3DX12_RESOURCE_BARRIER fgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	d3dCommandList->ResourceBarrier(1, &fgBarrier);
 
-	// Copy raytracing output to render target.
-	{
-		// Transition the render target into a copy destination.
-		CD3DX12_RESOURCE_BARRIER targetBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3d12RenderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
-		d3dCommandList->ResourceBarrier(1, &targetBarrier);
-
-		// Copy from output resource to render target.
-		d3dCommandList->CopyResource(d3d12RenderTarget, rtOutputResources[rtCurrentFrame].Get());
-
-		// Transition the render target back into its original state.
-		targetBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3d12RenderTarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		d3dCommandList->ResourceBarrier(1, &targetBarrier);
-	}
-
-	// Increment the view's frame counter.
-	viewParamsBufferData.frameCount++;
+	// Compose.
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = scene->getDevice()->getD3D12RTV();
+	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	d3dCommandList->SetPipelineState(scene->getDevice()->getComposePipelineState());
+	d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getComposeRootSignature());
+	std::vector<ID3D12DescriptorHeap *> composeHeaps = { composeHeap };
+	d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(composeHeaps.size()), composeHeaps.data());
+	d3dCommandList->SetGraphicsRootDescriptorTable(0, composeHeap->GetGPUDescriptorHandleForHeapStart());
+	d3dCommandList->RSSetViewports(1, &viewport);
+	d3dCommandList->RSSetScissorRects(1, &scissorRect);
+	d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	d3dCommandList->IASetVertexBuffers(0, 0, nullptr);
+	d3dCommandList->DrawInstanced(3, 1, 0, 0);
 
 	// Clear flags.
 	rtHitInstanceIdReadbackUpdated = false;
 	viewParamsBufferUpdatedThisFrame = false;
-
-	// Switch buffers in use.
-	rtCurrentFrame = (rtCurrentFrame > 0) ? 0 : 1;
 }
 
 void RT64::View::renderInspector(Inspector *inspector) {
@@ -948,9 +987,17 @@ float RT64::View::getAmbGIMixWeight() const {
 	return viewParamsBufferData.ambGIMixWeight;
 }
 
+void RT64::View::setResolutionScale(float v) {
+	resolutionScale = v;
+}
+
+float RT64::View::getResolutionScale() const {
+	return resolutionScale;
+}
+
 void RT64::View::setDenoiserEnabled(bool v) {
-	if (v && (denoiser == nullptr)) {
-		denoiserInit(scene->getDevice());
+	if (!denoiserEnabled && v) {
+		denoiserInit(scene->getDevice(), rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
 	}
 
 	denoiserEnabled = v;
@@ -976,29 +1023,31 @@ RT64_INSTANCE *RT64::View::getRaytracedInstanceAt(int x, int y) {
 	// Copy instance id resource to readback if necessary.
 	if (!rtHitInstanceIdReadbackUpdated) {
 		auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
-		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceIdResource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceId.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
-		d3dCommandList->CopyResource(rtHitInstanceIdReadbackResource.Get(), rtHitInstanceIdResource.Get());
-		rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceIdResource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		d3dCommandList->CopyResource(rtHitInstanceIdReadback.Get(), rtHitInstanceId.Get());
+		rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceId.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
+		scene->getDevice()->submitCommandList();
 		scene->getDevice()->waitForGPU();
+		scene->getDevice()->resetCommandList();
 		rtHitInstanceIdReadbackUpdated = true;
 	}
 
 	// Check resource's bounds.
-	int width = scene->getDevice()->getWidth();
-	int height = scene->getDevice()->getHeight();
-	if ((x < 0) || (x >= width) || (y < 0) || (y >= height)) {
+	x = (int)(x * rtScale);
+	y = (int)(y * rtScale);
+	if ((x < 0) || (x >= rtWidth) || (y < 0) || (y >= rtHeight)) {
 		return nullptr;
 	}
 	
 	// Map the resource read the pixel.
-	size_t index = (width * y + x) * 2;
+	size_t index = (rtWidth * y + x) * 2;
 	uint16_t instanceId = 0;
 	uint8_t *pData;
-	ThrowIfFailed(rtHitInstanceIdReadbackResource.Get()->Map(0, nullptr, (void **)(&pData)));
+	ThrowIfFailed(rtHitInstanceIdReadback.Get()->Map(0, nullptr, (void **)(&pData)));
 	memcpy(&instanceId, pData + index, sizeof(instanceId));
-	rtHitInstanceIdReadbackResource.Get()->Unmap(0, nullptr);
+	rtHitInstanceIdReadback.Get()->Unmap(0, nullptr);
 	
 	// Check the matching instance.
 	if (instanceId >= rtInstances.size()) {
