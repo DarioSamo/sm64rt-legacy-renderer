@@ -8,12 +8,15 @@
 #include <optix/optix_function_table_definition.h>
 #include <optix/optix_stubs.h>
 
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+#include <thread>
+
 #include "rt64_denoiser.h"
 #include "rt64_device.h"
 
 // Private
-
-// TODO: Switch to texture based implementation instead of using buffers.
 
 class RT64::Denoiser::Context {
 private:
@@ -190,12 +193,130 @@ public:
     }
 };
 
+#ifdef DENOISER_THREAD_CRASH_WORKAROUND
+
+class RT64::Denoiser::WorkerThread {
+public:
+    struct Task {
+        enum Action {
+            Set,
+            Denoise,
+            Destroy
+        };
+
+        Action a;
+        unsigned int width;
+        unsigned int height;
+        ID3D12Resource *inOutColor;
+        ID3D12Resource *inAlbedo;
+        ID3D12Resource *inNormal;
+    };
+
+    Context *ctx;
+    Device *device;
+    std::thread *thread;
+    std::mutex queueMutex;
+    std::mutex finishedMutex;
+    std::condition_variable queueCondition;
+    std::condition_variable finishedCondition;
+    std::queue<Task> tasks;
+
+    WorkerThread(Device *device) {
+        this->device = device;
+        ctx = nullptr;
+        thread = new std::thread(&WorkerThread::run, this);
+    }
+
+    ~WorkerThread() {
+        thread->join();
+        delete thread;
+    }
+
+    void run() {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        ctx = new Context(device);
+
+        bool running = true;
+        while (running) {
+            if (!tasks.empty()) {
+                Task t = tasks.front();
+                tasks.pop();
+
+                switch (t.a) {
+                case Task::Set: {
+                    ctx->set(t.width, t.height, t.inOutColor, t.inAlbedo, t.inNormal);
+                    break;
+                }
+                case Task::Denoise: {
+                    ctx->denoise();
+                    break;
+                }
+                case Task::Destroy:
+                    running = false;
+                    break;
+                }
+            }
+            else {
+                {
+                    std::unique_lock<std::mutex> lock(finishedMutex);
+                    finishedCondition.notify_all();
+                }
+
+                queueCondition.wait(lock);
+            }
+        }
+
+        delete ctx;
+    }
+
+    void doTaskBlocking(const Task &t) {
+        std::unique_lock<std::mutex> finishLock(finishedMutex);
+        {
+            std::unique_lock<std::mutex> queueLock(queueMutex);
+            tasks.push(t);
+        }
+
+        queueCondition.notify_all();
+        finishedCondition.wait(finishLock);
+    }
+};
+
 RT64::Denoiser::Denoiser(Device *device) {
-	ctx = new Context(device);
+    thread = new WorkerThread(device);
 }
 
 RT64::Denoiser::~Denoiser() {
-	delete ctx;
+    WorkerThread::Task t;
+    t.a = WorkerThread::Task::Destroy;
+    thread->doTaskBlocking(t);
+    delete thread;
+}
+
+void RT64::Denoiser::denoise() {
+    WorkerThread::Task t;
+    t.a = WorkerThread::Task::Denoise;
+    thread->doTaskBlocking(t);
+}
+
+void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
+    WorkerThread::Task t;
+    t.a = WorkerThread::Task::Set;
+    t.width = width;
+    t.height = height;
+    t.inOutColor = inOutColor;
+    t.inAlbedo = inAlbedo;
+    t.inNormal = inNormal;
+    thread->doTaskBlocking(t);
+}
+
+#else
+
+RT64::Denoiser::Denoiser(Device *device) {
+    ctx = new Context(device);
+}
+
+RT64::Denoiser::~Denoiser() {
+    delete ctx;
 }
 
 void RT64::Denoiser::denoise() {
@@ -205,3 +326,5 @@ void RT64::Denoiser::denoise() {
 void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
     ctx->set(width, height, inOutColor, inAlbedo, inNormal);
 }
+
+#endif

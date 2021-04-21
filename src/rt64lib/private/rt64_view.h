@@ -12,6 +12,7 @@
 #include "nv_helpers_dx12/ShaderBindingTableGenerator.h"
 
 namespace RT64 {
+	class Denoiser;
 	class Scene;
 	class Inspector;
 	class Instance;
@@ -72,6 +73,7 @@ namespace RT64 {
 		float rtScale;
 		float resolutionScale;
 		bool denoiserEnabled;
+		Denoiser *denoiser;
 
 		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;

@@ -22,102 +22,6 @@ namespace {
 	const int MaxQueries = 12 + 1;
 };
 
-// TODO: Move this hacky denoiser implementation and hide it to its own context until NVIDIA fixes the driver crash.
-///
-#include <condition_variable>
-#include <queue>
-#include <mutex>
-#include <thread>
-
-struct DenoiserAction {
-	enum Action {
-		Create,
-		Set,
-		Denoise
-	};
-
-	Action action;
-	RT64::Device *device;
-	unsigned int width;
-	unsigned int height;
-	ID3D12Resource *inOutColor;
-	ID3D12Resource *inAlbedo;
-	ID3D12Resource *inNormal;
-};
-
-RT64::Denoiser *denoiser = nullptr;
-std::mutex denoiserQueueMutex;
-std::mutex denoiserFinishedMutex;
-std::condition_variable denoiserQueueCondition;
-std::condition_variable denoiserFinishedCondition;
-std::queue<DenoiserAction> denoiserActions;
-
-void denoiserRun() {
-	bool running = true;
-	std::unique_lock<std::mutex> lock(denoiserQueueMutex);
-	while (running) {
-		if (!denoiserActions.empty()) {
-			DenoiserAction denAction = denoiserActions.front();
-			denoiserActions.pop();
-
-			switch (denAction.action) {
-			case DenoiserAction::Create: {
-				delete denoiser;
-				denoiser = new RT64::Denoiser(denAction.device);
-				break;
-			}
-			case DenoiserAction::Set: {
-				assert(denoiser != nullptr);
-				denoiser->set(denAction.width, denAction.height, denAction.inOutColor, denAction.inAlbedo, denAction.inNormal);
-				break;
-			}
-			case DenoiserAction::Denoise: {
-				assert(denoiser != nullptr);
-				denoiser->denoise();
-				break;
-			}
-			}
-		}
-		else {
-			{
-				std::unique_lock<std::mutex> lock(denoiserFinishedMutex);
-				denoiserFinishedCondition.notify_all();
-			}
-
-			denoiserQueueCondition.wait(lock);
-		}
-	}
-}
-
-void denoiserInit(RT64::Device *device, unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
-	std::unique_lock<std::mutex> finishLock(denoiserFinishedMutex);
-	{
-		std::unique_lock<std::mutex> queueLock(denoiserQueueMutex);
-		if (denoiser == nullptr) {
-			DenoiserAction denAction;
-			denAction.action = DenoiserAction::Create;
-			denAction.device = device;
-			denoiserActions.push(denAction);
-		}
-
-		DenoiserAction denAction;
-		denAction.action = DenoiserAction::Set;
-		denAction.width = width;
-		denAction.height = height;
-		denAction.inOutColor = inOutColor;
-		denAction.inAlbedo = inAlbedo;
-		denAction.inNormal = inNormal;
-		denoiserActions.push(denAction);
-	}
-
-	denoiserQueueCondition.notify_all();
-	denoiserFinishedCondition.wait(finishLock);
-}
-
-std::thread *denoiserThread = new std::thread(denoiserRun);
-
-///
-
 // Private
 
 RT64::View::View(Scene *scene) {
@@ -129,8 +33,8 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferPropsSize = 0;
 	viewParamsBufferData.randomSeed = 0;
-	viewParamsBufferData.softLightSamples = 1;
-	viewParamsBufferData.giBounces = 1;
+	viewParamsBufferData.softLightSamples = 0;
+	viewParamsBufferData.giBounces = 0;
 	viewParamsBufferData.maxLightSamples = 12;
 	viewParamsBufferData.ambGIMixWeight = 0.8f;
 	viewParamsBufferSize = 0;
@@ -140,6 +44,7 @@ RT64::View::View(Scene *scene) {
 	rtScale = 1.0f;
 	resolutionScale = 1.0f;
 	denoiserEnabled = false;
+	denoiser = nullptr;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
@@ -152,6 +57,8 @@ RT64::View::View(Scene *scene) {
 }
 
 RT64::View::~View() {
+	delete denoiser;
+
 	scene->removeView(this);
 
 	releaseOutputBuffers();
@@ -223,7 +130,7 @@ void RT64::View::createOutputBuffers() {
 	rtvFgHandle.Offset(1, outputRtvDescriptorSize);
 
 	if (denoiserEnabled) {
-		denoiserInit(scene->getDevice(), rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
+		denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
 	}
 }
 
@@ -767,8 +674,8 @@ void RT64::View::render() {
 		d3dCommandList->ResourceBarrier(1, &barrier);
 	}
 
-	/// DENOISE
-	if (denoiserEnabled) {
+	// Denoiser.
+	if (denoiserEnabled && (denoiser != nullptr)) {
 		CD3DX12_RESOURCE_BARRIER barriers[] = {
 			CD3DX12_RESOURCE_BARRIER::UAV(rtAlbedo.Get()),
 			CD3DX12_RESOURCE_BARRIER::UAV(rtNormal.Get())
@@ -776,20 +683,14 @@ void RT64::View::render() {
 
 		d3dCommandList->ResourceBarrier(_countof(barriers), barriers);
 
+		// Wait for the raytracing step to be finished.
+		// TODO: Maybe use a fence for this instead so we don't need to wait on all of the GPU operations.
 		scene->getDevice()->submitCommandList();
 		scene->getDevice()->waitForGPU();
 		scene->getDevice()->resetCommandList();
 
-		std::unique_lock<std::mutex> finishLock(denoiserFinishedMutex);
-		{
-			std::unique_lock<std::mutex> queueLock(denoiserQueueMutex);
-			DenoiserAction denAction;
-			denAction.action = DenoiserAction::Denoise;
-			denoiserActions.push(denAction);
-		}
-
-		denoiserQueueCondition.notify_all();
-		denoiserFinishedCondition.wait(finishLock);
+		// Execute the denoiser.
+		denoiser->denoise();
 	}
 
 	// Transition the foreground to use it on the compose shader.
@@ -994,7 +895,13 @@ float RT64::View::getResolutionScale() const {
 
 void RT64::View::setDenoiserEnabled(bool v) {
 	if (!denoiserEnabled && v) {
-		denoiserInit(scene->getDevice(), rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
+		// Create the denoiser if it wasn't created yet.
+		if (denoiser == nullptr) {
+			denoiser = new RT64::Denoiser(scene->getDevice());
+		}
+
+		// Update the buffer sizes since they might've changed since the last time the denoiser was enabled.
+		denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
 	}
 
 	denoiserEnabled = v;
