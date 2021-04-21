@@ -22,4 +22,4 @@ float WithoutDistanceBias(float distance, uint instanceId) {
 	return distance + (instanceId * InstanceIdBias);
 }
 
-StructuredBuffer<InstanceProperties> instanceProps : register(t6);
+StructuredBuffer<InstanceProperties> instanceProps : register(t5);

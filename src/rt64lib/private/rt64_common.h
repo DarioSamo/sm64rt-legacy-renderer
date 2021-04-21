@@ -43,7 +43,6 @@ namespace RT64 {
 		gHitNormal,
 		gHitInstanceId,
 		gBackground,
-		gForeground,
 		SceneBVH,
 		ViewParams,
 		SceneLights,
@@ -65,7 +64,6 @@ namespace RT64 {
 	enum class SRVIndices : int {
 		SceneBVH,
 		gBackground,
-		gForeground,
 		vertexBuffer,
 		indexBuffer,
 		SceneLights,

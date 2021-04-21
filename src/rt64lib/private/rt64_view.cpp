@@ -132,7 +132,7 @@ RT64::View::View(Scene *scene) {
 	viewParamsBufferData.softLightSamples = 1;
 	viewParamsBufferData.giBounces = 1;
 	viewParamsBufferData.maxLightSamples = 12;
-	viewParamsBufferData.ambGIMixWeight = 0.75f;
+	viewParamsBufferData.ambGIMixWeight = 0.8f;
 	viewParamsBufferSize = 0;
 	viewParamsBufferUpdatedThisFrame = false;
 	rtWidth = 0;
@@ -391,7 +391,7 @@ void RT64::View::createShaderResourceHeap() {
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceId.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
-	// SRVs for background and foreground textures.
+	// SRV for background texture.
 	D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
 	textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	textureSRVDesc.Texture2D.MipLevels = 1;
@@ -399,9 +399,6 @@ void RT64::View::createShaderResourceHeap() {
 	textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterBg.Get(), &textureSRVDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterFg.Get(), &textureSRVDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// Add the Top Level AS SRV right after the raytracing output buffer
@@ -673,7 +670,6 @@ void RT64::View::render() {
 		return;
 	}
 	
-	CD3DX12_RESOURCE_BARRIER rasterBarriers[2];
 	auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
 	auto d3d12RenderTarget = scene->getDevice()->getD3D12RenderTarget();
 
@@ -697,9 +693,11 @@ void RT64::View::render() {
 	// Rasterization.
 	{
 		// Transition the background and foreground to Render Targets.
-		rasterBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		rasterBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		d3dCommandList->ResourceBarrier(_countof(rasterBarriers), rasterBarriers);
+		CD3DX12_RESOURCE_BARRIER bgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		d3dCommandList->ResourceBarrier(1, &bgBarrier);
+
+		CD3DX12_RESOURCE_BARRIER fgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		d3dCommandList->ResourceBarrier(1, &fgBarrier);
 
 		UINT instanceIndex = (UINT)(rtInstances.size());
 		auto drawInstances = [d3dCommandList, &instanceIndex, this](ID3D12DescriptorHeap *heap, const std::vector<RT64::View::RenderInstance> &rasterInstances) {
@@ -726,9 +724,8 @@ void RT64::View::render() {
 		drawInstances(rasterFgHeap, rasterFgInstances);
 
 		// Transition the the background and foreground from render targets to SRV.
-		rasterBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		rasterBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		d3dCommandList->ResourceBarrier(_countof(rasterBarriers), rasterBarriers);
+		bgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		d3dCommandList->ResourceBarrier(1, &bgBarrier);
 	}
 
 	// Raytracing.
@@ -796,7 +793,7 @@ void RT64::View::render() {
 	}
 
 	// Transition the foreground to use it on the compose shader.
-	CD3DX12_RESOURCE_BARRIER fgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	CD3DX12_RESOURCE_BARRIER fgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterFg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	d3dCommandList->ResourceBarrier(1, &fgBarrier);
 
 	// Compose.

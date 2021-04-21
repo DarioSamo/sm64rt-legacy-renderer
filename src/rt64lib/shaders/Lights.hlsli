@@ -20,4 +20,4 @@ struct LightInfo {
 
 // Root signature
 
-StructuredBuffer<LightInfo> SceneLights : register(t5);
+StructuredBuffer<LightInfo> SceneLights : register(t4);

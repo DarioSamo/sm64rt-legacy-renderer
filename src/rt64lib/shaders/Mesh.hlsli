@@ -4,8 +4,8 @@
 
 // Parameters for root signature.
 
-ByteAddressBuffer vertexBuffer : register(t3);
-ByteAddressBuffer indexBuffer : register(t4);
+ByteAddressBuffer vertexBuffer : register(t2);
+ByteAddressBuffer indexBuffer : register(t3);
 
 // TODO: With specialized shader generation, this structure should match the VBO
 // from the client application instead of using a fixed structure to avoid copying
