@@ -41,7 +41,7 @@ float CalculateLightIntensitySimple(uint l, float3 position) {
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, float3 normal, uint maxLights, uint seed) {
+float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, float3 normal, uint maxLights, const bool checkShadows, uint seed) {
 	float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
 	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 
@@ -107,7 +107,11 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 			float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
 			float3 reflectedLight = reflect(-sampleDirection, normal);
 			float sampleLambertFactor = lerp(max(dot(normal, sampleDirection), 0.0f), 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
-			float sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
+			float sampleShadowFactor = 1.0f;
+			if (checkShadows) {
+				sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
+			}
+
 			float sampleSpecularityFactor = specularIntensity * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
 			lLambertFactor += sampleLambertFactor / maxSamples;
 			lSpecularityFactor += sampleSpecularityFactor / maxSamples;
@@ -137,7 +141,7 @@ float4 ComputeFog(uint instanceId, float3 position) {
 	return fogColor;
 }
 
-float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
+float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, uint seed) {
 	float2 bgPos = float2(rayDirection.z / sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z), rayDirection.y);
 	float3 bgColor = SampleTexture(gBackground, bgPos, 1, 1, 1).rgb;
 	float4 resColor = float4(0, 0, 0, 1);
@@ -161,7 +165,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 			uint instanceId = hitInstanceIds[hit];
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(hitDistances[hit], instanceId);
 			float3 vertexNormal = hitNormals[hit].xyz;
-			float3 resultLight = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 1, seed + hit);
+			float3 resultLight = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 1, checkShadows, seed + hit);
 			resultLight += SceneLights[0].diffuseColor;
 			hitColors[hit].rgb *= resultLight;
 
@@ -201,9 +205,9 @@ uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	return payload.nhits;
 }
 
-float3 TraceSimple(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, uint seed) {
+float3 TraceSimple(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, uint seed) {
 	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, 1);
-	return SimpleShadeFromGBuffers(1, min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, seed);
+	return SimpleShadeFromGBuffers(1, min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, checkShadows, seed);
 }
 
 float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
@@ -214,7 +218,7 @@ float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, f
 
 float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, float reflectionFresnelFactor, float3 rayDirection, float3 position, float3 normal, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	float3 reflectionDirection = reflect(rayDirection, normal);
-	float4 reflectionColor = float4(TraceSimple(position, reflectionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, seed), 0.0f);
+	float4 reflectionColor = float4(TraceSimple(position, reflectionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, false, seed), 0.0f);
 	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);
 	const float3 ShadowColor = float3(0.1f, 0.05f, 0.0f);
 	const float BlendingExponent = 3.0f;
@@ -262,7 +266,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			if ((hitColorA >= FULL_QUALITY_ALPHA) && (maxFullQuality > 0)) {
 				finalAlbedo = hitColors[hit];
 				finalNormal = float4(vertexNormal, 0.0f);
-				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, seed);
+				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, true, seed);
 				maxFullQuality--;
 
 				// Global illumination.
@@ -270,13 +274,13 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				uint seedCopy = seed;
 				while (giSamples > 0) {
 					float3 bounceDir = getCosHemisphereSample(seedCopy, vertexNormal);
-					float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, seed + giSamples);
+					float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, true, seed + giSamples);
 					resultGiLight += bounceColor / giBounces;
 					giSamples--;
 				}
 			}
 			else {
-				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 2, seed);
+				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 2, true, seed);
 			}
 
 			// Eye light.
