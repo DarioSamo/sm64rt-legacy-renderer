@@ -27,7 +27,7 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 
 	ShadowHitInfo shadowPayload;
 	shadowPayload.shadowHit = 1.0f;
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 1, 0, 1, ray, shadowPayload);
+	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 1, 0, 1, ray, shadowPayload);
 	return shadowPayload.shadowHit;
 }
 
@@ -197,7 +197,7 @@ uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	payload.ohits = rayHitOffset;
 
 	// Make call.
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, ray, payload);
+	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 	return payload.nhits;
 }
 
