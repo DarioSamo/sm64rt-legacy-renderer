@@ -106,7 +106,8 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 				float3 sampleDirection = normalize(samplePosition - position);
 				float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
 				float3 reflectedLight = reflect(-sampleDirection, normal);
-				float sampleLambertFactor = lerp(max(dot(normal, sampleDirection), 0.0f), 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
+				float NdotL = max(dot(normal, sampleDirection), 0.0f);
+				float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
 				float sampleShadowFactor = 1.0f;
 				if (checkShadows) {
 					sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
