@@ -49,7 +49,6 @@ RT64::View::View(Scene *scene) {
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
 
-	setPerspectiveLookAt({ 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0.1f, 1000.0f);
 	createOutputBuffers();
 	createViewParamsBuffer();
 
@@ -459,10 +458,6 @@ void RT64::View::updateViewParamsBuffer() {
 		viewParamsBufferUpdatedThisFrame = true;
 	}
 
-	// View and projection matrices.
-	viewParamsBufferData.view = XMMatrixLookAtRH(XMVectorSet(eyePosition.x, eyePosition.y, eyePosition.z, 0.0f), XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 0.0f), XMVectorSet(eyeUpDirection.x, eyeUpDirection.y, eyeUpDirection.z, 0.0f));
-	viewParamsBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
-
 	// Compute the hash of the view and projection matrices and use it as the random seed.
 	// This is to prevent the denoiser from showing movement when the game is paused.
 	XXHash32 viewProjHash(0);
@@ -793,33 +788,40 @@ void RT64::View::renderInspector(Inspector *inspector) {
 	}
 }
 
-void RT64::View::setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eyeFocus, RT64_VECTOR3 eyeUpDirection, float fovRadians, float nearDist, float farDist) {
+void RT64::View::setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist) {
 	// Ignore all external calls to set the perspective when control override is active.
 	if (perspectiveControlActive) {
 		return;
 	}
 
-	this->eyePosition = eyePosition;
-	this->eyeFocus = eyeFocus;
-	this->eyeUpDirection = eyeUpDirection;
 	this->fovRadians = fovRadians;
 	this->nearDist = nearDist;
 	this->farDist = farDist;
+
+	viewParamsBufferData.view = XMMatrixSet(
+		viewMatrix.m[0][0], viewMatrix.m[0][1], viewMatrix.m[0][2], viewMatrix.m[0][3],
+		viewMatrix.m[1][0], viewMatrix.m[1][1], viewMatrix.m[1][2], viewMatrix.m[1][3],
+		viewMatrix.m[2][0], viewMatrix.m[2][1], viewMatrix.m[2][2], viewMatrix.m[2][3],
+		viewMatrix.m[3][0], viewMatrix.m[3][1], viewMatrix.m[3][2], viewMatrix.m[3][3]
+	);
+
+	viewParamsBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
 }
 
 void RT64::View::movePerspective(RT64_VECTOR3 localMovement) {
 	XMVECTOR offset = XMVector4Transform(XMVectorSet(localMovement.x, localMovement.y, localMovement.z, 0.0f), viewParamsBufferData.viewI);
-	RT64_VECTOR3 add = { XMVectorGetX(offset), XMVectorGetY(offset), XMVectorGetZ(offset) };
-	this->eyePosition += add;
-	this->eyeFocus += add;
+	XMVECTOR det;
+	viewParamsBufferData.view = XMMatrixMultiply(XMMatrixInverse(&det, XMMatrixTranslationFromVector(offset)), viewParamsBufferData.view);
 	updateViewParamsBuffer();
 }
 
 void RT64::View::rotatePerspective(float localYaw, float localPitch, float localRoll) {
-	XMVECTOR focus = XMVector4Transform(XMVectorSet(eyeFocus.x, eyeFocus.y, eyeFocus.z, 1.0f), viewParamsBufferData.view);
-	focus = XMVector4Transform(focus, XMMatrixRotationRollPitchYaw(localRoll, localPitch, localYaw));
-	focus = XMVector4Transform(focus, viewParamsBufferData.viewI);
-	eyeFocus = { XMVectorGetX(focus), XMVectorGetY(focus), XMVectorGetZ(focus) };
+	XMVECTOR viewPos = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), viewParamsBufferData.viewI);
+	XMVECTOR viewFocus = XMVectorSet(0.0f, 0.0f, -farDist, 1.0f);
+	XMVECTOR viewUp = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
+	viewFocus = XMVector4Transform(viewFocus, XMMatrixRotationRollPitchYaw(localRoll, localPitch, localYaw));
+	viewFocus = XMVector4Transform(viewFocus, viewParamsBufferData.viewI);
+	viewParamsBufferData.view = XMMatrixLookAtRH(viewPos, viewFocus, viewUp);
 	updateViewParamsBuffer();
 }
 
@@ -827,12 +829,16 @@ void RT64::View::setPerspectiveControlActive(bool v) {
 	perspectiveControlActive = v;
 }
 
-RT64_VECTOR3 RT64::View::getEyePosition() const {
-	return eyePosition;
+RT64_VECTOR3 RT64::View::getViewPosition() {
+	XMVECTOR pos = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), viewParamsBufferData.viewI);
+	return { XMVectorGetX(pos), XMVectorGetY(pos), XMVectorGetZ(pos) };
 }
 
-RT64_VECTOR3 RT64::View::getEyeFocus() const {
-	return eyeFocus;
+RT64_VECTOR3 RT64::View::getViewDirection() {
+	XMVECTOR xdir = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), viewParamsBufferData.viewI);
+	RT64_VECTOR3 dir = { XMVectorGetX(xdir), XMVectorGetY(xdir), XMVectorGetZ(xdir) };
+	float length = Length(dir);
+	return dir / length;
 }
 
 float RT64::View::getFOVRadians() const {
@@ -981,10 +987,10 @@ DLLEXPORT RT64_VIEW *RT64_CreateView(RT64_SCENE *scenePtr) {
 	return (RT64_VIEW *)(new RT64::View(scene));
 }
 
-DLLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_VECTOR3 eyePosition, RT64_VECTOR3 eyeFocus, RT64_VECTOR3 eyeUpDirection, float fovRadians, float nearDist, float farDist) {
+DLLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist) {
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
-	view->setPerspectiveLookAt(eyePosition, eyeFocus, eyeUpDirection, fovRadians, nearDist, farDist);
+	view->setPerspective(viewMatrix, fovRadians, nearDist, farDist);
 }
 
 DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int x, int y) {

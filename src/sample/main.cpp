@@ -29,6 +29,7 @@ struct {
 	RT64_INSPECTOR* inspector = nullptr;
 	RT64_SCENE *scene = nullptr;
 	RT64_VIEW *view = nullptr;
+	RT64_MATRIX4 viewMatrix;
 	RT64_MESH *mesh = nullptr;
 	RT64_TEXTURE *textureDif = nullptr;
 	RT64_TEXTURE *textureNrm = nullptr;
@@ -51,7 +52,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		PostQuitMessage(0);
 		break;
 	case WM_PAINT:
-		RT64.lib.SetViewPerspective(RT64.view, { 1.0f, 0.5f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0 }, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
+		RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
 
 		RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
 
@@ -99,7 +100,7 @@ void setupRT64Scene() {
 	// Setup lights.
 	// Light 0 only needs the diffuse color because it is always the ambient light.
 	RT64.lights[0].diffuseColor = { 0.3f, 0.35f, 0.45f };
-	RT64.lights[1].position = { 15000.0f, 30000.0f, -15000.0f };
+	RT64.lights[1].position = { 15000.0f, 30000.0f, 15000.0f };
 	RT64.lights[1].attenuationRadius = 1e9;
 	RT64.lights[1].pointRadius = 5000.0f;
 	RT64.lights[1].diffuseColor = { 0.8f, 0.75f, 0.65f };
@@ -133,6 +134,16 @@ void setupRT64Scene() {
 	RT64.transform.m[1][1] = 0.1f;
 	RT64.transform.m[2][2] = 0.1f;
 	RT64.transform.m[3][3] = 1.0f;
+
+	// Make initial view.
+	memset(RT64.viewMatrix.m, 0, sizeof(RT64_MATRIX4));
+	RT64.viewMatrix.m[0][0] = 1.0f;
+	RT64.viewMatrix.m[1][1] = 1.0f;
+	RT64.viewMatrix.m[2][2] = 1.0f;
+	RT64.viewMatrix.m[3][0] = 0.0f;
+	RT64.viewMatrix.m[3][1] = -0.15f;
+	RT64.viewMatrix.m[3][2] = -1.0f;
+	RT64.viewMatrix.m[3][3] = 1.0f;
 
 	// Create mesh from obj file.
 	tinyobj::attrib_t attrib;

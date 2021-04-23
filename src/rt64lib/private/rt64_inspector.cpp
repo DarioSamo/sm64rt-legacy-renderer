@@ -302,11 +302,10 @@ void RT64::Inspector::renderPrint() {
 void RT64::Inspector::setupWithView(View *view, int cursorX, int cursorY) {
     assert(view != nullptr);
     Im3d::AppData &appData = Im3d::GetAppData();
-    RT64_VECTOR3 viewPos = view->getEyePosition();
-    RT64_VECTOR3 viewFocus = view->getEyeFocus();
-    RT64_VECTOR3 viewDir = RT64::DirectionFromTo(viewPos, viewFocus);
+    RT64_VECTOR3 viewPos = view->getViewPosition();
+    RT64_VECTOR3 viewDir = view->getViewDirection();
     RT64_VECTOR3 rayDir = view->getRayDirectionAt(cursorX, cursorY);
-    appData.m_deltaTime = 1.0f / 60.0f; // TODO
+    appData.m_deltaTime = 1.0f / 30.0f;
     appData.m_viewportSize = Im3d::Vec2((float)(view->getWidth()), (float)(view->getHeight()));
     appData.m_viewOrigin = Im3d::Vec3(viewPos.x, viewPos.y, viewPos.z);
     appData.m_viewDirection = Im3d::Vec3(viewDir.x, viewDir.y, viewDir.z);

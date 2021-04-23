@@ -47,9 +47,6 @@ namespace RT64 {
 		};
 
 		Scene *scene;
-		RT64_VECTOR3 eyePosition;
-		RT64_VECTOR3 eyeFocus;
-		RT64_VECTOR3 eyeUpDirection;
 		float fovRadians;
 		float nearDist;
 		float farDist;
@@ -113,12 +110,12 @@ namespace RT64 {
 		void update();
 		void render();
 		void renderInspector(Inspector *inspector);
-		void setPerspectiveLookAt(RT64_VECTOR3 eyePosition, RT64_VECTOR3 eyeFocus, RT64_VECTOR3 eyeUpDirection, float fovRadians, float nearDist, float farDist);
+		void setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist);
 		void movePerspective(RT64_VECTOR3 localMovement);
 		void rotatePerspective(float localYaw, float localPitch, float localRoll);
 		void setPerspectiveControlActive(bool v);
-		RT64_VECTOR3 getEyePosition() const;
-		RT64_VECTOR3 getEyeFocus() const;
+		RT64_VECTOR3 getViewPosition();
+		RT64_VECTOR3 getViewDirection();
 		float getFOVRadians() const;
 		float getNearDistance() const;
 		float getFarDistance() const;
