@@ -15,9 +15,14 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 	uint instanceId = NonUniformResourceIndex(InstanceIndex());
 	uint triangleId = PrimitiveIndex();
 	int diffuseTexIndex = instanceProps[instanceId].materialProperties.diffuseTexIndex;
+	float4 diffuseColorMix = instanceProps[instanceId].materialProperties.diffuseColorMix;
 	float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);
 	VertexAttributes vertex = GetVertexAttributes(vertexBuffer, indexBuffer, triangleId, barycentrics);
 	float4 texelColor = SampleTexture(gTextures[diffuseTexIndex], vertex.uv, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
+	
+	// Only mix the texture if the alpha value is negative.
+	texelColor.rgb = lerp(texelColor.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));
+
 	ColorCombinerInputs ccInputs;
 	ccInputs.input1 = vertex.input[0];
 	ccInputs.input2 = vertex.input[1];
@@ -54,9 +59,8 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 		
 		uint hitPos = hi / hitStride;
 		if (hitPos < MAX_HIT_QUERIES) {
-			// Calculate resulting color.
-			float4 diffuseColorMix = instanceProps[instanceId].materialProperties.diffuseColorMix;
-			resultColor.rgb = lerp(resultColor.rgb, diffuseColorMix.rgb, diffuseColorMix.a);
+			// Only mix the final diffuse color if the alpha is positive.
+			resultColor.rgb = lerp(resultColor.rgb, diffuseColorMix.rgb, max(diffuseColorMix.a, 0.0f));
 
 			int normalTexIndex = instanceProps[instanceId].materialProperties.normalTexIndex;
 			if (normalTexIndex >= 0) {

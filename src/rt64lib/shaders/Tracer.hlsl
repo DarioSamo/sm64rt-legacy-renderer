@@ -18,6 +18,13 @@
 #define MAX_LIGHTS							16
 #define FULL_QUALITY_ALPHA					0.999f
 
+#define DEBUG_HIT_COUNT						0
+
+// Has better results for avoiding shadow terminator glitches, but has unintended side effects on
+// terrain with really bad normals or geometry that had backfaces removed to be optimized and
+// therefore can't cast shadows.
+//#define SKIP_BACKFACE_SHADOWS
+
 float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist) {
 	RayDesc ray;
 	ray.Origin = rayOrigin;
@@ -27,7 +34,14 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 
 	ShadowHitInfo shadowPayload;
 	shadowPayload.shadowHit = 1.0f;
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 1, 0, 1, ray, shadowPayload);
+
+	uint flags = RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER;
+
+#ifdef SKIP_BACKFACE_SHADOWS
+	flags |= RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+#endif
+
+	TraceRay(SceneBVH, flags, 0xFF, 1, 0, 1, ray, shadowPayload);
 	return shadowPayload.shadowHit;
 }
 
@@ -42,7 +56,7 @@ float CalculateLightIntensitySimple(uint l, float3 position) {
 }
 
 float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, float3 normal, uint maxLights, const bool checkShadows, uint seed) {
-	float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 	if (lightGroupMaskBits > 0) {
 		// Build an array of the n closest lights by measuring their intensity.
@@ -147,43 +161,40 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 	float2 bgPos = float2(rayDirection.z / sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z), rayDirection.y);
 	float3 bgColor = SampleTexture(gBackground, bgPos, 1, 1, 1).rgb;
 	float4 resColor = float4(0, 0, 0, 1);
-	float hitDistances[MAX_HIT_QUERIES];
-	float4 hitColors[MAX_HIT_QUERIES];
-	float4 hitNormals[MAX_HIT_QUERIES];
-	uint hitInstanceIds[MAX_HIT_QUERIES];
-	int hit;
-	uint hitBufferIndex;
-	for (hit = hitOffset; hit < hitCount; hit++) {
-		hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
-		hitDistances[hit] = gHitDistance[hitBufferIndex];
-		hitColors[hit] = gHitColor[hitBufferIndex];
-		hitNormals[hit] = gHitNormal[hitBufferIndex];
-		hitInstanceIds[hit] = gHitInstanceId[hitBufferIndex];
-	}
-
-	for (hit = hitOffset; hit < hitCount; hit++) {
-		float alphaContrib = (resColor.a * hitColors[hit].a);
+	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
+	uint maxSimpleLights = 1;
+	for (uint hit = hitOffset; hit < hitCount; hit++) {
+		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
+		float4 hitColor = gHitColor[hitBufferIndex];
+		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
-			uint instanceId = hitInstanceIds[hit];
-			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(hitDistances[hit], instanceId);
-			float3 vertexNormal = hitNormals[hit].xyz;
-			float3 resultLight = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 1, checkShadows, seed + hit);
+			uint instanceId = gHitInstanceId[hitBufferIndex];
+			uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
+			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+
+			// Reuse the previous computed lights result if available.
+			if (lightGroupMaskBits > 0) {
+				if (maxSimpleLights > 0) {
+					simpleLightsResult = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 1, checkShadows, seed + hit);
+					maxSimpleLights--;
+				}
+
+				resultLight += simpleLightsResult;
+			}
+
 			resultLight += SceneLights[0].diffuseColor;
-			hitColors[hit].rgb *= resultLight;
+			hitColor.rgb *= resultLight;
 
 			// Backwards alpha blending.
-			resColor.rgb += hitColors[hit].rgb * alphaContrib;
-			resColor.a *= (1.0 - hitColors[hit].a);
+			resColor.rgb += hitColor.rgb * alphaContrib;
+			resColor.a *= (1.0 - hitColor.a);
 		}
 
 		if (resColor.a <= EPSILON) {
 			break;
 		}
-	}
-
-	// Use last hit color as background color if we hit the maximum amount of queries available.
-	if (hitCount == MAX_HIT_QUERIES) {
-		bgColor = hitColors[hitCount - 1].rgb;
 	}
 
 	return lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a));
@@ -207,9 +218,9 @@ uint TraceSurface(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	return payload.nhits;
 }
 
-float3 TraceSimple(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, uint seed) {
-	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, 1);
-	return SimpleShadeFromGBuffers(1, min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, checkShadows, seed);
+float3 TraceSimple(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint hitOffset, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, uint seed) {
+	uint hitCount = TraceSurface(rayOrigin, rayDirection, rayMinDist, rayMaxDist, hitOffset);
+	return SimpleShadeFromGBuffers(hitOffset, min(hitCount, MAX_HIT_QUERIES), rayOrigin, rayDirection, launchIndex, pixelDims, checkShadows, seed);
 }
 
 float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
@@ -218,9 +229,9 @@ float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, f
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
-float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, float reflectionFresnelFactor, float3 rayDirection, float3 position, float3 normal, uint2 launchIndex, uint2 pixelDims, uint seed) {
+float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, float reflectionFresnelFactor, float3 rayDirection, float3 position, float3 normal, uint hitOffset, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	float3 reflectionDirection = reflect(rayDirection, normal);
-	float4 reflectionColor = float4(TraceSimple(position, reflectionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, false, seed), 0.0f);
+	float4 reflectionColor = float4(TraceSimple(position, reflectionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, hitOffset, launchIndex, pixelDims, false, seed), 0.0f);
 	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);
 	const float3 ShadowColor = float3(0.1f, 0.05f, 0.0f);
 	const float BlendingExponent = 3.0f;
@@ -231,79 +242,76 @@ float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, fl
 }
 
 void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
+	// TODO: Perform alpha blending on albedo for denoiser result to be more accurate.
 	float2 bgPos = float2(launchIndex / viewport.xy);
 	float3 bgColor = gBackground.SampleLevel(linearClampClamp, bgPos, 0).rgb;
 	float4 resColor = float4(0, 0, 0, 1);
-	float hitDistances[MAX_HIT_QUERIES];
-	float4 hitColors[MAX_HIT_QUERIES];
-	float4 hitNormals[MAX_HIT_QUERIES];
-	uint hitInstanceIds[MAX_HIT_QUERIES];
-	int hit;
-	uint hitBufferIndex;
-	for (hit = 0; hit < hitCount; hit++) {
-		hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
-		hitDistances[hit] = gHitDistance[hitBufferIndex];
-		hitColors[hit] = gHitColor[hitBufferIndex];
-		hitNormals[hit] = gHitNormal[hitBufferIndex];
-		hitInstanceIds[hit] = gHitInstanceId[hitBufferIndex];
-	}
-	
-	// TODO: Perform alpha blending on albedo.
 	float4 finalAlbedo = float4(bgColor, 1.0f);
 	float4 finalNormal = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
+	uint maxSimpleLights = 1;
 	uint maxFullLights = 1;
 	uint maxGI = 1;
-	for (hit = 0; hit < hitCount; hit++) {
-		uint instanceId = hitInstanceIds[hit];
-		float hitDistance = WithoutDistanceBias(hitDistances[hit], instanceId);
+	for (uint hit = 0; hit < hitCount; hit++) {
+		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
+		uint instanceId = gHitInstanceId[hitBufferIndex];
+		float hitDistance = WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
 		seed += asuint(hitDistance);
 
+		float4 hitColor = gHitColor[hitBufferIndex];
 		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
-		float3 vertexNormal = hitNormals[hit].xyz;
-		float hitColorA = hitColors[hit].a;
-		float alphaContrib = (resColor.a * hitColorA);
+		float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
-			float3 resultLight = float3(0.0f, 0.0f, 0.0f);
+			uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
+			if (lightGroupMaskBits > 0) {
+				// Full light sampling.
+				if ((maxFullLights > 0) && (hitColor.a >= FULL_QUALITY_ALPHA)) {
+					finalAlbedo = hitColor;
+					finalNormal = float4(vertexNormal, 0.0f);
+					resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, true, seed);
+					maxFullLights--;
+				}
+				else {
+					// Simple light sampling. Reuse previous result if calculated once already.
+					if (maxSimpleLights > 0) {
+						simpleLightsResult += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 2, true, seed);
+						maxSimpleLights--;
+					}
 
-			// Full light sampling or none.
-			if ((maxFullLights > 0) && (hitColorA >= FULL_QUALITY_ALPHA)) {
-				finalAlbedo = hitColors[hit];
-				finalNormal = float4(vertexNormal, 0.0f);
-				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, true, seed);
-				maxFullLights--;
-			}
-			else {
-				resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 2, true, seed);
-			}
-
-			// Global illumination.
-			if ((maxGI > 0) && (alphaContrib > 0.25f)) {
-				uint giSamples = giBounces;
-				uint seedCopy = seed;
-				while (giSamples > 0) {
-					float3 bounceDir = getCosHemisphereSample(seedCopy, vertexNormal);
-					float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, pixelDims, true, seed + giSamples);
-					resultGiLight += bounceColor / giBounces;
-					giSamples--;
+					resultLight = simpleLightsResult;
 				}
 
-				maxGI--;
+				// Global illumination.
+				if ((maxGI > 0) && (alphaContrib > 0.25f)) {
+					uint giSamples = giBounces;
+					uint seedCopy = seed;
+					while (giSamples > 0) {
+						float3 bounceDir = getCosHemisphereSample(seedCopy, vertexNormal);
+						float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, hitCount, launchIndex, pixelDims, true, seed + giSamples);
+						resultGiLight += bounceColor / giBounces;
+						giSamples--;
+					}
+
+					maxGI--;
+				}
+
+				// Eye light.
+				float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
+				float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
+				float eyeLightLambertFactor = max(dot(vertexNormal, -rayDirection), 0.0f);
+				float3 eyeLightReflected = reflect(rayDirection, vertexNormal);
+				float eyeLightSpecularFactor = specularIntensity * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
+
+				// TODO: Make these modifiable.
+				float3 eyeLightDiffuseColor = float3(0.15f, 0.15f, 0.15f);
+				float3 eyeLightSpecularColor = float3(0.05f, 0.05f, 0.05f);
+				resultLight += (eyeLightDiffuseColor * eyeLightLambertFactor + eyeLightSpecularColor * eyeLightSpecularFactor);
 			}
-
-			// Eye light.
-			float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
-			float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
-			float eyeLightLambertFactor = max(dot(vertexNormal, -rayDirection), 0.0f);
-			float3 eyeLightReflected = reflect(rayDirection, vertexNormal);
-			float eyeLightSpecularFactor = specularIntensity * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
-
-			// TODO: Make these modifiable.
-			float3 eyeLightDiffuseColor = float3(0.15f, 0.15f, 0.15f);
-			float3 eyeLightSpecularColor = float3(0.05f, 0.05f, 0.05f);
-			resultLight += (eyeLightDiffuseColor * eyeLightLambertFactor + eyeLightSpecularColor * eyeLightSpecularFactor);
-
+			
 			// Mix ambient light and GI.
 			float3 ambientLight = SceneLights[0].diffuseColor;
 			float lumAmb = dot(ambientLight, float3(1.0f, 1.0f, 1.0f));
@@ -316,63 +324,74 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			float invSum = 1.0f / (lumAmb + lumGI);
 			resultLight += ambientLight * lumAmb * invSum + resultGiLight * lumGI * invSum;
 
-			hitColors[hit].rgb *= resultLight;
+			// Apply the lighting to the color.
+			hitColor.rgb *= resultLight;
 
 			// Add reflections.
 			float reflectionFactor = instanceProps[instanceId].materialProperties.reflectionFactor;
 			if (reflectionFactor > 0.0f) {
 				float reflectionFresnelFactor = instanceProps[instanceId].materialProperties.reflectionFresnelFactor;
 				float reflectionShineFactor = instanceProps[instanceId].materialProperties.reflectionShineFactor;
-				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, launchIndex, pixelDims, seed);
-				hitColors[hit].rgb = lerp(hitColors[hit].rgb, reflectionColor.rgb, reflectionColor.a);
+				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, hitCount, launchIndex, pixelDims, seed);
+				hitColor.rgb = lerp(hitColor.rgb, reflectionColor.rgb, reflectionColor.a);
 			}
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			if (instanceProps[instanceId].ccFeatures.opt_fog) {
 				float4 fogColor = ComputeFog(instanceId, vertexPosition);
-				hitColors[hit].rgb = lerp(hitColors[hit].rgb, fogColor.rgb, fogColor.a);
+				hitColor.rgb = lerp(hitColor.rgb, fogColor.rgb, fogColor.a);
 			}
 
 			// Backwards alpha blending.
-			resColor.rgb += hitColors[hit].rgb * alphaContrib;
-			resColor.a *= (1.0 - hitColors[hit].a);
+			resColor.rgb += hitColor.rgb * alphaContrib;
+			resColor.a *= (1.0 - hitColor.a);
 		}
 
 		if (resColor.a <= EPSILON) {
 			break;
 		}
 
-		// Add refractions
+		// Do refractions.
 		float refractionFactor = instanceProps[instanceId].materialProperties.refractionFactor;
 		if ((refractionFactor > 0.0) && (maxRefractions > 0)) {
 			float3 refractionDirection = refract(rayDirection, vertexNormal, refractionFactor);
 
-			// Perform another trace and fill the buffers again. Restart the for loop.
-			uint hitOffset = hit + 1;
-			hitCount = TraceSurface(vertexPosition, refractionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, hitOffset);
-			for (hit = hitOffset; hit < hitCount; hit++) {
-				hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
-				hitDistances[hit] = gHitDistance[hitBufferIndex];
-				hitColors[hit] = gHitColor[hitBufferIndex];
-				hitNormals[hit] = gHitNormal[hitBufferIndex];
-				hitInstanceIds[hit] = gHitInstanceId[hitBufferIndex];
-			}
-
-			hit = hitOffset - 1;
+			// Perform another trace and fill the rest of the buffers.
+			hitCount = TraceSurface(vertexPosition, refractionDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, hit + 1);
 			rayOrigin = vertexPosition;
 			rayDirection = refractionDirection;
 			maxRefractions--;
 		}
 	}
 
-	// Use last hit color as background color if we hit the maximum amount of queries available.
-	if (hitCount == MAX_HIT_QUERIES) {
-		bgColor = hitColors[hitCount - 1].rgb;
-	}
-
 	gOutput[launchIndex] = float4(lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a)), 1.0f);
 	gAlbedo[launchIndex] = finalAlbedo;
 	gNormal[launchIndex] = finalNormal;
+
+#if DEBUG_HIT_COUNT == 1
+	float4 colors[MAX_HIT_QUERIES + 1] =
+	{
+		float4(0.00, 0.00, 0.00, 1.00),
+		float4(0.33, 0.00, 0.00, 1.00),
+		float4(0.66, 0.00, 0.00, 1.00),
+		float4(1.00, 0.00, 0.00, 1.00),
+		float4(0.00, 0.33, 0.00, 1.00),
+		float4(0.00, 0.66, 0.00, 1.00),
+		float4(0.00, 1.00, 0.00, 1.00),
+		float4(0.00, 0.00, 0.33, 1.00),
+		float4(0.00, 0.00, 0.66, 1.00),
+		float4(0.00, 0.00, 1.00, 1.00),
+		float4(0.33, 0.33, 0.00, 1.00),
+		float4(0.66, 0.66, 0.00, 1.00),
+		float4(1.00, 1.00, 0.00, 1.00),
+		float4(0.00, 0.33, 0.33, 1.00),
+		float4(0.00, 0.66, 0.66, 1.00),
+		float4(0.00, 1.00, 1.00, 1.00),
+		float4(1.00, 1.00, 1.00, 1.00),
+	};
+
+	gOutput[launchIndex] = colors[hitCount];
+#endif
 }
 
 void TraceFull(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist, uint2 launchIndex, uint2 pixelDims, uint seed) {

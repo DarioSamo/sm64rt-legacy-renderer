@@ -19,7 +19,7 @@
 #include "xxhash/xxhash32.h"
 
 namespace {
-	const int MaxQueries = 12 + 1;
+	const int MaxQueries = 16 + 1;
 };
 
 // Private

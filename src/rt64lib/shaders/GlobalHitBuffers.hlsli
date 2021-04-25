@@ -2,7 +2,7 @@
 // RT64
 //
 
-#define MAX_HIT_QUERIES	12
+#define MAX_HIT_QUERIES	16
 
 RWBuffer<float> gHitDistance : register(u3);
 RWBuffer<half4> gHitColor : register(u4);
