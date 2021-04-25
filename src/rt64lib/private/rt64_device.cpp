@@ -689,7 +689,7 @@ void RT64::Device::addScene(Scene *scene) {
 
 void RT64::Device::removeScene(Scene *scene) {
 	assert(scene != nullptr);
-	// TODO
+	scenes.erase(std::remove(scenes.begin(), scenes.end(), scene), scenes.end());
 }
 
 void RT64::Device::addInspector(Inspector* inspector) {
@@ -699,7 +699,7 @@ void RT64::Device::addInspector(Inspector* inspector) {
 
 void RT64::Device::removeInspector(Inspector* inspector) {
 	assert(inspector != nullptr);
-	// TODO
+	inspectors.erase(std::remove(inspectors.begin(), inspectors.end(), inspector), inspectors.end());
 }
 
 void RT64::Device::resetCommandList() {

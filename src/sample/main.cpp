@@ -51,15 +51,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	case WM_CLOSE:
 		PostQuitMessage(0);
 		break;
+	case WM_KEYDOWN: {
+		if (wParam == VK_F1) {
+			if (RT64.inspector != nullptr) {
+				RT64.lib.DestroyInspector(RT64.inspector);
+				RT64.inspector = nullptr;
+			}
+			else {
+				RT64.inspector = RT64.lib.CreateInspector(RT64.device);
+			}
+		}
+		break;
+	}
 	case WM_PAINT:
 		RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
 
-		RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+		if (RT64.inspector != nullptr) {
+			RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+		}
 
 		RT64.frameMaterial = RT64.baseMaterial;
 		RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
 
-		RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+		if (RT64.inspector != nullptr) {
+			RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+		}
 
 		RT64.lib.SetInstance(RT64.instance, RT64.mesh, RT64.transform, RT64.textureDif, RT64.textureNrm, RT64.frameMaterial, 0);
 		RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
@@ -87,8 +103,6 @@ bool createRT64(HWND hwnd) {
 		fprintf(stderr, "Failed to create device.\n");
 		return false;
 	}
-
-	RT64.inspector = RT64.lib.CreateInspector(RT64.device);
 
 	return true;
 }
