@@ -11,9 +11,9 @@
 #include "Samplers.hlsli"
 #include "ViewParams.hlsli"
 
-#define EPSILON								0.000001f
+#define EPSILON								1e-6
 #define M_PI								3.14159265f
-#define RAY_MIN_DISTANCE					0.2f
+#define RAY_MIN_DISTANCE					1.0f
 #define RAY_MAX_DISTANCE					100000.0f
 #define MAX_LIGHTS							16
 #define FULL_QUALITY_ALPHA					0.999f

@@ -124,8 +124,6 @@ void setupRT64Scene() {
 	RT64.lightCount = 2;
 
 	for (int i = 0; i < _countof(RT64.lights); i++) {
-		RT64.lights[i].minSamples = 8;
-		RT64.lights[i].maxSamples = 32;
 		RT64.lights[i].groupBits = RT64_LIGHT_GROUP_DEFAULT;
 	}
 
@@ -144,9 +142,9 @@ void setupRT64Scene() {
 
 	// Make initial transform with a 0.1f scale.
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
-	RT64.transform.m[0][0] = 0.1f;
-	RT64.transform.m[1][1] = 0.1f;
-	RT64.transform.m[2][2] = 0.1f;
+	RT64.transform.m[0][0] = 1.0f;
+	RT64.transform.m[1][1] = 1.0f;
+	RT64.transform.m[2][2] = 1.0f;
 	RT64.transform.m[3][3] = 1.0f;
 
 	// Make initial view.
@@ -155,8 +153,8 @@ void setupRT64Scene() {
 	RT64.viewMatrix.m[1][1] = 1.0f;
 	RT64.viewMatrix.m[2][2] = 1.0f;
 	RT64.viewMatrix.m[3][0] = 0.0f;
-	RT64.viewMatrix.m[3][1] = -0.15f;
-	RT64.viewMatrix.m[3][2] = -1.0f;
+	RT64.viewMatrix.m[3][1] = -2.0f;
+	RT64.viewMatrix.m[3][2] = -10.0f;
 	RT64.viewMatrix.m[3][3] = 1.0f;
 
 	// Create mesh from obj file.
@@ -294,13 +292,13 @@ void setupRT64Scene() {
 	RT64_VERTEX floorVertices[4];
 	RT64_MATRIX4 floorTransform;
 	unsigned int floorIndices[6] = { 2, 1, 0, 1, 2, 3 };
-	floorVertices[0].position = { -1.5f, -0.15f, -1.0f };
+	floorVertices[0].position = { -1.5f, 0.0f, -1.0f };
 	floorVertices[0].uv = { 0.0f, 0.0f };
-	floorVertices[1].position = { 1.0f, -0.15f, -1.0f };
+	floorVertices[1].position = { 1.0f, 0.0f, -1.0f };
 	floorVertices[1].uv = { 1.0f, 0.0f };
-	floorVertices[2].position = { -1.5f, -0.15f, 1.0f };
+	floorVertices[2].position = { -1.5f, 0.0f, 1.0f };
 	floorVertices[2].uv = { 0.0f, 1.0f };
-	floorVertices[3].position = { 1.0f, -0.15f, 1.0f };
+	floorVertices[3].position = { 1.0f, 0.0f, 1.0f };
 	floorVertices[3].uv = { 1.0f, 1.0f };
 
 	for (int i = 0; i < _countof(floorVertices); i++) {
@@ -312,9 +310,9 @@ void setupRT64Scene() {
 	}
 
 	memset(&floorTransform, 0, sizeof(RT64_MATRIX4));
-	floorTransform.m[0][0] = 1.0f;
-	floorTransform.m[1][1] = 1.0f;
-	floorTransform.m[2][2] = 1.0f;
+	floorTransform.m[0][0] = 10.0f;
+	floorTransform.m[1][1] = 10.0f;
+	floorTransform.m[2][2] = 10.0f;
 	floorTransform.m[3][3] = 1.0f;
 
 	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);

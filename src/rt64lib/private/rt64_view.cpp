@@ -993,6 +993,16 @@ DLLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatr
 	view->setPerspective(viewMatrix, fovRadians, nearDist, farDist);
 }
 
+DLLEXPORT void RT64_SetViewConfiguration(RT64_VIEW *viewPtr, RT64_VIEW_CONFIG viewConfig) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	view->setResolutionScale(viewConfig.resolutionScale);
+	view->setSoftLightSamples(viewConfig.softLightSamples);
+	view->setGIBounces(viewConfig.giBounces);
+	view->setAmbGIMixWeight(viewConfig.ambGiMixWeight);
+	view->setDenoiserEnabled(viewConfig.denoiserEnabled);
+}
+
 DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int x, int y) {
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
