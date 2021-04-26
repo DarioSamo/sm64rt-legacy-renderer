@@ -77,7 +77,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
 		}
 
-		RT64.lib.SetInstance(RT64.instance, RT64.mesh, RT64.transform, RT64.textureDif, RT64.textureNrm, RT64.frameMaterial, 0);
+		RT64_INSTANCE_DESC instDesc;
+		instDesc.mesh = RT64.mesh;
+		instDesc.transform = RT64.transform;
+		instDesc.diffuseTexture = RT64.textureDif;
+		instDesc.normalTexture = RT64.textureNrm;
+		instDesc.material = RT64.frameMaterial;
+		instDesc.flags = 0;
+
+		RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 		RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
 		RT64.lib.DrawDevice(RT64.device, 1);
 
@@ -276,17 +284,31 @@ void setupRT64Scene() {
 	RT64_MESH* altMesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(altMesh, vertices, _countof(vertices), indices, _countof(indices));
 
+	RT64_INSTANCE_DESC instDesc;
+	instDesc.mesh = altMesh;
+	instDesc.transform = RT64.transform;
+	instDesc.diffuseTexture = altTexture;
+	instDesc.normalTexture = nullptr;
+	instDesc.material = RT64.baseMaterial;
+	instDesc.flags = 0;
+
 	// Create HUD B Instance.
 	RT64_INSTANCE *instanceB = RT64.lib.CreateInstance(RT64.scene);
-	RT64.lib.SetInstance(instanceB, altMesh, RT64.transform, altTexture, nullptr, RT64.baseMaterial, 0);
+	RT64.lib.SetInstanceDescription(instanceB, instDesc);
 
 	// Create RT Instance.
 	RT64.instance = RT64.lib.CreateInstance(RT64.scene);
-	RT64.lib.SetInstance(RT64.instance, RT64.mesh, RT64.transform, RT64.textureDif, RT64.textureNrm, RT64.baseMaterial, 0);
+	instDesc.mesh = RT64.mesh;
+	instDesc.diffuseTexture = RT64.textureDif;
+	instDesc.normalTexture = RT64.textureNrm;
+	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 
 	// Create HUD A Instance.
 	RT64_INSTANCE* instanceA = RT64.lib.CreateInstance(RT64.scene);
-	RT64.lib.SetInstance(instanceA, mesh, RT64.transform, RT64.textureDif, nullptr, RT64.baseMaterial, RT64_INSTANCE_RASTER_BACKGROUND);
+	instDesc.mesh = mesh;
+	instDesc.normalTexture = nullptr;
+	instDesc.flags = RT64_INSTANCE_RASTER_BACKGROUND;
+	RT64.lib.SetInstanceDescription(instanceA, instDesc);
 
 	// Create floor.
 	RT64_VERTEX floorVertices[4];
@@ -318,7 +340,12 @@ void setupRT64Scene() {
 	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
 	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), floorIndices, _countof(floorIndices));
 	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
-	RT64.lib.SetInstance(floorInstance, floorMesh, floorTransform, altTexture, normalTexture, RT64.baseMaterial, 0);
+	instDesc.mesh = floorMesh;
+	instDesc.transform = floorTransform;
+	instDesc.diffuseTexture = altTexture;
+	instDesc.normalTexture = normalTexture;
+	instDesc.flags = 0;
+	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
 }
 
 void destroyRT64() {

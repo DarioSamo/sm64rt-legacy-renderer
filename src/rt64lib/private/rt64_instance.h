@@ -19,6 +19,7 @@ namespace RT64 {
 		Texture* normalTexture;
 		XMMATRIX transform;
 		RT64_MATERIAL material;
+		RT64_RECT scissorRect;
 		unsigned int flags;
 	public:
 		Instance(Scene *scene);
@@ -33,6 +34,9 @@ namespace RT64 {
 		Texture* getNormalTexture() const;
 		void setTransform(float m[4][4]);
 		XMMATRIX getTransform() const;
+		void setScissorRect(const RT64_RECT &rect);
+		RT64_RECT getScissorRect() const;
+		bool hasScissorRect() const;
 		void setFlags(int v);
 		unsigned int getFlags() const;
 	};

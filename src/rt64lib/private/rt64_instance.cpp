@@ -19,6 +19,7 @@ RT64::Instance::Instance(Scene *scene) {
 	normalTexture = nullptr;
 	transform = XMMatrixIdentity();
 	material = DefaultMaterial;
+	scissorRect = { 0, 0, 0, 0 };
 	flags = 0;
 
 	scene->addInstance(this);
@@ -73,6 +74,18 @@ XMMATRIX RT64::Instance::getTransform() const {
 	return transform;
 }
 
+void RT64::Instance::setScissorRect(const RT64_RECT &rect) {
+	scissorRect = rect;
+}
+
+RT64_RECT RT64::Instance::getScissorRect() const {
+	return scissorRect;
+}
+
+bool RT64::Instance::hasScissorRect() const {
+	return (scissorRect.w > 0) && (scissorRect.h > 0);
+}
+
 void RT64::Instance::setFlags(int v) {
 	flags = v;
 }
@@ -89,21 +102,22 @@ DLLEXPORT RT64_INSTANCE *RT64_CreateInstance(RT64_SCENE *scenePtr) {
 	return (RT64_INSTANCE *)(instance);
 }
 
-DLLEXPORT void RT64_SetInstance(RT64_INSTANCE *instancePtr, RT64_MESH *meshPtr, RT64_MATRIX4 transform, RT64_TEXTURE *diffuseTexturePtr, RT64_TEXTURE* normalTexturePtr, RT64_MATERIAL material, unsigned int flags) {
+DLLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INSTANCE_DESC instanceDesc) {
 	assert(instancePtr != nullptr);
-	assert(meshPtr != nullptr);
-	assert(diffuseTexturePtr != nullptr);
+	assert(instanceDesc.meshPtr != nullptr);
+	assert(instanceDesc.diffuseTexture != nullptr);
 
 	RT64::Instance *instance = (RT64::Instance *)(instancePtr);
-	RT64::Mesh *mesh = (RT64::Mesh *)(meshPtr);
-	RT64::Texture *diffuseTexture = (RT64::Texture *)(diffuseTexturePtr);
-	RT64::Texture* normalTexture = (RT64::Texture*)(normalTexturePtr);
-	instance->setMesh(mesh);
-	instance->setTransform(transform.m);
-	instance->setMaterial(material);
-	instance->setDiffuseTexture(diffuseTexture);
-	instance->setNormalTexture(normalTexture);
-	instance->setFlags(flags);
+	instance->setMesh((RT64::Mesh *)(instanceDesc.mesh));
+	instance->setTransform(instanceDesc.transform.m);
+	instance->setMaterial(instanceDesc.material);
+	instance->setDiffuseTexture((RT64::Texture *)(instanceDesc.diffuseTexture));
+	instance->setNormalTexture((RT64::Texture *)(instanceDesc.normalTexture));
+	instance->setFlags(instanceDesc.flags);
+
+	if (instanceDesc.flags & RT64_INSTANCE_RASTER_USE_SCISSOR_RECT) {
+		instance->setScissorRect(instanceDesc.scissorRect);
+	}
 }
 
 DLLEXPORT void RT64_DestroyInstance(RT64_INSTANCE *instancePtr) {

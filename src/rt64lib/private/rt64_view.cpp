@@ -48,6 +48,7 @@ RT64::View::View(Scene *scene) {
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
+	scissorApplied = false;
 
 	createOutputBuffers();
 	createViewParamsBuffer();
@@ -495,6 +496,8 @@ void RT64::View::update() {
 		RenderInstance renderInstance;
 		Mesh* usedMesh = nullptr;
 		size_t totalInstances = scene->getInstances().size();
+		unsigned int instFlags = 0;
+		unsigned int screenHeight = getHeight();
 		rtInstances.clear();
 		rasterBgInstances.clear();
 		rasterFgInstances.clear();
@@ -506,6 +509,7 @@ void RT64::View::update() {
 		usedTextures.reserve(1024);
 
 		for (Instance *instance : scene->getInstances()) {
+			instFlags = instance->getFlags();
 			usedMesh = instance->getMesh();
 			renderInstance.instance = instance;
 			renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
@@ -515,8 +519,19 @@ void RT64::View::update() {
 			renderInstance.indexBufferView = usedMesh->getIndexBufferView();
 			renderInstance.vertexBufferView = usedMesh->getVertexBufferView();
 			renderInstance.material.diffuseTexIndex = (int)(usedTextures.size());
-			renderInstance.flags = (instance->getFlags() & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE : D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+			renderInstance.flags = (instFlags & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE : D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 			usedTextures.push_back(instance->getDiffuseTexture());
+
+			if (instance->hasScissorRect()) {
+				RT64_RECT instRect = instance->getScissorRect();
+				renderInstance.scissorRect.left = instRect.x;
+				renderInstance.scissorRect.top = screenHeight - instRect.y - instRect.h;
+				renderInstance.scissorRect.right = instRect.x + instRect.w;
+				renderInstance.scissorRect.bottom = screenHeight - instRect.y;
+			}
+			else {
+				renderInstance.scissorRect = CD3DX12_RECT(0, 0, 0, 0);
+			}
 
 			if (instance->getNormalTexture() != nullptr) {
 				renderInstance.material.normalTexIndex = (int)(usedTextures.size());
@@ -529,7 +544,7 @@ void RT64::View::update() {
 			if (renderInstance.bottomLevelAS != nullptr) {
 				rtInstances.push_back(renderInstance);
 			}
-			else if (instance->getFlags() & RT64_INSTANCE_RASTER_BACKGROUND) {
+			else if (instFlags & RT64_INSTANCE_RASTER_BACKGROUND) {
 				rasterBgInstances.push_back(renderInstance);
 			}
 			else {
@@ -602,7 +617,7 @@ void RT64::View::render() {
 		d3dCommandList->ResourceBarrier(1, &fgBarrier);
 
 		UINT instanceIndex = (UINT)(rtInstances.size());
-		auto drawInstances = [d3dCommandList, &instanceIndex, this](ID3D12DescriptorHeap *heap, const std::vector<RT64::View::RenderInstance> &rasterInstances) {
+		auto drawInstances = [d3dCommandList, &instanceIndex, &scissorRect, this](ID3D12DescriptorHeap *heap, const std::vector<RT64::View::RenderInstance> &rasterInstances) {
 			// Set the output resource as the render target and clear it.
 			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(heap->GetCPUDescriptorHandleForHeapStart(), 0, outputRtvDescriptorSize);
 			d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
@@ -614,6 +629,18 @@ void RT64::View::render() {
 			d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			for (size_t j = 0; j < rasterInstances.size(); j++) {
 				const RenderInstance &renderInstance = rasterInstances[j];
+
+				// Apply the scissor rect stored for this instance if it's defined.
+				// Reset to the default scissor rect otherwise.
+				if (renderInstance.scissorRect.right > renderInstance.scissorRect.left) {
+					d3dCommandList->RSSetScissorRects(1, &renderInstance.scissorRect);
+					scissorApplied = true;
+				}
+				else if (scissorApplied) {
+					d3dCommandList->RSSetScissorRects(1, &scissorRect);
+					scissorApplied = false;
+				}
+
 				d3dCommandList->SetGraphicsRoot32BitConstant(0, instanceIndex++, 0);
 				d3dCommandList->IASetVertexBuffers(0, 1, renderInstance.vertexBufferView);
 				d3dCommandList->IASetIndexBuffer(renderInstance.indexBufferView);
@@ -624,6 +651,12 @@ void RT64::View::render() {
 		// Draw the background and foreground raster instances.
 		drawInstances(rasterBgHeap, rasterBgInstances);
 		drawInstances(rasterFgHeap, rasterFgInstances);
+
+		// Reset the scissor if it's still applied.
+		if (scissorApplied) {
+			d3dCommandList->RSSetScissorRects(1, &scissorRect);
+			scissorApplied = false;
+		}
 
 		// Transition the the background and foreground from render targets to SRV.
 		bgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -993,14 +1026,14 @@ DLLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatr
 	view->setPerspective(viewMatrix, fovRadians, nearDist, farDist);
 }
 
-DLLEXPORT void RT64_SetViewConfiguration(RT64_VIEW *viewPtr, RT64_VIEW_CONFIG viewConfig) {
+DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc) {
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
-	view->setResolutionScale(viewConfig.resolutionScale);
-	view->setSoftLightSamples(viewConfig.softLightSamples);
-	view->setGIBounces(viewConfig.giBounces);
-	view->setAmbGIMixWeight(viewConfig.ambGiMixWeight);
-	view->setDenoiserEnabled(viewConfig.denoiserEnabled);
+	view->setResolutionScale(viewDesc.resolutionScale);
+	view->setSoftLightSamples(viewDesc.softLightSamples);
+	view->setGIBounces(viewDesc.giBounces);
+	view->setAmbGIMixWeight(viewDesc.ambGiMixWeight);
+	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
 }
 
 DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int x, int y) {

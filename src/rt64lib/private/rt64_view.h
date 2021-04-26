@@ -28,6 +28,7 @@ namespace RT64 {
 			ID3D12Resource* bottomLevelAS;
 			DirectX::XMMATRIX transform;
 			RT64_MATERIAL material;
+			CD3DX12_RECT scissorRect;
 			UINT flags;
 		};
 
@@ -90,6 +91,7 @@ namespace RT64 {
 		std::vector<RenderInstance> rasterFgInstances;
 		std::vector<RenderInstance> rtInstances;
 		std::vector<Texture*> usedTextures;
+		bool scissorApplied;
 
 		AllocatedResource im3dVertexBuffer;
 		D3D12_VERTEX_BUFFER_VIEW im3dVertexBufferView;
