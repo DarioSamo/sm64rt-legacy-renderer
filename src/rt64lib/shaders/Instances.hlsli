@@ -14,12 +14,14 @@ struct InstanceProperties {
 
 static const float InstanceIdBias = 0.001f;
 
+StructuredBuffer<InstanceProperties> instanceProps : register(t5);
+
 float WithDistanceBias(float distance, uint instanceId) {
-	return max(distance - (instanceId * InstanceIdBias), 0.01);
+	float depthBias = instanceProps[instanceId].materialProperties.depthBias;
+	return distance - (instanceId * InstanceIdBias) - depthBias;
 }
 
 float WithoutDistanceBias(float distance, uint instanceId) {
-	return distance + (instanceId * InstanceIdBias);
+	float depthBias = instanceProps[instanceId].materialProperties.depthBias;
+	return distance + (instanceId * InstanceIdBias) + depthBias;
 }
-
-StructuredBuffer<InstanceProperties> instanceProps : register(t5);

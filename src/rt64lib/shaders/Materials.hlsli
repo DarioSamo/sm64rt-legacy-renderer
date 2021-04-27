@@ -18,10 +18,14 @@ struct MaterialProperties {
 	float specularExponent;
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
+	float depthBias;
+	float shadowRayBias;
 	float3 selfLight;
 	uint lightGroupMaskBits;
 	float3 fogColor;
 	float4 diffuseColorMix;
 	float fogMul;
 	float fogOffset;
+
+	uint2 _pad;
 };

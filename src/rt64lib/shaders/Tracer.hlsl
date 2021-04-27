@@ -89,6 +89,7 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 		float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
 		float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
 		float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
+		float shadowRayBias = instanceProps[instanceId].materialProperties.shadowRayBias;
 		float3 lightingFactors;
 		sLightCount = min(sLightCount, sMaxLightCount);
 		for (uint s = 0; s < sLightCount; s++) {
@@ -124,7 +125,7 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 				float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
 				float sampleShadowFactor = 1.0f;
 				if (checkShadows) {
-					sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
+					sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
 				}
 
 				float sampleSpecularityFactor = specularIntensity * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
