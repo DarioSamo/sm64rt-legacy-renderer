@@ -11,7 +11,7 @@ void GSMain(point VS_OUTPUT _in[1], inout TriangleStream<VS_OUTPUT> out_)
 {
 	VS_OUTPUT ret;
 
-	float2 scale = 1.0 / viewport.zw * _in[0].m_size;
+	float2 scale = 1.0 / resolution.zw * _in[0].m_size;
 	ret.m_size = _in[0].m_size;
 	ret.m_color = _in[0].m_color;
 	ret.m_worldPosition = _in[0].m_worldPosition;

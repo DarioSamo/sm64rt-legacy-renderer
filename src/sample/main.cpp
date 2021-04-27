@@ -78,6 +78,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		}
 
 		RT64_INSTANCE_DESC instDesc;
+		instDesc.scissorRect = { 0, 0, 0, 0 };
+		instDesc.viewportRect = { 0, 0, 0, 0 };
 		instDesc.mesh = RT64.mesh;
 		instDesc.transform = RT64.transform;
 		instDesc.diffuseTexture = RT64.textureDif;
@@ -285,6 +287,8 @@ void setupRT64Scene() {
 	RT64.lib.SetMesh(altMesh, vertices, _countof(vertices), indices, _countof(indices));
 
 	RT64_INSTANCE_DESC instDesc;
+	instDesc.scissorRect = { 0, 0, 0, 0 };
+	instDesc.viewportRect = { 0, 0, 0, 0 };
 	instDesc.mesh = altMesh;
 	instDesc.transform = RT64.transform;
 	instDesc.diffuseTexture = altTexture;

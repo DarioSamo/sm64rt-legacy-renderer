@@ -242,11 +242,8 @@ float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, fl
 }
 
 void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
-	// TODO: Perform alpha blending on albedo for denoiser result to be more accurate.
-	float2 bgPos = float2(launchIndex / viewport.xy);
-	float3 bgColor = gBackground.SampleLevel(linearClampClamp, bgPos, 0).rgb;
 	float4 resColor = float4(0, 0, 0, 1);
-	float4 finalAlbedo = float4(bgColor, 1.0f);
+	float4 finalAlbedo = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	float4 finalNormal = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
@@ -364,7 +361,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		}
 	}
 
-	gOutput[launchIndex] = float4(lerp(bgColor.rgb, saturate(resColor.rgb), (1.0 - resColor.a)), 1.0f);
+	gOutput[launchIndex] = float4(resColor.rgb, (1.0f - resColor.a));
 	gAlbedo[launchIndex] = finalAlbedo;
 	gNormal[launchIndex] = finalNormal;
 

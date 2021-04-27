@@ -29,6 +29,7 @@ namespace RT64 {
 			DirectX::XMMATRIX transform;
 			RT64_MATERIAL material;
 			CD3DX12_RECT scissorRect;
+			CD3DX12_VIEWPORT viewport;
 			UINT flags;
 		};
 
@@ -39,6 +40,7 @@ namespace RT64 {
 			XMMATRIX projectionI;
 			XMMATRIX prevViewProj;
 			float viewport[4];
+			float resolution[4];
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
@@ -55,9 +57,7 @@ namespace RT64 {
 		AccelerationStructureBuffers topLevelASBuffers;
 		nv_helpers_dx12::TopLevelASGenerator topLevelASGenerator;
 		AllocatedResource rasterBg;
-		AllocatedResource rasterFg;
 		ID3D12DescriptorHeap *rasterBgHeap;
-		ID3D12DescriptorHeap *rasterFgHeap;
 		AllocatedResource rtOutput;
 		AllocatedResource rtAlbedo;
 		AllocatedResource rtNormal;
@@ -92,6 +92,7 @@ namespace RT64 {
 		std::vector<RenderInstance> rtInstances;
 		std::vector<Texture*> usedTextures;
 		bool scissorApplied;
+		bool viewportApplied;
 
 		AllocatedResource im3dVertexBuffer;
 		D3D12_VERTEX_BUFFER_VIEW im3dVertexBufferView;

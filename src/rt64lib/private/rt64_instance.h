@@ -20,6 +20,7 @@ namespace RT64 {
 		XMMATRIX transform;
 		RT64_MATERIAL material;
 		RT64_RECT scissorRect;
+		RT64_RECT viewportRect;
 		unsigned int flags;
 	public:
 		Instance(Scene *scene);
@@ -37,6 +38,9 @@ namespace RT64 {
 		void setScissorRect(const RT64_RECT &rect);
 		RT64_RECT getScissorRect() const;
 		bool hasScissorRect() const;
+		void setViewportRect(const RT64_RECT &rect);
+		RT64_RECT getViewportRect() const;
+		bool hasViewportRect() const;
 		void setFlags(int v);
 		unsigned int getFlags() const;
 	};

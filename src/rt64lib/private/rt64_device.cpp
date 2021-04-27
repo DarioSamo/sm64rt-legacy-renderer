@@ -432,7 +432,7 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
 			{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 			{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
-			});
+		});
 
 		im3dRootSignature = rsc.Generate(d3dDevice, false, true, false);
 	}
@@ -471,8 +471,7 @@ void RT64::Device::loadAssets() {
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
-			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 }
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 }
 		});
 
 		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, true);
@@ -613,7 +612,7 @@ void RT64::Device::preRender() {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = getD3D12RTV();
 	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-	const float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	d3dCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 }
 

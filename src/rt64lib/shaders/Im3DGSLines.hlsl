@@ -12,10 +12,10 @@ void GSMain(line VS_OUTPUT _in[2], inout TriangleStream<VS_OUTPUT> out_)
 	float2 pos1 = _in[1].m_position.xy / _in[1].m_position.w;
 	
 	float2 dir = pos0 - pos1;
-	dir = normalize(float2(dir.x, dir.y * viewport.w / viewport.z)); // correct for aspect ratio
+	dir = normalize(float2(dir.x, dir.y * resolution.w / resolution.z)); // correct for aspect ratio
 	float2 tng0 = float2(-dir.y, dir.x);
-	float2 tng1 = tng0 * _in[1].m_size / viewport.zw;
-	tng0 = tng0 * _in[0].m_size / viewport.zw;
+	float2 tng1 = tng0 * _in[1].m_size / resolution.zw;
+	tng0 = tng0 * _in[0].m_size / resolution.zw;
 
 	VS_OUTPUT ret;
 	

@@ -7,7 +7,7 @@
 #include "ViewParams.hlsli"
 
 float4 PSMain(VS_OUTPUT _in) : SV_Target {
-	uint2 pixelDims = round(viewport.xy);
+	uint2 pixelDims = round(resolution.xy);
 	uint2 pixelPos = clamp(_in.m_position.xy, uint2(0, 0), pixelDims);
 	uint hitBufferIndex = getHitBufferIndex(0, pixelPos, pixelDims);
 	float occlDistance = gHitDistance[hitBufferIndex];
