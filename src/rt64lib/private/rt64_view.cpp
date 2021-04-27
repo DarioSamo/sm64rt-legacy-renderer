@@ -624,13 +624,16 @@ void RT64::View::render() {
 		}
 	};
 
-	auto drawInstances = [d3dCommandList, &scissorRect, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance> &rasterInstances, UINT baseInstanceIndex) {
+	auto drawInstances = [d3dCommandList, &scissorRect, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance> &rasterInstances, UINT baseInstanceIndex, bool applyScissorsAndViewports) {
 		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		UINT rasterSz = (UINT)(rasterInstances.size());
 		for (UINT j = 0; j < rasterSz; j++) {
 			const RenderInstance &renderInstance = rasterInstances[j];
-			applyScissor(renderInstance.scissorRect);
-			applyViewport(renderInstance.viewport);
+			if (applyScissorsAndViewports) {
+				applyScissor(renderInstance.scissorRect);
+				applyViewport(renderInstance.viewport);
+			}
+
 			d3dCommandList->SetGraphicsRoot32BitConstant(0, baseInstanceIndex + j, 0);
 			d3dCommandList->IASetVertexBuffers(0, 1, renderInstance.vertexBufferView);
 			d3dCommandList->IASetIndexBuffer(renderInstance.indexBufferView);
@@ -642,7 +645,7 @@ void RT64::View::render() {
 	resetPipeline();
 	resetScissor();
 	resetViewport();
-	drawInstances(rasterBgInstances, (UINT)(rtInstances.size()));
+	drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
 	
 	// Draw the background instances to a buffer that can be used by the tracer as an environment map.
 	{
@@ -657,7 +660,9 @@ void RT64::View::render() {
 		d3dCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 		
 		// Draw background instances to it.
-		drawInstances(rasterBgInstances, (UINT)(rtInstances.size()));
+		resetScissor();
+		resetViewport();
+		drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), false);
 		
 		// Transition the the background from render target to SRV.
 		bgBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rasterBg.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -767,7 +772,7 @@ void RT64::View::render() {
 	resetPipeline();
 	resetScissor();
 	resetViewport();
-	drawInstances(rasterFgInstances, (UINT)(rasterBgInstances.size() + rtInstances.size()));
+	drawInstances(rasterFgInstances, (UINT)(rasterBgInstances.size() + rtInstances.size()), true);
 
 	// Clear flags.
 	rtHitInstanceIdReadbackUpdated = false;
