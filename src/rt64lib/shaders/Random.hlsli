@@ -2,6 +2,9 @@
 // RT64
 //
 
+#ifndef RANDOM_HLSLI_INCLUDED
+#define RANDOM_HLSLI_INCLUDED
+
 // Source from http://intro-to-dxr.cwyman.org/
 
 // Generates a seed for a random number generator from 2 inputs plus a backoff
@@ -56,3 +59,5 @@ float3 getCosHemisphereSample(inout uint randSeed, float3 hitNorm)
 	// Get our cosine-weighted hemisphere lobe sample direction
 	return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
 }
+
+#endif

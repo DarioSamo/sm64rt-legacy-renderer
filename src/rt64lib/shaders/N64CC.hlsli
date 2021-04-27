@@ -2,6 +2,8 @@
 // RT64
 //
 
+#include "Random.hlsli"
+
 #define SHADER_0 0
 #define SHADER_INPUT_1 1
 #define SHADER_INPUT_2 2
@@ -30,9 +32,10 @@ struct ColorCombinerFeatures {
 	int opt_alpha;
 	int opt_fog;
 	int opt_texture_edge;
+	int opt_noise;
 
 	// Align to 16 bytes.
-	float2 _padding;
+	float _padding;
 };
 
 float4 ColorInput(ColorCombinerInputs inputs, int item, bool with_alpha, bool inputs_have_alpha, bool hint_single_element) {
@@ -132,13 +135,18 @@ float AlphaFormula(ColorCombinerFeatures cc, ColorCombinerInputs inputs, bool do
 	return result;
 }
 
-float4 CombineColors(ColorCombinerFeatures cc, ColorCombinerInputs inputs) {
+float4 CombineColors(ColorCombinerFeatures cc, ColorCombinerInputs inputs, uint seed) {
 	float4 result = float4(0.0f, 0.0f, 0.0f, 1.0f);
 	if (!cc.color_alpha_same && cc.opt_alpha) {
 		result = float4(ColorFormula(cc, inputs, cc.do_single[0], cc.do_multiply[0], cc.do_mix[0], false, true).rgb, AlphaFormula(cc, inputs, cc.do_single[1], cc.do_multiply[1], cc.do_mix[1], true, true));
 	}
 	else {
 		result = ColorFormula(cc, inputs, cc.do_single[0], cc.do_multiply[0], cc.do_mix[0], cc.opt_alpha, cc.opt_alpha);
+	}
+
+	if (cc.opt_noise) {
+		float noiseAlpha = round(nextRand(seed));
+		result.a *= noiseAlpha;
 	}
 
 	/* SUPPORT TEXTURE EDGE?

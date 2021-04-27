@@ -8,6 +8,7 @@
 #include "Ray.hlsli"
 #include "Samplers.hlsli"
 #include "Textures.hlsli"
+#include "ViewParams.hlsli"
 
 [shader("anyhit")]
 void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
@@ -30,7 +31,8 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 	ccInputs.input4 = vertex.input[3];
 	ccInputs.texVal0 = texelColor;
 	ccInputs.texVal1 = texelColor;
-	float4 resultColor = CombineColors(instanceProps[instanceId].ccFeatures, ccInputs);
+	uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);
+	float4 resultColor = CombineColors(instanceProps[instanceId].ccFeatures, ccInputs, seed);
 	resultColor.a = clamp(instanceProps[instanceId].materialProperties.solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);
 
 	// Ignore hit if alpha is empty.

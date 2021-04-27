@@ -242,6 +242,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.opt_alpha = 0;
 	RT64.baseMaterial.opt_fog = 1;
 	RT64.baseMaterial.opt_texture_edge = 0;
+	RT64.baseMaterial.opt_noise = 0;
 	
 	RT64_VERTEX vertices[3];
 	vertices[0].position = { -1.0f, 0.1f, 0.0f } ;

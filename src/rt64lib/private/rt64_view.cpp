@@ -37,6 +37,7 @@ RT64::View::View(Scene *scene) {
 	viewParamsBufferData.giBounces = 0;
 	viewParamsBufferData.maxLightSamples = 12;
 	viewParamsBufferData.ambGIMixWeight = 0.8f;
+	viewParamsBufferData.frameCount = 0;
 	viewParamsBufferSize = 0;
 	viewParamsBufferUpdatedThisFrame = false;
 	rtWidth = 0;
@@ -777,6 +778,7 @@ void RT64::View::render() {
 	// Clear flags.
 	rtHitInstanceIdReadbackUpdated = false;
 	viewParamsBufferUpdatedThisFrame = false;
+	viewParamsBufferData.frameCount++;
 }
 
 void RT64::View::renderInspector(Inspector *inspector) {

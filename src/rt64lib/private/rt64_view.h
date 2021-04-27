@@ -46,7 +46,7 @@ namespace RT64 {
 			unsigned int giBounces;
 			unsigned int maxLightSamples;
 			float ambGIMixWeight;
-			unsigned int horizontalBlocksCount;
+			unsigned int frameCount;
 		};
 
 		Scene *scene;

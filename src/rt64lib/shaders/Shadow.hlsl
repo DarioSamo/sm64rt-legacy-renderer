@@ -7,6 +7,7 @@
 #include "Ray.hlsli"
 #include "Samplers.hlsli"
 #include "Textures.hlsli"
+#include "ViewParams.hlsli"
 
 [shader("anyhit")]
 void ShadowAnyHit(inout ShadowHitInfo payload, Attributes attrib) {
@@ -26,7 +27,8 @@ void ShadowAnyHit(inout ShadowHitInfo payload, Attributes attrib) {
 		ccInputs.texVal0 = texelColor;
 		ccInputs.texVal1 = texelColor;
 
-		float resultAlpha = clamp(CombineColors(instanceProps[instanceId].ccFeatures, ccInputs).a * instanceProps[instanceId].materialProperties.shadowAlphaMultiplier, 0.0f, 1.0f);
+		uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);
+		float resultAlpha = clamp(CombineColors(instanceProps[instanceId].ccFeatures, ccInputs, seed).a * instanceProps[instanceId].materialProperties.shadowAlphaMultiplier, 0.0f, 1.0f);
 		payload.shadowHit = max(payload.shadowHit - resultAlpha, 0.0f);
 		if (payload.shadowHit > 0.0f) {
 			IgnoreHit();

@@ -21,6 +21,6 @@ float4 PSMain(PSInput input) : SV_TARGET {
     ccInputs.texVal0 = texelColor;
     ccInputs.texVal1 = texelColor;
 
-    float4 resultColor = CombineColors(instanceProps[instanceId].ccFeatures, ccInputs);
+    float4 resultColor = CombineColors(instanceProps[instanceId].ccFeatures, ccInputs, 0);
     return resultColor;
 }
