@@ -31,7 +31,9 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 	ccInputs.input4 = vertex.input[3];
 	ccInputs.texVal0 = texelColor;
 	ccInputs.texVal1 = texelColor;
-	uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);
+	
+	uint noiseScale = resolution.y / NOISE_SCALE_HEIGHT;
+	uint seed = initRand((DispatchRaysIndex().x / noiseScale) + (DispatchRaysIndex().y / noiseScale) * DispatchRaysDimensions().x, frameCount, 16);
 	float4 resultColor = CombineColors(instanceProps[instanceId].ccFeatures, ccInputs, seed);
 	resultColor.a = clamp(instanceProps[instanceId].materialProperties.solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);
 

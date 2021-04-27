@@ -27,7 +27,8 @@ void ShadowAnyHit(inout ShadowHitInfo payload, Attributes attrib) {
 		ccInputs.texVal0 = texelColor;
 		ccInputs.texVal1 = texelColor;
 
-		uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);
+		uint noiseScale = resolution.y / NOISE_SCALE_HEIGHT;
+		uint seed = initRand((DispatchRaysIndex().x / noiseScale) + (DispatchRaysIndex().y / noiseScale) * DispatchRaysDimensions().x, frameCount, 16);
 		float resultAlpha = clamp(CombineColors(instanceProps[instanceId].ccFeatures, ccInputs, seed).a * instanceProps[instanceId].materialProperties.shadowAlphaMultiplier, 0.0f, 1.0f);
 		payload.shadowHit = max(payload.shadowHit - resultAlpha, 0.0f);
 		if (payload.shadowHit > 0.0f) {

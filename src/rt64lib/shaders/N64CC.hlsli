@@ -4,6 +4,8 @@
 
 #include "Random.hlsli"
 
+#define NOISE_SCALE_HEIGHT	240
+
 #define SHADER_0 0
 #define SHADER_INPUT_1 1
 #define SHADER_INPUT_2 2
