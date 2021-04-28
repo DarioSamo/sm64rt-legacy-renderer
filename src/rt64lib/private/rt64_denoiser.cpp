@@ -16,25 +16,85 @@
 #include "rt64_denoiser.h"
 #include "rt64_device.h"
 
+// Implementation of NVIDIA's OptiX denoiser for real-time use with D3D12.
+// Mostly based on the code from the denoiser example included in the OptiX SDK.
+//
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+//  * Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//  * Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+//  * Neither the name of NVIDIA CORPORATION nor the names of its
+//    contributors may be used to endorse or promote products derived
+//    from this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+// OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+
+// Error checking macros.
+
+#define OPTIX_CHECK( call )                                                    \
+    do                                                                         \
+    {                                                                          \
+        OptixResult error = call;                                              \
+        if( error != OPTIX_SUCCESS )                                           \
+        {                                                                      \
+            std::stringstream ss;                                              \
+            ss << "OptiX call (" << #call << " ) failed with error: '"         \
+               << optixGetErrorString(error)                                   \
+               << "' (" __FILE__ << ":" << __LINE__ << ")\n";                  \
+            throw std::runtime_error(ss.str());                                \
+        }                                                                      \
+    } while( 0 )
+
+#define CUDA_CHECK( call )                                                     \
+    do                                                                         \
+    {                                                                          \
+        cudaError_t error = call;                                              \
+        if( error != cudaSuccess )                                             \
+        {                                                                      \
+            std::stringstream ss;                                              \
+            ss << "CUDA call (" << #call << " ) failed with error: '"          \
+               << cudaGetErrorString(error)                                    \
+               << "' (" __FILE__ << ":" << __LINE__ << ")\n";                  \
+            throw std::runtime_error(ss.str());                                \
+        }                                                                      \
+    } while( 0 )
+
 // Private
 
 class RT64::Denoiser::Context {
 private:
     struct Image {
-        ID3D12Resource *resource;
-        HANDLE sharedHandle;
-        cudaMipmappedArray_t mipmappedArray;
-        cudaArray_t extArray;
-        cudaExternalMemory_t extMemory;
-        OptixImage2D optixImage;
+        ID3D12Resource *resource = nullptr;
+        HANDLE sharedHandle = 0;
+        cudaMipmappedArray_t mipmappedArray = 0;
+        cudaArray_t extArray = 0;
+        cudaExternalMemory_t extMemory = 0;
+        OptixImage2D optixImage = { 0, 0, 0, 0, 0, OPTIX_PIXEL_FORMAT_FLOAT4 };
     };
 
-	Device *device = nullptr;
-	OptixDeviceContext optixContext;
     Image color;
     Image albedo;
     Image normal;
     Image output;
+	Device *device = nullptr;
+	OptixDeviceContext optixContext = 0;
     unsigned int width = 0;
     unsigned int height = 0;
 	OptixDenoiser optixDenoiser = 0;
@@ -48,32 +108,41 @@ private:
     OptixDenoiserLayer optixDenoiserLayer;
     OptixDenoiserGuideLayer optixGuideLayer;
     OptixDenoiserParams optixParams;
+    bool initialized;
 public:
 	Context(Device *device) {
 		this->device = device;
 
-        // Find node mask for this device.
-        LUID deviceLuid = device->getD3D12Device()->GetAdapterLuid();
-        cudaDeviceProp devProp;
-        cudaGetDeviceProperties(&devProp, 0);
-        if ((memcmp(&deviceLuid.LowPart, devProp.luid, sizeof(deviceLuid.LowPart)) == 0) &&
-            (memcmp(&deviceLuid.HighPart, devProp.luid + sizeof(deviceLuid.LowPart), sizeof(deviceLuid.HighPart)) == 0))
-        {
-            d3dNodeMask = devProp.luidDeviceNodeMask;
+        try {
+            CUDA_CHECK(cudaFree(nullptr));
+
+            OPTIX_CHECK(optixInit());
+            OptixDeviceContextOptions ctxOptions = {};
+            OPTIX_CHECK(optixDeviceContextCreate(nullptr, &ctxOptions, &optixContext));
+
+            OptixDenoiserOptions denOptions;
+            denOptions.guideAlbedo = 1;
+            denOptions.guideNormal = 1;
+
+            OptixDenoiserModelKind modelKind = OPTIX_DENOISER_MODEL_KIND_LDR;
+            OPTIX_CHECK(optixDenoiserCreate(optixContext, modelKind, &denOptions, &optixDenoiser));
+
+            // Find node mask for this device.
+            LUID deviceLuid = device->getD3D12Device()->GetAdapterLuid();
+            cudaDeviceProp devProp;
+            CUDA_CHECK(cudaGetDeviceProperties(&devProp, 0));
+            if ((memcmp(&deviceLuid.LowPart, devProp.luid, sizeof(deviceLuid.LowPart)) == 0) &&
+                (memcmp(&deviceLuid.HighPart, devProp.luid + sizeof(deviceLuid.LowPart), sizeof(deviceLuid.HighPart)) == 0))
+            {
+                d3dNodeMask = devProp.luidDeviceNodeMask;
+            }
+
+            initialized = true;
         }
-
-        cudaFree(nullptr);
-
-        optixInit();
-        OptixDeviceContextOptions ctxOptions = {};
-        optixDeviceContextCreate(nullptr, &ctxOptions, &optixContext);
-
-        OptixDenoiserOptions denOptions;
-        denOptions.guideAlbedo = 1;
-        denOptions.guideNormal = 1;
-
-        OptixDenoiserModelKind modelKind = OPTIX_DENOISER_MODEL_KIND_LDR;
-        optixDenoiserCreate(optixContext, modelKind, &denOptions, &optixDenoiser);
+        catch (const std::runtime_error &e) {
+            fprintf(stderr, "Denoiser could not be initialized: %s\n", e.what());
+            initialized = false;
+        }
 	}
 
 	~Context() {
@@ -97,7 +166,7 @@ public:
         extHandleDesc.handle.win32.handle = image.sharedHandle;
         extHandleDesc.size = resAllocInfo.SizeInBytes;
         extHandleDesc.flags = cudaExternalMemoryDedicated;
-        cudaImportExternalMemory(&image.extMemory, &extHandleDesc);
+        CUDA_CHECK(cudaImportExternalMemory(&image.extMemory, &extHandleDesc));
 
         // Get the mipmapped array from the external memory.
         cudaExternalMemoryMipmappedArrayDesc mipmappedArrayDesc;
@@ -108,10 +177,10 @@ public:
         mipmappedArrayDesc.extent.height = height;
         mipmappedArrayDesc.extent.depth = 0;
         mipmappedArrayDesc.flags = cudaArrayColorAttachment;
-        cudaExternalMemoryGetMappedMipmappedArray(&image.mipmappedArray, image.extMemory, &mipmappedArrayDesc);
+        CUDA_CHECK(cudaExternalMemoryGetMappedMipmappedArray(&image.mipmappedArray, image.extMemory, &mipmappedArrayDesc));
 
         // Get the first level as a CUDA array.
-        cudaGetMipmappedArrayLevel(&image.extArray, image.mipmappedArray, 0);
+        CUDA_CHECK(cudaGetMipmappedArrayLevel(&image.extArray, image.mipmappedArray, 0));
 
         // Allocate the dedicated memory packed for the denoiser.
         image.optixImage.width = width;
@@ -119,30 +188,39 @@ public:
         image.optixImage.rowStrideInBytes = width * sizeof(float4);
         image.optixImage.pixelStrideInBytes = sizeof(float4);
         image.optixImage.format = OPTIX_PIXEL_FORMAT_FLOAT4;
-        cudaMalloc(reinterpret_cast<void **>(&image.optixImage.data), width * height * sizeof(float4));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&image.optixImage.data), width * height * sizeof(float4)));
 
         return image;
     }
 
     void copyImageResToCuda(Image &image) {
-        cudaMemcpy2DFromArray(reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.extArray, 0, 0, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice);
+        CUDA_CHECK(cudaMemcpy2DFromArray(reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.extArray, 0, 0, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice));
     }
 
     void copyImageCudaToRes(Image &image) {
-        cudaMemcpy2DToArray(image.extArray, 0, 0, reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice);
+        CUDA_CHECK(cudaMemcpy2DToArray(image.extArray, 0, 0, reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice));
     }
 
     void releaseImage(Image &image) {
-        cudaFree(reinterpret_cast<void *>(image.optixImage.data));
-        cudaFreeMipmappedArray(image.mipmappedArray);
-        cudaDestroyExternalMemory(image.extMemory);
-        CloseHandle(image.sharedHandle);
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(image.optixImage.data)));
+
+        if (image.mipmappedArray) {
+            CUDA_CHECK(cudaFreeMipmappedArray(image.mipmappedArray));
+        }
+
+        if (image.extMemory) {
+            CUDA_CHECK(cudaDestroyExternalMemory(image.extMemory));
+        }
+
+        if (image.sharedHandle) {
+            CloseHandle(image.sharedHandle);
+        }
     }
 
     void releaseResources() {
-        cudaFree(reinterpret_cast<void *>(optixIntensity));
-        cudaFree(reinterpret_cast<void *>(optixScratch));
-        cudaFree(reinterpret_cast<void *>(optixState));
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(optixIntensity)));
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(optixScratch)));
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(optixState)));
         releaseImage(color);
         releaseImage(albedo);
         releaseImage(normal);
@@ -150,46 +228,50 @@ public:
     }
     
     void denoise() {
-        copyImageResToCuda(color);
-        copyImageResToCuda(albedo);
-        copyImageResToCuda(normal);
-        optixDenoiserComputeIntensity(optixDenoiser, nullptr, &color.optixImage, optixIntensity, optixScratch, optixScratchSize);
-        optixUtilDenoiserInvokeTiled(optixDenoiser, nullptr, &optixParams, optixState, optixStateSize, &optixGuideLayer, &optixDenoiserLayer, 1, optixScratch, optixScratchSize, 0, width, height);
-        copyImageCudaToRes(output);
-        cudaDeviceSynchronize();
+        if (initialized) {
+            copyImageResToCuda(color);
+            copyImageResToCuda(albedo);
+            copyImageResToCuda(normal);
+            OPTIX_CHECK(optixDenoiserComputeIntensity(optixDenoiser, nullptr, &color.optixImage, optixIntensity, optixScratch, optixScratchSize));
+            OPTIX_CHECK(optixUtilDenoiserInvokeTiled(optixDenoiser, nullptr, &optixParams, optixState, optixStateSize, &optixGuideLayer, &optixDenoiserLayer, 1, optixScratch, optixScratchSize, 0, width, height));
+            copyImageCudaToRes(output);
+            CUDA_CHECK(cudaDeviceSynchronize());
+        }
     }
 
     void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
-        releaseResources();
+        if (initialized) {
+            releaseResources();
 
-        this->width = width;
-        this->height = height;
+            this->width = width;
+            this->height = height;
 
-        // Create the Optix images with references to the resources.
-        // Since Optix allocates its own CUDA memory, it is safe to create more
-        // than one reference to the same resource.
-        color = createFromResource(width, height, inOutColor);
-        albedo = createFromResource(width, height, inAlbedo);
-        normal = createFromResource(width, height, inNormal);
-        output = createFromResource(width, height, inOutColor);
+            // Create the Optix images with references to the resources.
+            // Since Optix allocates its own CUDA memory, it is safe to create more
+            // than one reference to the same resource.
+            color = createFromResource(width, height, inOutColor);
+            albedo = createFromResource(width, height, inAlbedo);
+            normal = createFromResource(width, height, inNormal);
+            output = createFromResource(width, height, inOutColor);
 
-        // Setup Optix denoiser.
-        OptixDenoiserSizes denoiserSizes;
-        optixDenoiserComputeMemoryResources(optixDenoiser, width, height, &denoiserSizes);
-        optixScratchSize = static_cast<uint32_t>(denoiserSizes.withoutOverlapScratchSizeInBytes);
-        optixStateSize = static_cast<uint32_t>(denoiserSizes.stateSizeInBytes);
-        cudaMalloc(reinterpret_cast<void **>(&optixIntensity), sizeof(float));
-        cudaMalloc(reinterpret_cast<void **>(&optixScratch), optixScratchSize);
-        cudaMalloc(reinterpret_cast<void **>(&optixState), optixStateSize);
-        optixDenoiserLayer.input = color.optixImage;
-        optixDenoiserLayer.output = output.optixImage;
-        optixGuideLayer.albedo = albedo.optixImage;
-        optixGuideLayer.normal = normal.optixImage;
-        optixDenoiserSetup(optixDenoiser, nullptr, width, height, optixState, optixStateSize, optixScratch, optixScratchSize);
-        optixParams.denoiseAlpha = 0;
-        optixParams.hdrIntensity = optixIntensity;
-        optixParams.hdrAverageColor = 0;
-        optixParams.blendFactor = 0.0f;
+            // Setup Optix denoiser.
+            OptixDenoiserSizes denoiserSizes;
+            OPTIX_CHECK(optixDenoiserComputeMemoryResources(optixDenoiser, width, height, &denoiserSizes));
+            optixScratchSize = static_cast<uint32_t>(denoiserSizes.withoutOverlapScratchSizeInBytes);
+            optixStateSize = static_cast<uint32_t>(denoiserSizes.stateSizeInBytes);
+            CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&optixIntensity), sizeof(float)));
+            CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&optixScratch), optixScratchSize));
+            CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&optixState), optixStateSize));
+            optixDenoiserLayer.input = color.optixImage;
+            optixDenoiserLayer.output = output.optixImage;
+            optixGuideLayer.albedo = albedo.optixImage;
+            optixGuideLayer.normal = normal.optixImage;
+            OPTIX_CHECK(optixDenoiserSetup(optixDenoiser, nullptr, width, height, optixState, optixStateSize, optixScratch, optixScratchSize));
+            optixParams.denoiseAlpha = 0;
+            optixParams.hdrIntensity = optixIntensity;
+            optixParams.hdrAverageColor = 0;
+            optixParams.blendFactor = 0.0f;
+        }
     }
 };
 
