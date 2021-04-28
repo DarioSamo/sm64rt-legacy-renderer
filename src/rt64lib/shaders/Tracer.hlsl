@@ -17,6 +17,7 @@
 #define RAY_MAX_DISTANCE					100000.0f
 #define MAX_LIGHTS							16
 #define FULL_QUALITY_ALPHA					0.999f
+#define GI_MINIMUM_ALPHA					0.25f
 
 #define DEBUG_HIT_COUNT						0
 
@@ -260,6 +261,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
 		float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+		float refractionFactor = instanceProps[instanceId].materialProperties.refractionFactor;
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
@@ -267,7 +269,9 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 			if (lightGroupMaskBits > 0) {
 				// Full light sampling.
-				if ((maxFullLights > 0) && (hitColor.a >= FULL_QUALITY_ALPHA)) {
+				bool solidColor = (hitColor.a >= FULL_QUALITY_ALPHA);
+				bool lastHit = (((hit + 1) >= hitCount) && (refractionFactor <= EPSILON));
+				if ((maxFullLights > 0) && (solidColor || lastHit)) {
 					finalAlbedo = hitColor;
 					finalNormal = float4(vertexNormal, 0.0f);
 					resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, true, seed);
@@ -284,7 +288,8 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				}
 
 				// Global illumination.
-				if ((maxGI > 0) && (alphaContrib > 0.25f)) {
+				bool alphaGIRequired = (alphaContrib >= GI_MINIMUM_ALPHA);
+				if ((maxGI > 0) && (alphaGIRequired || lastHit)) {
 					uint giSamples = giBounces;
 					uint seedCopy = seed;
 					while (giSamples > 0) {
@@ -327,7 +332,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 
 			// Add reflections.
 			float reflectionFactor = instanceProps[instanceId].materialProperties.reflectionFactor;
-			if (reflectionFactor > 0.0f) {
+			if (reflectionFactor > EPSILON) {
 				float reflectionFresnelFactor = instanceProps[instanceId].materialProperties.reflectionFresnelFactor;
 				float reflectionShineFactor = instanceProps[instanceId].materialProperties.reflectionShineFactor;
 				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, hitCount, launchIndex, pixelDims, seed);
@@ -342,7 +347,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 
 			// Backwards alpha blending.
 			resColor.rgb += hitColor.rgb * alphaContrib;
-			resColor.a *= (1.0 - hitColor.a);
+			resColor.a *= (1.0f - hitColor.a);
 		}
 
 		if (resColor.a <= EPSILON) {
@@ -350,8 +355,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		}
 
 		// Do refractions.
-		float refractionFactor = instanceProps[instanceId].materialProperties.refractionFactor;
-		if ((refractionFactor > 0.0) && (maxRefractions > 0)) {
+		if ((refractionFactor > EPSILON) && (maxRefractions > 0)) {
 			float3 refractionDirection = refract(rayDirection, vertexNormal, refractionFactor);
 
 			// Perform another trace and fill the rest of the buffers.
