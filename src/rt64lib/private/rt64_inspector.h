@@ -21,6 +21,8 @@ namespace RT64 {
 		int *lightCount;
 		int maxLightCount;
 		bool cameraControl;
+		float cameraPanX;
+		float cameraPanY;
 		int prevCursorX, prevCursorY;
 		std::vector<std::string> toPrint;
 

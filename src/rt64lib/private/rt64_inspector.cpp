@@ -18,6 +18,8 @@ RT64::Inspector::Inspector(Device* device) {
     this->device = device;
     prevCursorX = prevCursorY = 0;
     cameraControl = false;
+    cameraPanX = 0.0f;
+    cameraPanY = 0.0f;
 
     reset();
 
@@ -161,12 +163,12 @@ void RT64::Inspector::renderMaterialInspector() {
             ImGui::PopID();
         };
 
-        auto pushVector4 = [pushCommon](const char* name, int mask, RT64_VECTOR4 *v, int* attributes, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f) {
+        auto pushVector4 = [pushCommon](const char *name, int mask, RT64_VECTOR4 *v, int *attributes, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f) {
             if (pushCommon(name, mask, attributes)) {
                 ImGui::SameLine();
                 ImGui::DragFloat4("V", &v->x, v_speed, v_min, v_max);
             }
-            
+
             ImGui::PopID();
         };
 
@@ -178,7 +180,7 @@ void RT64::Inspector::renderMaterialInspector() {
 
             ImGui::PopID();
         };
-        
+
         pushFloat("Ignore normal factor", RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR, &material->ignoreNormalFactor, &material->enabledAttributes, 1.0f, 0.0f, 1.0f);
         pushFloat("Normal map scale", RT64_ATTRIBUTE_NORMAL_MAP_SCALE, &material->normalMapScale, &material->enabledAttributes, 0.01f, -50.0f, 50.0f);
         pushFloat("Reflection factor", RT64_ATTRIBUTE_REFLECTION_FACTOR, &material->reflectionFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
@@ -259,12 +261,21 @@ void RT64::Inspector::renderCameraControl(View *view, int cursorX, int cursorY) 
         ImGui::Checkbox("Enable", &cameraControl);
         view->setPerspectiveControlActive(cameraControl);
         if (cameraControl) {
-            if (!ImGui::GetIO().WantCaptureMouse) {
+            ImGui::DragFloat("Camera pan x", &cameraPanX, 0.1f, -100.0f, 100.0f);
+            ImGui::DragFloat("Camera pan y", &cameraPanY, 0.1f, -100.0f, 100.0f);
+
+            if ((cameraPanX != 0.0f) || (cameraPanY != 0.0f)) {
+                view->movePerspective({ cameraPanX, cameraPanY, 0.0f });
+            }
+            else if (!ImGui::GetIO().WantCaptureMouse) {
                 float cameraSpeed = (view->getFarDistance() - view->getNearDistance()) / 5.0f;
                 bool leftAlt = GetAsyncKeyState(VK_LMENU) & 0x8000;
                 bool leftCtrl = GetAsyncKeyState(VK_LCONTROL) & 0x8000;
                 float localX = (cursorX - prevCursorX) / (float)(view->getWidth());
                 float localY = (cursorY - prevCursorY) / (float)(view->getHeight());
+                localX += cameraPanX;
+                localY += cameraPanY;
+
                 if (GetAsyncKeyState(VK_MBUTTON) & 0x8000) {
                     if (leftCtrl) {
                         view->movePerspective({ 0.0f, 0.0f, (localX + localY) * cameraSpeed });
@@ -285,6 +296,10 @@ void RT64::Inspector::renderCameraControl(View *view, int cursorX, int cursorY) 
             ImGui::Text("Middle Button: Pan");
             ImGui::Text("Ctrl + Middle Button: Zoom");
             ImGui::Text("Alt + Middle Button: Rotate");
+        }
+        else {
+            cameraPanX = 0.0f;
+            cameraPanY = 0.0f;
         }
 
         ImGui::End();
