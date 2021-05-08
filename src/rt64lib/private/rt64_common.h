@@ -212,15 +212,41 @@ namespace RT64 {
 		float length = Length(dir);
 		return dir / length;
 	}
+
+	// Error string for last error or exception that was caught.
+	extern std::string GlobalLastError;
 };
 
-inline void ThrowIfFailed(HRESULT hr)
-{
-	if (FAILED(hr))
-	{
-		throw std::exception();
+#define D3D12_CHECK( call )                                                    \
+    do                                                                         \
+    {                                                                          \
+        HRESULT hr = call;                                                     \
+        if (FAILED(hr))														   \
+        {                                                                      \
+			char errorMessage[256];											   \
+			FormatMessageA(													   \
+				FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,	   \
+				NULL,														   \
+				GetLastError(),												   \
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),					   \
+				errorMessage,												   \
+				sizeof(errorMessage),										   \
+				NULL);														   \
+																			   \
+            std::stringstream ss;                                              \
+            ss << "D3D12 call (" << #call << " ) failed with error: '"         \
+               << errorMessage;                                                \
+																			   \
+            throw std::runtime_error(ss.str());                                \
+        }                                                                      \
+    } while( 0 )
+
+#define RT64_CATCH_EXCEPTION()							\
+	catch (const std::runtime_error &e) {				\
+		RT64::GlobalLastError = std::string(e.what());	\
+		fprintf(stderr, "%s\n", e.what());				\
 	}
-}
+
 
 namespace nv_helpers_dx12
 {

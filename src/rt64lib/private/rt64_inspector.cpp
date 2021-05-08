@@ -37,7 +37,7 @@ RT64::Inspector::Inspector(Device* device) {
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     desc.NumDescriptors = 1;
     desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    ThrowIfFailed(device->getD3D12Device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&d3dSrvDescHeap)));
+    D3D12_CHECK(device->getD3D12Device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&d3dSrvDescHeap)));
 
     ImGui_ImplWin32_Init(device->getHwnd());
     ImGui_ImplDX12_Init(device->getD3D12Device(), 2, DXGI_FORMAT_R8G8B8A8_UNORM, d3dSrvDescHeap, d3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), d3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());

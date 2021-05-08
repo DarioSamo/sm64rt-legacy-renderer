@@ -74,7 +74,7 @@ void RT64::Device::updateSize() {
 
 		if (d3dSwapChain != nullptr) {
 			releaseRTVs();
-			ThrowIfFailed(d3dSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+			D3D12_CHECK(d3dSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 			createRTVs();
 			d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
 		}
@@ -107,7 +107,7 @@ void RT64::Device::createRTVs() {
 	rtvHeapDesc.NumDescriptors = FrameCount;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	ThrowIfFailed(d3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&d3dRtvHeap)));
+	D3D12_CHECK(d3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&d3dRtvHeap)));
 	
 	d3dRtvDescriptorSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
@@ -115,7 +115,7 @@ void RT64::Device::createRTVs() {
 
 	// Create a RTV for each frame.
 	for (UINT n = 0; n < FrameCount; n++) {
-		ThrowIfFailed(d3dSwapChain->GetBuffer(n, IID_PPV_ARGS(&d3dRenderTargets[n])));
+		D3D12_CHECK(d3dSwapChain->GetBuffer(n, IID_PPV_ARGS(&d3dRenderTargets[n])));
 		d3dDevice->CreateRenderTargetView(d3dRenderTargets[n], nullptr, rtvHandle);
 		rtvHandle.Offset(1, d3dRtvDescriptorSize);
 	}
@@ -142,7 +142,7 @@ void RT64::Device::getHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** p
 		}
 
 		// Check to see if the adapter supports Direct3D 12, but don't create the actual device yet.
-		if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
+		if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
 		{
 			break;
 		}
@@ -306,26 +306,26 @@ void RT64::Device::loadPipeline() {
 #endif
 
 	IDXGIFactory4 *factory;
-	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
+	D3D12_CHECK(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
 	IDXGIAdapter1 *hardwareAdapter;
 	getHardwareAdapter(factory, &hardwareAdapter);
 
-	ThrowIfFailed(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice)));
+	D3D12_CHECK(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&d3dDevice)));
 
 	// Create memory allocator.
 	D3D12MA::ALLOCATOR_DESC allocatorDesc = {};
 	allocatorDesc.pDevice = d3dDevice;
 	allocatorDesc.pAdapter = hardwareAdapter;
 
-	ThrowIfFailed(D3D12MA::CreateAllocator(&allocatorDesc, &d3dAllocator));
+	D3D12_CHECK(D3D12MA::CreateAllocator(&allocatorDesc, &d3dAllocator));
 
 	// Describe and create the command queue.
 	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-	ThrowIfFailed(d3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3dCommandQueue)));
+	D3D12_CHECK(d3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3dCommandQueue)));
 
 	// Describe and create the swap chain.
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
@@ -338,13 +338,13 @@ void RT64::Device::loadPipeline() {
 	swapChainDesc.SampleDesc.Count = 1;
 
 	IDXGISwapChain1 *swapChain;
-	ThrowIfFailed(factory->CreateSwapChainForHwnd(d3dCommandQueue, hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
+	D3D12_CHECK(factory->CreateSwapChainForHwnd(d3dCommandQueue, hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
 	d3dSwapChain = static_cast<IDXGISwapChain3 *>(swapChain);
 	d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
 
 	createRTVs();
 
-	ThrowIfFailed(d3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&d3dCommandAllocator)));
+	D3D12_CHECK(d3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&d3dCommandAllocator)));
 }
 
 void RT64::Device::loadAssets() {
@@ -420,7 +420,7 @@ void RT64::Device::loadAssets() {
 		psoDesc.VS = CD3DX12_SHADER_BYTECODE(RasterVSBlob, sizeof(RasterVSBlob));
 		psoDesc.PS = CD3DX12_SHADER_BYTECODE(RasterPSBlob, sizeof(RasterPSBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dPipelineState)));
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dPipelineState)));
 	}
 
 	// Im3d Root signature.
@@ -456,15 +456,15 @@ void RT64::Device::loadAssets() {
 		psoDesc.PS = CD3DX12_SHADER_BYTECODE(Im3DPSBlob, sizeof(Im3DPSBlob));
 
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateTriangle)));
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateTriangle)));
 
 		psoDesc.GS = CD3DX12_SHADER_BYTECODE(Im3DGSPointsBlob, sizeof(Im3DGSPointsBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
-		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStatePoint)));
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStatePoint)));
 
 		psoDesc.GS = CD3DX12_SHADER_BYTECODE(Im3DGSLinesBlob, sizeof(Im3DGSLinesBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
-		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateLine)));
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&im3dPipelineStateLine)));
 	}
 
 	// Compose shader.
@@ -486,20 +486,20 @@ void RT64::Device::loadAssets() {
 		psoDesc.VS = CD3DX12_SHADER_BYTECODE(ComposeVSBlob, sizeof(ComposeVSBlob));
 		psoDesc.PS = CD3DX12_SHADER_BYTECODE(ComposePSBlob, sizeof(ComposePSBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		ThrowIfFailed(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dComposePipelineState)));
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dComposePipelineState)));
 	}
 
 	// Create the command list.
-	ThrowIfFailed(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, d3dPipelineState, IID_PPV_ARGS(&d3dCommandList)));
+	D3D12_CHECK(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, d3dPipelineState, IID_PPV_ARGS(&d3dCommandList)));
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
-	ThrowIfFailed(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));
+	D3D12_CHECK(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));
 	d3dFenceValue = 1;
 
 	// Create an event handle to use for frame synchronization.
 	d3dFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	if (d3dFenceEvent == nullptr) {
-		ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+		D3D12_CHECK(HRESULT_FROM_WIN32(GetLastError()));
 	}
 
 	// Close command list and wait for it to finish.
@@ -508,7 +508,7 @@ void RT64::Device::loadAssets() {
 
 void RT64::Device::checkRaytracingSupport() {
 	D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
-	ThrowIfFailed(d3dDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5)));
+	D3D12_CHECK(d3dDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5)));
 	if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0)
 		throw std::runtime_error("Raytracing not supported on device");
 }
@@ -548,7 +548,7 @@ void RT64::Device::createRaytracingPipeline() {
 	d3dRtStateObject = pipeline.Generate();
 
 	// Cast the state object into a properties object, allowing to later access the shader pointers by name.
-	ThrowIfFailed(d3dRtStateObject->QueryInterface(IID_PPV_ARGS(&d3dRtStateObjectProps)));
+	D3D12_CHECK(d3dRtStateObject->QueryInterface(IID_PPV_ARGS(&d3dRtStateObjectProps)));
 
 }
 
@@ -622,7 +622,7 @@ void RT64::Device::postRender(int vsyncInterval) {
 	submitCommandList();
 
 	// Present the frame.
-	ThrowIfFailed(d3dSwapChain->Present(vsyncInterval, 0));
+	D3D12_CHECK(d3dSwapChain->Present(vsyncInterval, 0));
 
 	waitForGPU();
 	d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
@@ -735,16 +735,26 @@ void RT64::Device::waitForGPU() {
 // Public
 
 DLLEXPORT RT64_DEVICE *RT64_CreateDevice(void *hwnd) {
-	return (RT64_DEVICE *)(new RT64::Device((HWND)(hwnd)));
+	try {
+		return (RT64_DEVICE *)(new RT64::Device((HWND)(hwnd)));
+	}
+	RT64_CATCH_EXCEPTION();
+	return nullptr;
 }
 
 DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *devicePtr, int vsyncInterval) {
 	assert(devicePtr != nullptr);
-	RT64::Device *device = (RT64::Device *)(devicePtr);
-	device->draw(vsyncInterval);
+	try {
+		RT64::Device *device = (RT64::Device *)(devicePtr);
+		device->draw(vsyncInterval);
+	}
+	RT64_CATCH_EXCEPTION();
 }
 
 DLLEXPORT void RT64_DestroyDevice(RT64_DEVICE *devicePtr) {
 	assert(devicePtr != nullptr);
-	delete (RT64::Device *)(devicePtr);
+	try {
+		delete (RT64::Device *)(devicePtr);
+	}
+	RT64_CATCH_EXCEPTION();
 }
