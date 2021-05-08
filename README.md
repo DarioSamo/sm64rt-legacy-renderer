@@ -14,7 +14,7 @@ The library is not meant to be used in the traditional way by linking it as an s
 
 ## Requirements
 * Visual Studio Community 2019 Version 16.9.0 or newer
-* Windows SDK 10.0.18362.0 or newer
+* Windows SDK 10.0.19041.0 or newer
 
 ### IMPORTANT: Make sure these are up to date. Support for DXR is very recent!
 
