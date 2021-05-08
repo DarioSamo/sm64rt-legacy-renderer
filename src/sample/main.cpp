@@ -368,14 +368,12 @@ void destroyRT64() {
 }
 
 int main(int argc, char *argv[]) {
-	/*
 	// Show a basic message to the user so they know what the sample is meant to do.
 	MessageBox(NULL, 
 		"This sample application will test if your system has the required hardware to run RT64.\n\n"
 		"If you see some shapes in the screen after pressing OK, then you're good to go!", 
 		WINDOW_TITLE,
 		MB_OK | MB_ICONINFORMATION);
-	*/
 
 	// Register window class.
 	WNDCLASS wc;
