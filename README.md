@@ -17,8 +17,6 @@ The library is not meant to be used in the traditional way by linking it as an s
 * Windows SDK 10.0.19041.0 or newer
 * [CUDA Toolkit 11.3 or newer](https://developer.nvidia.com/cuda-downloads)
 
-### IMPORTANT: Make sure these are up to date. Support for DXR is very recent!
-
 ## Building
 Open **src/RT64.sln** in **Visual Studio Community 2019** and build the solution.
 
