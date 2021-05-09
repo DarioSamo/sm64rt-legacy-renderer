@@ -124,7 +124,7 @@ void RT64::View::createOutputBuffers() {
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-	ThrowIfFailed(scene->getDevice()->getD3D12Device()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rasterBgHeap)));
+	D3D12_CHECK(scene->getDevice()->getD3D12Device()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rasterBgHeap)));
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvBgHandle(rasterBgHeap->GetCPUDescriptorHandleForHeapStart());
 	scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rasterBg.Get(), nullptr, rtvBgHandle);
 	rtvBgHandle.Offset(1, outputRtvDescriptorSize);
@@ -159,7 +159,7 @@ void RT64::View::updateInstancePropertiesBuffer() {
 	InstanceProperties *current = nullptr;
 	CD3DX12_RANGE readRange(0, 0);
 
-	ThrowIfFailed(activeInstancesBufferProps.Get()->Map(0, &readRange, reinterpret_cast<void **>(&current)));
+	D3D12_CHECK(activeInstancesBufferProps.Get()->Map(0, &readRange, reinterpret_cast<void **>(&current)));
 
 	for (const RenderInstance &inst : rtInstances) {
 		// Store world transform.
@@ -460,7 +460,7 @@ void RT64::View::updateViewParamsBuffer() {
 	
 	// Copy the camera buffer data to the resource.
 	uint8_t *pData;
-	ThrowIfFailed(viewParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	D3D12_CHECK(viewParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
 	memcpy(pData, &viewParamsBufferData, sizeof(ViewParamsBuffer));
 	viewParamBufferResource.Get()->Unmap(0, nullptr);
 }
@@ -821,7 +821,7 @@ void RT64::View::renderInspector(Inspector *inspector) {
 			// Copy data to vertex buffer.
 			UINT8 *pDataBegin;
 			CD3DX12_RANGE readRange(0, 0);
-			ThrowIfFailed(im3dVertexBuffer.Get()->Map(0, &readRange, reinterpret_cast<void **>(&pDataBegin)));
+			D3D12_CHECK(im3dVertexBuffer.Get()->Map(0, &readRange, reinterpret_cast<void **>(&pDataBegin)));
 			for (Im3d::U32 i = 0, n = Im3d::GetDrawListCount(); i < n; ++i) {
 				auto &drawList = Im3d::GetDrawLists()[i];
 				size_t copySize = sizeof(Im3d::VertexData) * drawList.m_vertexCount;
@@ -1021,7 +1021,7 @@ RT64_INSTANCE *RT64::View::getRaytracedInstanceAt(int x, int y) {
 	size_t index = (rtWidth * y + x) * 2;
 	uint16_t instanceId = 0;
 	uint8_t *pData;
-	ThrowIfFailed(rtHitInstanceIdReadback.Get()->Map(0, nullptr, (void **)(&pData)));
+	D3D12_CHECK(rtHitInstanceIdReadback.Get()->Map(0, nullptr, (void **)(&pData)));
 	memcpy(&instanceId, pData + index, sizeof(instanceId));
 	rtHitInstanceIdReadback.Get()->Unmap(0, nullptr);
 	

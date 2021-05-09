@@ -46,7 +46,7 @@ void RT64::Mesh::updateVertexBuffer(RT64_VERTEX *vertexArray, int vertexCount) {
 	// Copy data to upload heap.
 	UINT8 *pDataBegin;
 	CD3DX12_RANGE readRange(0, 0);
-	ThrowIfFailed(vertexBufferUpload.Get()->Map(0, &readRange, reinterpret_cast<void**>(&pDataBegin)));
+	D3D12_CHECK(vertexBufferUpload.Get()->Map(0, &readRange, reinterpret_cast<void**>(&pDataBegin)));
 	memcpy(pDataBegin, vertexArray, vertexBufferSize);
 	vertexBufferUpload.Get()->Unmap(0, nullptr);
 	
@@ -88,7 +88,7 @@ void RT64::Mesh::updateIndexBuffer(unsigned int *indexArray, int indexCount) {
 	// Copy data to upload heap.
 	UINT8 *pDataBegin;
 	CD3DX12_RANGE readRange(0, 0);
-	ThrowIfFailed(indexBufferUpload.Get()->Map(0, &readRange, reinterpret_cast<void **>(&pDataBegin)));
+	D3D12_CHECK(indexBufferUpload.Get()->Map(0, &readRange, reinterpret_cast<void **>(&pDataBegin)));
 	memcpy(pDataBegin, indexArray, indexBufferSize);
 	indexBufferUpload.Get()->Unmap(0, nullptr);
 	

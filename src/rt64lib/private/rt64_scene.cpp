@@ -96,7 +96,7 @@ void RT64::Scene::setLights(RT64_LIGHT *lightArray, int lightCount) {
 
 	uint8_t *pData;
 	size_t i = 0;
-	ThrowIfFailed(lightsBuffer.Get()->Map(0, nullptr, (void **)&pData));
+	D3D12_CHECK(lightsBuffer.Get()->Map(0, nullptr, (void **)&pData));
 	if (lightArray != nullptr) {
 		memcpy(pData, lightArray, sizeof(RT64_LIGHT) * lightCount);
 

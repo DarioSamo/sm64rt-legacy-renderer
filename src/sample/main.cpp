@@ -21,6 +21,8 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#define WINDOW_TITLE "RT64 Sample"
+
 struct {
 	RT64_LIBRARY lib;
 	RT64_LIGHT lights[16];
@@ -42,6 +44,10 @@ struct {
 	std::vector<unsigned int> objIndices;
 } RT64;
 
+static void fatalMessage(HWND hWnd, const char *errorMessage) {
+	MessageBox(hWnd, errorMessage, WINDOW_TITLE " Error", MB_OK | MB_ICONEXCLAMATION);
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	if ((RT64.inspector != nullptr) && RT64.lib.HandleMessageInspector(RT64.inspector, message, wParam, lParam)) {
 		return true;
@@ -61,37 +67,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				RT64.inspector = RT64.lib.CreateInspector(RT64.device);
 			}
 		}
+
 		break;
 	}
-	case WM_PAINT:
-		RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
+	case WM_PAINT: {
+		if (RT64.view != nullptr) {
+			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
 
-		if (RT64.inspector != nullptr) {
-			RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+			if (RT64.inspector != nullptr) {
+				RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+			}
+
+			RT64.frameMaterial = RT64.baseMaterial;
+			RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
+
+			if (RT64.inspector != nullptr) {
+				RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+			}
+
+			RT64_INSTANCE_DESC instDesc;
+			instDesc.scissorRect = { 0, 0, 0, 0 };
+			instDesc.viewportRect = { 0, 0, 0, 0 };
+			instDesc.mesh = RT64.mesh;
+			instDesc.transform = RT64.transform;
+			instDesc.diffuseTexture = RT64.textureDif;
+			instDesc.normalTexture = RT64.textureNrm;
+			instDesc.material = RT64.frameMaterial;
+			instDesc.flags = 0;
+
+			RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
+			RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
+			RT64.lib.DrawDevice(RT64.device, 1);
+			return 0;
 		}
-
-		RT64.frameMaterial = RT64.baseMaterial;
-		RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
-
-		if (RT64.inspector != nullptr) {
-			RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
-		}
-
-		RT64_INSTANCE_DESC instDesc;
-		instDesc.scissorRect = { 0, 0, 0, 0 };
-		instDesc.viewportRect = { 0, 0, 0, 0 };
-		instDesc.mesh = RT64.mesh;
-		instDesc.transform = RT64.transform;
-		instDesc.diffuseTexture = RT64.textureDif;
-		instDesc.normalTexture = RT64.textureNrm;
-		instDesc.material = RT64.frameMaterial;
-		instDesc.flags = 0;
-
-		RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
-		RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
-		RT64.lib.DrawDevice(RT64.device, 1);
-
-		return 0;
+	}
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -103,14 +112,14 @@ bool createRT64(HWND hwnd) {
 	// Setup library.
 	RT64.lib = RT64_LoadLibrary();
 	if (RT64.lib.handle == 0) {
-		fprintf(stderr, "Failed to load library.\n");
+		fatalMessage(hwnd, RT64.lib.GetLastError());
 		return false;
 	}
 
 	// Setup device.
 	RT64.device = RT64.lib.CreateDevice(hwnd);
 	if (RT64.device == nullptr) {
-		fprintf(stderr, "Failed to create device.\n");
+		fatalMessage(hwnd, RT64.lib.GetLastError());
 		return false;
 	}
 
@@ -359,6 +368,13 @@ void destroyRT64() {
 }
 
 int main(int argc, char *argv[]) {
+	// Show a basic message to the user so they know what the sample is meant to do.
+	MessageBox(NULL, 
+		"This sample application will test if your system has the required hardware to run RT64.\n\n"
+		"If you see some shapes in the screen after pressing OK, then you're good to go!", 
+		WINDOW_TITLE,
+		MB_OK | MB_ICONINFORMATION);
+
 	// Register window class.
 	WNDCLASS wc;
 	memset(&wc, 0, sizeof(WNDCLASS));
@@ -379,11 +395,16 @@ int main(int argc, char *argv[]) {
 	rect.bottom = rect.top + Height;
 	AdjustWindowRectEx(&rect, dwStyle, 0, 0);
 
-	HWND hwnd = CreateWindow(wc.lpszClassName, "RT64 Sample", dwStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0, 0, wc.hInstance, NULL);
+	HWND hwnd = CreateWindow(wc.lpszClassName, WINDOW_TITLE, dwStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0, 0, wc.hInstance, NULL);
 
 	// Create RT64.
 	if (!createRT64(hwnd)) {
-		fprintf(stderr, "Failed to initialize RT64.");
+		fatalMessage(hwnd, 
+			"Failed to initialize RT64.\n\n"
+			"Please make sure your GPU drivers are up to date and the Direct3D 12.1 feature level is supported.\n\n"
+			"Windows 10 version 2004 or newer is also required for this feature level to work properly.\n\n"
+			"If you're a mobile user, make sure that the high performance device is selected for this application on your system's settings.");
+
 		return 1;
 	}
 

@@ -56,8 +56,7 @@
         {                                                                      \
             std::stringstream ss;                                              \
             ss << "OptiX call (" << #call << " ) failed with error: '"         \
-               << optixGetErrorString(error)                                   \
-               << "' (" __FILE__ << ":" << __LINE__ << ")\n";                  \
+               << optixGetErrorString(error);                                  \
             throw std::runtime_error(ss.str());                                \
         }                                                                      \
     } while( 0 )
@@ -70,8 +69,7 @@
         {                                                                      \
             std::stringstream ss;                                              \
             ss << "CUDA call (" << #call << " ) failed with error: '"          \
-               << cudaGetErrorString(error)                                    \
-               << "' (" __FILE__ << ":" << __LINE__ << ")\n";                  \
+               << cudaGetErrorString(error);                                   \
             throw std::runtime_error(ss.str());                                \
         }                                                                      \
     } while( 0 )
