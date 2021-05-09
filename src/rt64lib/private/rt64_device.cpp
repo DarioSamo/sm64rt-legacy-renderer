@@ -348,41 +348,41 @@ void RT64::Device::loadPipeline() {
 }
 
 void RT64::Device::loadAssets() {
-	auto setPsoDefaults = [](D3D12_GRAPHICS_PIPELINE_STATE_DESC &psoDesc) {
+	const D3D12_RENDER_TARGET_BLEND_DESC alphaBlendDesc = {
+		TRUE, FALSE,
+		D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+		D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+		D3D12_LOGIC_OP_NOOP,
+		D3D12_COLOR_WRITE_ENABLE_ALL
+	};
+
+	const D3D12_RENDER_TARGET_BLEND_DESC composeBlendDesc = {
+		TRUE, FALSE,
+		D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+		D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
+		D3D12_LOGIC_OP_NOOP,
+		D3D12_COLOR_WRITE_ENABLE_ALL
+	};
+
+	auto setPsoDefaults = [](D3D12_GRAPHICS_PIPELINE_STATE_DESC &psoDesc, const D3D12_RENDER_TARGET_BLEND_DESC &blendDesc) {
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
 		D3D12_BLEND_DESC bd = {};
 		bd.AlphaToCoverageEnable = FALSE;
 		bd.IndependentBlendEnable = FALSE;
-		static const D3D12_RENDER_TARGET_BLEND_DESC default_rtbd = {
-			TRUE, FALSE,
-			D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-			D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-			D3D12_LOGIC_OP_NOOP,
-			D3D12_COLOR_WRITE_ENABLE_ALL
-		};
 
 		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++) {
-			bd.RenderTarget[i] = default_rtbd;
+			bd.RenderTarget[i] = blendDesc;
 		}
 
 		psoDesc.BlendState = bd;
-		// else if not opt_alpha psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-
 		psoDesc.DepthStencilState.DepthEnable = FALSE;
 		psoDesc.DepthStencilState.StencilEnable = FALSE;
 		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.NumRenderTargets = 1;
 		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 		psoDesc.SampleDesc.Count = 1;
-
-		/*
-		desc.DepthStencilState.DepthEnable = d3d.depth_test;
-		desc.DepthStencilState.DepthWriteMask = d3d.depth_mask ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
-		desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-		desc.DSVFormat = d3d.depth_test ? DXGI_FORMAT_D32_FLOAT : DXGI_FORMAT_UNKNOWN;
-		*/
 	};
 
 	// Raster root signature.
@@ -414,7 +414,7 @@ void RT64::Device::loadAssets() {
 
 		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		setPsoDefaults(psoDesc);
+		setPsoDefaults(psoDesc, alphaBlendDesc);
 		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
 		psoDesc.pRootSignature = d3dRootSignature;
 		psoDesc.VS = CD3DX12_SHADER_BYTECODE(RasterVSBlob, sizeof(RasterVSBlob));
@@ -448,7 +448,7 @@ void RT64::Device::loadAssets() {
 
 		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		setPsoDefaults(psoDesc);
+		setPsoDefaults(psoDesc, alphaBlendDesc);
 
 		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
 		psoDesc.pRootSignature = im3dRootSignature;
@@ -480,7 +480,7 @@ void RT64::Device::loadAssets() {
 	{
 		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		setPsoDefaults(psoDesc);
+		setPsoDefaults(psoDesc, composeBlendDesc);
 		psoDesc.InputLayout = { nullptr, 0 };
 		psoDesc.pRootSignature = d3dComposeRootSignature;
 		psoDesc.VS = CD3DX12_SHADER_BYTECODE(ComposeVSBlob, sizeof(ComposeVSBlob));
