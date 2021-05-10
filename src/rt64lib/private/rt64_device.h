@@ -39,6 +39,8 @@ namespace RT64 {
 		ID3D12GraphicsCommandList4 *d3dCommandList;
 		IDXGISwapChain3 *d3dSwapChain;
 		ID3D12Resource *d3dRenderTargets[FrameCount];
+		AllocatedResource d3dRenderTargetReadback;
+		UINT d3dRenderTargetReadbackRowWidth;
 		ID3D12CommandAllocator *d3dCommandAllocator;
 		ID3D12RootSignature *d3dRootSignature;
 		ID3D12DescriptorHeap *d3dRtvHeap;
@@ -113,5 +115,6 @@ namespace RT64 {
 		void resetCommandList();
 		void submitCommandList();
 		void waitForGPU();
+		void dumpRenderTarget(const std::string &path);
 	};
 };

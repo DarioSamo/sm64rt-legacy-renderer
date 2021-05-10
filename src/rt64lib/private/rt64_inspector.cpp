@@ -14,12 +14,26 @@
 #include "imgui/imgui_impl_dx12.h"
 #include "imgui/imgui_impl_win32.h"
 
+#include <algorithm>
+#include <filesystem>
+#include <iomanip>
+
+std::string dateAsFilename() {
+    std::time_t time = std::time(nullptr);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time), "%F_%T");
+    std::string s = ss.str();
+    std::replace(s.begin(), s.end(), ':', '-');
+    return s;
+}
+
 RT64::Inspector::Inspector(Device* device) {
     this->device = device;
     prevCursorX = prevCursorY = 0;
     cameraControl = false;
     cameraPanX = 0.0f;
     cameraPanY = 0.0f;
+    dumpFrameCount = 0;
 
     reset();
 
@@ -78,6 +92,14 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
 
     Im3d::EndFrame();
 
+    // If dumping frames is active, save the current state of the RTV into a file.
+    if (!dumpPath.empty()) {
+        const int LeadingZeroes = 8;
+        std::ostringstream oss;
+        oss << dumpPath << "/" << std::setw(LeadingZeroes) << std::setfill('0') << dumpFrameCount++ << ".bmp";
+        device->dumpRenderTarget(oss.str());
+    }
+
     activeView->renderInspector(this);
 
     // Send the commands to D3D12.
@@ -107,12 +129,28 @@ void RT64::Inspector::renderViewParams(View *view) {
 	ImGui::DragFloat("Ambient GI Mix", &ambGIMix, 0.01f, 0.0f, 1.0f);
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
+
+    // Dumping toggle.
+    bool isDumping = !dumpPath.empty();
+    if (ImGui::Button(isDumping ? "Stop dump" : "Dump frames")) {
+        if (isDumping) {
+            dumpPath = std::string();
+        }
+        else {
+            dumpPath = "dump/" + dateAsFilename();
+            std::filesystem::create_directories(dumpPath);
+            dumpFrameCount = 0;
+        }
+    }
+
+    // Update viewport parameters.
     view->setSoftLightSamples(softLightSamples);
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
 	view->setAmbGIMixWeight(ambGIMix);
     view->setResolutionScale(resScale / 100.0f);
     view->setDenoiserEnabled(denoiser);
+
     ImGui::End();
 }
 

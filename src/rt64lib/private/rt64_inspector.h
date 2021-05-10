@@ -24,6 +24,8 @@ namespace RT64 {
 		float cameraPanX;
 		float cameraPanY;
 		int prevCursorX, prevCursorY;
+		std::string dumpPath;
+		int dumpFrameCount;
 		std::vector<std::string> toPrint;
 
 		void setupWithView(View *view, int cursorX, int cursorY);

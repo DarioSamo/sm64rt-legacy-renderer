@@ -213,6 +213,13 @@ namespace RT64 {
 		return dir / length;
 	}
 
+	inline void CalculateTextureRowWidthPadding(int width, int stride, UINT &rowWidth, UINT &rowPadding) {
+		const int RowMultiple = 256;
+		rowWidth = width * stride;
+		rowPadding = (rowWidth % RowMultiple) ? RowMultiple - (rowWidth % RowMultiple) : 0;
+		rowWidth += rowPadding;
+	}
+
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
 };

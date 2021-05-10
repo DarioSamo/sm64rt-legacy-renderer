@@ -23,6 +23,9 @@
 #include "shaders/Surface.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image_write.h"
+
 // Private
 
 RT64::Device::Device(HWND hwnd) {
@@ -33,6 +36,7 @@ RT64::Device::Device(HWND hwnd) {
 	lastCopyQueueBarrierActive = false;
 	d3dRenderTargets[0] = nullptr;
 	d3dRenderTargets[1] = nullptr;
+	d3dRenderTargetReadbackRowWidth = 0;
 	width = 0;
 	height = 0;
 
@@ -99,6 +103,8 @@ void RT64::Device::releaseRTVs() {
 		d3dRenderTargets[n]->Release();
 		d3dRenderTargets[n] = nullptr;
 	}
+
+	d3dRenderTargetReadback.Release();
 }
 
 void RT64::Device::createRTVs() {
@@ -119,6 +125,21 @@ void RT64::Device::createRTVs() {
 		d3dDevice->CreateRenderTargetView(d3dRenderTargets[n], nullptr, rtvHandle);
 		rtvHandle.Offset(1, d3dRtvDescriptorSize);
 	}
+
+	// Create the resource for render target readback.
+	UINT rowPadding;
+	CalculateTextureRowWidthPadding(width, 4, d3dRenderTargetReadbackRowWidth, rowPadding);
+
+	D3D12_RESOURCE_DESC resDesc = { };
+	resDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resDesc.Width = (d3dRenderTargetReadbackRowWidth * height);
+	resDesc.Height = 1;
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resDesc.DepthOrArraySize = 1;
+	resDesc.MipLevels = 1;
+	resDesc.SampleDesc.Count = 1;
+	d3dRenderTargetReadback = allocateResource(D3D12_HEAP_TYPE_READBACK, &resDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
 }
 
 // Helper function for acquiring the first available hardware adapter that supports Direct3D 12.
@@ -730,6 +751,67 @@ void RT64::Device::waitForGPU() {
 
 	// Increment the fence value.
 	d3dFenceValue++;
+}
+
+void RT64::Device::dumpRenderTarget(const std::string &path) {
+	ID3D12Resource *renderTarget = getD3D12RenderTarget();
+
+	CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	d3dCommandList->ResourceBarrier(1, &transitionBarrier);
+
+	D3D12_TEXTURE_COPY_LOCATION source = {};
+	source.pResource = renderTarget;
+	source.SubresourceIndex = 0;
+	source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+
+	D3D12_SUBRESOURCE_FOOTPRINT subresource = {};
+	subresource.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	subresource.Width = width;
+	subresource.Height = height;
+	subresource.RowPitch = d3dRenderTargetReadbackRowWidth;
+	subresource.Depth = 1;
+
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+	footprint.Offset = 0;
+	footprint.Footprint = subresource;
+
+	D3D12_TEXTURE_COPY_LOCATION destination = {};
+	destination.pResource = d3dRenderTargetReadback.Get();
+	destination.PlacedFootprint = footprint;
+	destination.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+
+	d3dCommandList->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+
+	transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	d3dCommandList->ResourceBarrier(1, &transitionBarrier);
+
+	// Wait until the resource is actually copied.
+	submitCommandList();
+	waitForGPU();
+	resetCommandList();
+	
+	// Save the render target copy to the target path.
+	unsigned char *bmpRGB = (unsigned char *)(malloc(width * height * 3));
+	{
+		UINT8 *pData;
+		d3dRenderTargetReadback.Get()->Map(0, nullptr, reinterpret_cast<void **>(&pData));
+		int i = 0;
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				bmpRGB[i++] = pData[y * d3dRenderTargetReadbackRowWidth + x * 4 + 0];
+				bmpRGB[i++] = pData[y * d3dRenderTargetReadbackRowWidth + x * 4 + 1];
+				bmpRGB[i++] = pData[y * d3dRenderTargetReadbackRowWidth + x * 4 + 2];
+			}
+		}
+		d3dRenderTargetReadback.Get()->Unmap(0, nullptr);
+	}
+
+	stbi_write_bmp(path.c_str(), width, height, 3, bmpRGB);
+	free(bmpRGB);
+
+	// Reset the current render target.
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = getD3D12RTV();
+	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 }
 
 // Public

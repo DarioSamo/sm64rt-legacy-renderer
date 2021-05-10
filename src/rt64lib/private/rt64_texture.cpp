@@ -15,11 +15,8 @@ RT64::Texture::Texture(Device *device, const void *bytes, int width, int height,
 
 	this->device = device;
 
-	// Create texture.
-	const int RowMultiple = 256;
-	UINT rowWidth = width * stride;
-	UINT rowPadding = (rowWidth % RowMultiple) ? RowMultiple - (rowWidth % RowMultiple) : 0;
-	rowWidth += rowPadding;
+	UINT rowWidth, rowPadding;
+	CalculateTextureRowWidthPadding(width, stride, rowWidth, rowPadding);
 
 	{
 		// Describe the texture
