@@ -1,4 +1,6 @@
 version: 1.0.{build}
+configuration: Release
+platform: x64
 install:
 - cmd: >-
     appveyor DownloadFile "https://developer.download.nvidia.com/compute/cuda/11.3.0/network_installers/cuda_11.3.0_win10_network.exe" -FileName install_cuda.exe
