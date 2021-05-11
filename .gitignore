@@ -1,5 +1,6 @@
-bin/
-lib/
+/bin
+/lib
+/install
 *.vs
 *.db
 *.log

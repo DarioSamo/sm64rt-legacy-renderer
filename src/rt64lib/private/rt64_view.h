@@ -44,6 +44,7 @@ namespace RT64 {
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
+			unsigned int giEnvBounces;
 			unsigned int maxLightSamples;
 			float ambGIMixWeight;
 			unsigned int frameCount;
@@ -126,6 +127,8 @@ namespace RT64 {
 		int getSoftLightSamples() const;
 		void setGIBounces(int v);
 		int getGIBounces() const;
+		void setGIEnvBounces(int v);
+		int getGIEnvBounces() const;
 		void setMaxLightSamples(int v);
 		int getMaxLightSamples() const;
 		void setAmbGIMixWeight(float v);

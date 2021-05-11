@@ -941,6 +941,14 @@ int RT64::View::getGIBounces() const {
 	return viewParamsBufferData.giBounces;
 }
 
+void RT64::View::setGIEnvBounces(int v) {
+	viewParamsBufferData.giEnvBounces = v;
+}
+
+int RT64::View::getGIEnvBounces() const {
+	return viewParamsBufferData.giEnvBounces;
+}
+
 void RT64::View::setMaxLightSamples(int v) {
 	viewParamsBufferData.maxLightSamples = v;
 }
