@@ -6,6 +6,9 @@ The library is not meant to be used in the traditional way by linking it as an s
 
 [sm64rt](https://github.com/DarioSamo/sm64rt) makes heavy use of this library, and its reliance on MinGW presented some problems when making D3D12 code that uses the latest raytracing features. This design allows both projects to communicate without issue.
 
+## Status
+[![Build status](https://ci.appveyor.com/api/projects/status/biwo1tfvg2cndapi?svg=true)](https://ci.appveyor.com/project/DarioSamo/rt64)
+
 ## Current support
 * D3D12 backend for Windows 10
 
