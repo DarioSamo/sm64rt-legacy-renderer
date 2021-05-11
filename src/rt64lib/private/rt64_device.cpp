@@ -63,32 +63,34 @@ RT64::Device::~Device() {
 }
 
 void RT64::Device::updateSize() {
-	RECT rect;
-	GetClientRect(hwnd, &rect);
-	int newWidth = rect.right - rect.left;
-	int newHeight = rect.bottom - rect.top;
+	if (hwnd != 0) {
+		RECT rect;
+		GetClientRect(hwnd, &rect);
+		int newWidth = rect.right - rect.left;
+		int newHeight = rect.bottom - rect.top;
 
-	// Recrease the swap chain if the sizes have changed.
-	if (((newWidth != width) || (newHeight != height)) && (newWidth > 0) && (newHeight > 0)) {
-		width = newWidth;
-		height = newHeight;
-		aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-		d3dViewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
-		d3dScissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
+		// Recrease the swap chain if the sizes have changed.
+		if (((newWidth != width) || (newHeight != height)) && (newWidth > 0) && (newHeight > 0)) {
+			width = newWidth;
+			height = newHeight;
+			aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+			d3dViewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
+			d3dScissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
 
-		if (d3dSwapChain != nullptr) {
-			releaseRTVs();
-			D3D12_CHECK(d3dSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
-			createRTVs();
-			d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
-		}
+			if (d3dSwapChain != nullptr) {
+				releaseRTVs();
+				D3D12_CHECK(d3dSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+				createRTVs();
+				d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
+			}
 
-		for (Scene *scene : scenes) {
-			scene->resize();
-		}
+			for (Scene *scene : scenes) {
+				scene->resize();
+			}
 
-		for (Inspector* inspector : inspectors) {
-			inspector->resize();
+			for (Inspector *inspector : inspectors) {
+				inspector->resize();
+			}
 		}
 	}
 }
@@ -349,21 +351,23 @@ void RT64::Device::loadPipeline() {
 	D3D12_CHECK(d3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3dCommandQueue)));
 
 	// Describe and create the swap chain.
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.BufferCount = FrameCount;
-	swapChainDesc.Width = width;
-	swapChainDesc.Height = height;
-	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.SampleDesc.Count = 1;
+	if (hwnd != 0) {
+		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+		swapChainDesc.BufferCount = FrameCount;
+		swapChainDesc.Width = width;
+		swapChainDesc.Height = height;
+		swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		swapChainDesc.SampleDesc.Count = 1;
 
-	IDXGISwapChain1 *swapChain;
-	D3D12_CHECK(factory->CreateSwapChainForHwnd(d3dCommandQueue, hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
-	d3dSwapChain = static_cast<IDXGISwapChain3 *>(swapChain);
-	d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
+		IDXGISwapChain1 *swapChain;
+		D3D12_CHECK(factory->CreateSwapChainForHwnd(d3dCommandQueue, hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
+		d3dSwapChain = static_cast<IDXGISwapChain3 *>(swapChain);
+		d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
 
-	createRTVs();
+		createRTVs();
+	}
 
 	D3D12_CHECK(d3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&d3dCommandAllocator)));
 }
