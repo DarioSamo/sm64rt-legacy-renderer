@@ -151,7 +151,7 @@ void RT64::Device::getHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** p
 {
 	IDXGIAdapter1 *adapter;
 	*ppAdapter = nullptr;
-
+	
 	for (UINT adapterIndex = 0; DXGI_ERROR_NOT_FOUND != pFactory->EnumAdapters1(adapterIndex, &adapter); ++adapterIndex)
 	{
 		DXGI_ADAPTER_DESC1 desc;
@@ -167,6 +167,7 @@ void RT64::Device::getHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** p
 		// Check to see if the adapter supports Direct3D 12, but don't create the actual device yet.
 		if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
 		{
+			fwprintf(stdout, L"Adapter %s (#%d) picked as hardware adapter.\n", desc.Description, adapterIndex);
 			break;
 		}
 	}

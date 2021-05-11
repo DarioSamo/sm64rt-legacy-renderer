@@ -243,7 +243,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <ImportLibrary>../../lib/Debug/rt64libd.lib</ImportLibrary>
+      <ImportLibrary>../../lib/rt64libd.lib</ImportLibrary>
     </Link>
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
@@ -264,7 +264,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <ImportLibrary>../../lib/Release/rt64lib.lib</ImportLibrary>
+      <ImportLibrary>../../lib/rt64lib.lib</ImportLibrary>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent />
