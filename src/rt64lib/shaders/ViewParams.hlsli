@@ -13,6 +13,7 @@ cbuffer ViewParams : register(b0) {
 	uint randomSeed;
 	uint softLightSamples;
 	uint giBounces;
+	uint giEnvBounces;
 	uint maxLightSamples;
 	float ambGIMixWeight;
 	uint frameCount;

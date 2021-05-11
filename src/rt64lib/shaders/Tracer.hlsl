@@ -159,9 +159,26 @@ float4 ComputeFog(uint instanceId, float3 position) {
 	return fogColor;
 }
 
-float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, uint seed) {
+
+float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
 	float2 bgPos = float2(rayDirection.z / sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z), rayDirection.y);
-	float3 bgColor = SampleTexture(gBackground, bgPos, 1, 1, 1).rgb;
+	return SampleTexture(gBackground, bgPos, 1, 1, 1).rgb;
+}
+
+float3 MixAmbientAndGI(float3 ambientLight, float3 resultGiLight) {
+	float lumAmb = dot(ambientLight, float3(1.0f, 1.0f, 1.0f));
+	float lumGI = dot(resultGiLight, float3(1.0f, 1.0f, 1.0f));
+	
+	// Assign intensity based on weight configuration.
+	lumAmb = lumAmb * (1.0f - ambGIMixWeight);
+	lumGI = lumGI * ambGIMixWeight;
+
+	float invSum = 1.0f / max(lumAmb + lumGI, EPSILON);
+	return ambientLight * lumAmb * invSum + resultGiLight * lumGI * invSum;
+}
+
+float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, uint seed) {
+	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
 	float4 resColor = float4(0, 0, 0, 1);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxSimpleLights = 1;
@@ -175,6 +192,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 
 			// Reuse the previous computed lights result if available.
 			if (lightGroupMaskBits > 0) {
@@ -182,11 +200,22 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 					simpleLightsResult = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 1, checkShadows, seed + hit);
 					maxSimpleLights--;
 				}
+				
+				// Do fake GI bounces by sampling the background as an environment map.
+				uint giSamples = giEnvBounces;
+				uint seedCopy = seed;
+				while (giSamples > 0) {
+					float3 bounceDir = getCosHemisphereSample(seedCopy, vertexNormal);
+					float bounceStrength = min(1.0f + bounceDir.y, 1.0f);
+					float3 bounceColor = SampleBackgroundAsEnvMap(bounceDir) * bounceStrength;
+					resultGiLight += bounceColor / giEnvBounces;
+					giSamples--;
+				}
 
 				resultLight += simpleLightsResult;
 			}
 
-			resultLight += SceneLights[0].diffuseColor;
+			resultLight += MixAmbientAndGI(SceneLights[0].diffuseColor, resultGiLight);
 			hitColor.rgb *= resultLight;
 
 			// Backwards alpha blending.
@@ -315,19 +344,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				resultLight += (eyeLightDiffuseColor * eyeLightLambertFactor + eyeLightSpecularColor * eyeLightSpecularFactor);
 			}
 			
-			// Mix ambient light and GI.
-			float3 ambientLight = SceneLights[0].diffuseColor;
-			float lumAmb = dot(ambientLight, float3(1.0f, 1.0f, 1.0f));
-			float lumGI = dot(resultGiLight, float3(1.0f, 1.0f, 1.0f));
-
-			// Assign intensity based on weight configuration.
-			lumAmb = lumAmb * (1.0f - ambGIMixWeight);
-			lumGI = lumGI * ambGIMixWeight;
-
-			float invSum = 1.0f / (lumAmb + lumGI);
-			resultLight += ambientLight * lumAmb * invSum + resultGiLight * lumGI * invSum;
-
-			// Apply the lighting to the color.
+			resultLight += MixAmbientAndGI(SceneLights[0].diffuseColor, resultGiLight);
 			hitColor.rgb *= resultLight;
 
 			// Add reflections.
