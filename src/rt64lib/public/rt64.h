@@ -227,9 +227,10 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 }
 
 // Internal function pointer types.
+typedef const char *(*GetLastErrorPtr)();
 typedef RT64_DEVICE* (*CreateDevicePtr)(void *hwnd);
-typedef void(*DrawDevicePtr)(RT64_DEVICE* device, int vsyncInterval);
 typedef void(*DestroyDevicePtr)(RT64_DEVICE* device);
+typedef void(*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval);
 typedef RT64_VIEW* (*CreateViewPtr)(RT64_SCENE* scenePtr);
 typedef void(*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist);
 typedef void(*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);
@@ -252,14 +253,15 @@ typedef void (*SetMaterialInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_MATER
 typedef void(*SetLightsInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
 typedef void(*PrintToInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
 typedef void(*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
-typedef const char *(*GetLastErrorPtr)();
 
 // Stores all the function pointers used in the RT64 library.
 typedef struct {
 	HMODULE handle;
+	GetLastErrorPtr GetLastError;
 	CreateDevicePtr CreateDevice;
-	DrawDevicePtr DrawDevice;
 	DestroyDevicePtr DestroyDevice;
+#ifndef RT64_MINIMAL
+	DrawDevicePtr DrawDevice;
 	CreateViewPtr CreateView;
 	SetViewPerspectivePtr SetViewPerspective;
 	SetViewDescriptionPtr SetViewDescription;
@@ -282,22 +284,29 @@ typedef struct {
 	SetMaterialInspectorPtr SetMaterialInspector;
 	SetLightsInspectorPtr SetLightsInspector;
 	DestroyInspectorPtr DestroyInspector;
-	GetLastErrorPtr GetLastError;
+#endif
 } RT64_LIBRARY;
 
 
 // Define RT64_DEBUG for loading the debug DLL.
 inline RT64_LIBRARY RT64_LoadLibrary() {
 	RT64_LIBRARY lib;
-#ifdef RT64_DEBUG
+
+#if defined(RT64_DEBUG)
 	lib.handle = LoadLibrary(TEXT("rt64libd.dll"));
+#elif defined(RT64_MINIMAL)
+	lib.handle = LoadLibrary(TEXT("rt64libm.dll"));
 #else
 	lib.handle = LoadLibrary(TEXT("rt64lib.dll"));
 #endif
+
 	if (lib.handle != 0) {
+		lib.GetLastError = (GetLastErrorPtr)(GetProcAddress(lib.handle, "RT64_GetLastError"));
 		lib.CreateDevice = (CreateDevicePtr)(GetProcAddress(lib.handle, "RT64_CreateDevice"));
-		lib.DrawDevice = (DrawDevicePtr)(GetProcAddress(lib.handle, "RT64_DrawDevice"));
 		lib.DestroyDevice = (DestroyDevicePtr)(GetProcAddress(lib.handle, "RT64_DestroyDevice"));
+
+#ifndef RT64_MINIMAL
+		lib.DrawDevice = (DrawDevicePtr)(GetProcAddress(lib.handle, "RT64_DrawDevice"));
 		lib.CreateView = (CreateViewPtr)(GetProcAddress(lib.handle, "RT64_CreateView"));
 		lib.SetViewPerspective = (SetViewPerspectivePtr)(GetProcAddress(lib.handle, "RT64_SetViewPerspective"));
 		lib.SetViewDescription = (SetViewDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetViewDescription"));
@@ -320,7 +329,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetLightsInspector = (SetLightsInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetLightsInspector"));
 		lib.PrintToInspector = (PrintToInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintToInspector"));
 		lib.DestroyInspector = (DestroyInspectorPtr)(GetProcAddress(lib.handle, "RT64_DestroyInspector"));
-		lib.GetLastError = (GetLastErrorPtr)(GetProcAddress(lib.handle, "RT64_GetLastError"));
+#endif
 	}
 	else {
 		char errorMessage[256];

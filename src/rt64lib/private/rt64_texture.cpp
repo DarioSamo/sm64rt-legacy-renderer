@@ -2,6 +2,8 @@
 // RT64
 //
 
+#ifndef RT64_MINIMAL
+
 #include "../public/rt64.h"
 
 #include "rt64_texture.h"
@@ -125,3 +127,5 @@ DLLEXPORT RT64_TEXTURE *RT64_CreateTextureFromRGBA8(RT64_DEVICE *devicePtr, cons
 DLLEXPORT void RT64_DestroyTexture(RT64_TEXTURE *texturePtr) {
 	delete (RT64::Texture *)(texturePtr);
 }
+
+#endif

@@ -2,6 +2,8 @@
 // RT64
 //
 
+#ifndef RT64_MINIMAL
+
 #include <cuda_runtime.h>
 #include <optix/optix.h>
 #include <optix/optix_denoiser_tiling.h>
@@ -406,5 +408,7 @@ void RT64::Denoiser::denoise() {
 void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
     ctx->set(width, height, inOutColor, inAlbedo, inNormal);
 }
+
+#endif
 
 #endif

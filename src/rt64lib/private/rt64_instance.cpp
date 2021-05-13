@@ -2,6 +2,8 @@
 // RT64
 //
 
+#ifndef RT64_MINIMAL
+
 #include "../public/rt64.h"
 #include "rt64_instance.h"
 #include "rt64_scene.h"
@@ -134,3 +136,5 @@ DLLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INST
 DLLEXPORT void RT64_DestroyInstance(RT64_INSTANCE *instancePtr) {
 	delete (RT64::Instance *)(instancePtr);
 }
+
+#endif

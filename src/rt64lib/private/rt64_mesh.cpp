@@ -2,6 +2,8 @@
 // RT64
 //
 
+#ifndef RT64_MINIMAL
+
 #include "../public/rt64.h"
 #include "rt64_mesh.h"
 #include "rt64_device.h"
@@ -201,3 +203,5 @@ DLLEXPORT void RT64_SetMesh(RT64_MESH *meshPtr, RT64_VERTEX *vertexArray, int ve
 DLLEXPORT void RT64_DestroyMesh(RT64_MESH * meshPtr) {
 	delete (RT64::Mesh *)(meshPtr);
 }
+
+#endif

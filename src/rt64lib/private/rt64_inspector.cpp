@@ -2,6 +2,8 @@
 // RT64
 //
 
+#ifndef RT64_MINIMAL
+
 #include "rt64_inspector.h"
 
 #include "rt64_device.h"
@@ -436,3 +438,5 @@ DLLEXPORT void RT64_PrintToInspector(RT64_INSPECTOR* inspectorPtr, const char* m
 DLLEXPORT void RT64_DestroyInspector(RT64_INSPECTOR* inspectorPtr) {
     delete (RT64::Inspector*)(inspectorPtr);
 }
+
+#endif
