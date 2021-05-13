@@ -292,10 +292,10 @@ typedef struct {
 inline RT64_LIBRARY RT64_LoadLibrary() {
 	RT64_LIBRARY lib;
 
-#if defined(RT64_DEBUG)
-	lib.handle = LoadLibrary(TEXT("rt64libd.dll"));
-#elif defined(RT64_MINIMAL)
+#if defined(RT64_MINIMAL)
 	lib.handle = LoadLibrary(TEXT("rt64libm.dll"));
+#elif defined(RT64_DEBUG)
+	lib.handle = LoadLibrary(TEXT("rt64libd.dll"));
 #else
 	lib.handle = LoadLibrary(TEXT("rt64lib.dll"));
 #endif

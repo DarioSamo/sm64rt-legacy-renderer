@@ -104,11 +104,15 @@ void RT64::Device::createRaytracingDevice() {
 
 			auto handleAdapterError = [this, &ss, &desc, &adapterIndex](const std::string &errorSuffix) {
 				ss << "Adapter " << win32::Utf16ToUtf8(desc.Description) << " (#" << adapterIndex << "): " << errorSuffix << std::endl;
-				d3dDevice->Release();
-				d3dDevice = nullptr;
+				if (d3dDevice != nullptr) {
+					d3dDevice->Release();
+					d3dDevice = nullptr;
+				}
 
-				d3dAdapter->Release();
-				d3dAdapter = nullptr;
+				if (d3dAdapter != nullptr) {
+					d3dAdapter->Release();
+					d3dAdapter = nullptr;
+				}
 			};
 
 			// Try creating the device for this adapter.
