@@ -127,8 +127,7 @@
     <PostBuildEvent>
       <Command>(robocopy "$(TargetDir.TrimEnd('\'))" "$(SolutionDir)..\install\sdk\bin" *.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
 (robocopy "$(SolutionDir)rt64lib\public" "$(SolutionDir)..\install\sdk\include" *.h) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(TargetDir.TrimEnd('\'))" "$(SolutionDir)..\install\sample" *.exe *.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(TargetDir.TrimEnd('\'))\res" "$(SolutionDir)..\install\sample\res") ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
+(robocopy "$(TargetDir.TrimEnd('\'))" "$(SolutionDir)..\install\sample" *.exe *.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
