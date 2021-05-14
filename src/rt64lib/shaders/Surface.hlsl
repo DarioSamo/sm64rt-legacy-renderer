@@ -20,7 +20,6 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 	float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);
 	VertexAttributes vertex = GetVertexAttributes(vertexBuffer, indexBuffer, triangleId, barycentrics);
 	float4 texelColor = SampleTexture(gTextures[diffuseTexIndex], vertex.uv, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
-	half specularColor = half(1.0h);
 
 	// Only mix the texture if the alpha value is negative.
 	texelColor.rgb = lerp(texelColor.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));
