@@ -17,4 +17,3 @@
 *.hlsl.h
 *.bat
 imgui.ini
-/src/rt64lib/x64/Release
