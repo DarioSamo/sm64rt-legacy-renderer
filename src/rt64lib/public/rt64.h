@@ -126,11 +126,11 @@ typedef struct {
 	int color_alpha_same;
 	int opt_alpha;
 	int opt_fog;
-int opt_texture_edge;
-int opt_noise;
+	int opt_texture_edge;
+	int opt_noise;
 
-// Flag containing all attributes that are actually used by this material.
-int enabledAttributes;
+	// Flag containing all attributes that are actually used by this material.
+	int enabledAttributes;
 } RT64_MATERIAL;
 
 // Light

@@ -95,13 +95,13 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 			}
 			else {
 				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
-				specularColor = (1);
+				specularColor = (1.0h);
 			}
 
 			// Store hit data and increment the hit counter.
 			gHitDistance[hi] = tval;
 			gHitColor[hi] = resultColor;
-			gHitSpecular[hi] = specularColor.r;
+			gHitSpecular[hi] = specularColor;
 			gHitNormal[hi] = float4(vertex.normal, 1.0f);
 			gHitInstanceId[hi] = instanceId;
 			
