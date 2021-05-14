@@ -4,10 +4,7 @@
 
 #include "rt64_common.h"
 
-namespace RT64 {
-	std::string GlobalLastError;
-};
-
+#ifndef RT64_MINIMAL
 namespace nv_helpers_dx12
 {
 	ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device* device, uint32_t count, D3D12_DESCRIPTOR_HEAP_TYPE type, bool shaderVisible) {
@@ -21,6 +18,11 @@ namespace nv_helpers_dx12
 		return pHeap;
 	}
 }
+#endif
+
+namespace RT64 {
+	std::string GlobalLastError;
+};
 
 DLLEXPORT const char *RT64_GetLastError() {
 	return RT64::GlobalLastError.c_str();

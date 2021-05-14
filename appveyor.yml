@@ -1,5 +1,7 @@
 version: 1.0.{build}
-configuration: Release
+configuration: 
+- Release
+- Minimal
 platform: x64
 install:
 - cmd: >-

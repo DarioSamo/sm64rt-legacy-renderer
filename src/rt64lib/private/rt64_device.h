@@ -6,10 +6,12 @@
 
 #include "rt64_common.h"
 
+#ifndef RT64_MINIMAL
 #include "nv_helpers_dx12/BottomLevelASGenerator.h"
 #include "nv_helpers_dx12/RaytracingPipelineGenerator.h"
 #include "nv_helpers_dx12/RootSignatureGenerator.h"
 #include "nv_helpers_dx12/ShaderBindingTableGenerator.h"
+#endif
 
 namespace RT64 {
 	class Scene;
@@ -18,6 +20,14 @@ namespace RT64 {
 
 	class Device {
 	private:
+		IDXGIAdapter1 *d3dAdapter;
+		ID3D12Device8 *d3dDevice;
+		IDXGIFactory4 *dxgiFactory;
+
+		void createDXGIFactory();
+		void createRaytracingDevice();
+
+#ifndef RT64_MINIMAL
 		static const UINT FrameCount = 2;
 
 		HWND hwnd;
@@ -33,7 +43,6 @@ namespace RT64 {
 		HANDLE d3dFenceEvent;
 		ID3D12Fence *d3dFence;
 		UINT64 d3dFenceValue;
-		ID3D12Device8 *d3dDevice;
 		D3D12MA::Allocator *d3dAllocator;
 		ID3D12CommandQueue *d3dCommandQueue;
 		ID3D12GraphicsCommandList4 *d3dCommandList;
@@ -71,16 +80,16 @@ namespace RT64 {
 		void createRTVs();
 		void loadPipeline();
 		void loadAssets();
-		void checkRaytracingSupport();
 		void createRaytracingPipeline();
 		ID3D12RootSignature *createTracerSignature();
 		ID3D12RootSignature *createSurfaceShadowSignature();
-		void getHardwareAdapter(_In_ IDXGIFactory2 *pFactory, _Outptr_result_maybenull_ IDXGIAdapter1 **ppAdapter);
 		void preRender();
 		void postRender(int vsyncInterval);
+#endif
 	public:
 		Device(HWND hwnd);
 		virtual ~Device();
+#ifndef RT64_MINIMAL
 		void draw(int vsyncInterval);
 		void addScene(Scene *scene);
 		void removeScene(Scene *scene);
@@ -116,5 +125,6 @@ namespace RT64 {
 		void submitCommandList();
 		void waitForGPU();
 		void dumpRenderTarget(const std::string &path);
+#endif
 	};
 };

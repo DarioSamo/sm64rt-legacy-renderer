@@ -8,20 +8,30 @@
 
 #include "rt64.h"
 
+#define WINDOW_TITLE "RT64 Sample"
+
+#include <Windows.h>
+
+static void infoMessage(HWND hWnd, const char *message) {
+	MessageBox(hWnd, message, WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
+}
+
+static void errorMessage(HWND hWnd, const char *message) {
+	MessageBox(hWnd, message, WINDOW_TITLE " Error", MB_OK | MB_ICONERROR);
+}
+
+#ifndef RT64_MINIMAL
+
 #include <stdio.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
-
-#include <Windows.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
-
-#define WINDOW_TITLE "RT64 Sample"
 
 struct {
 	RT64_LIBRARY lib;
@@ -43,10 +53,6 @@ struct {
 	std::vector<RT64_VERTEX> objVertices;
 	std::vector<unsigned int> objIndices;
 } RT64;
-
-static void fatalMessage(HWND hWnd, const char *errorMessage) {
-	MessageBox(hWnd, errorMessage, WINDOW_TITLE " Error", MB_OK | MB_ICONEXCLAMATION);
-}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	if ((RT64.inspector != nullptr) && RT64.lib.HandleMessageInspector(RT64.inspector, message, wParam, lParam)) {
@@ -112,14 +118,14 @@ bool createRT64(HWND hwnd) {
 	// Setup library.
 	RT64.lib = RT64_LoadLibrary();
 	if (RT64.lib.handle == 0) {
-		fatalMessage(hwnd, RT64.lib.GetLastError());
+		errorMessage(hwnd, "Failed to load RT64 library.");
 		return false;
 	}
 
 	// Setup device.
 	RT64.device = RT64.lib.CreateDevice(hwnd);
 	if (RT64.device == nullptr) {
-		fatalMessage(hwnd, RT64.lib.GetLastError());
+		errorMessage(hwnd, RT64.lib.GetLastError());
 		return false;
 	}
 
@@ -369,11 +375,9 @@ void destroyRT64() {
 
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
-	MessageBox(NULL, 
+	infoMessage(NULL, 
 		"This sample application will test if your system has the required hardware to run RT64.\n\n"
-		"If you see some shapes in the screen after pressing OK, then you're good to go!", 
-		WINDOW_TITLE,
-		MB_OK | MB_ICONINFORMATION);
+		"If you see some shapes in the screen after pressing OK, then you're good to go!");
 
 	// Register window class.
 	WNDCLASS wc;
@@ -399,7 +403,7 @@ int main(int argc, char *argv[]) {
 
 	// Create RT64.
 	if (!createRT64(hwnd)) {
-		fatalMessage(hwnd, 
+		errorMessage(hwnd,
 			"Failed to initialize RT64.\n\n"
 			"Please make sure your GPU drivers are up to date and the Direct3D 12.1 feature level is supported.\n\n"
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly.\n\n"
@@ -425,3 +429,26 @@ int main(int argc, char *argv[]) {
 
 	return static_cast<char>(msg.wParam);
 }
+
+#else
+
+// Minimal sample that only verifies if a raytracing device can be detected.
+
+int main(int argc, char *argv[]) {
+	RT64_LIBRARY lib = RT64_LoadLibrary();
+	if (lib.handle == 0) {
+		errorMessage(NULL, "Failed to load RT64 library.");
+		return 1;
+	}
+
+	RT64_DEVICE *device = lib.CreateDevice(0);
+	if (device == nullptr) {
+		errorMessage(NULL, lib.GetLastError());
+		return 1;
+	}
+
+	infoMessage(NULL, "Raytracing device was detected!");
+	return 0;
+}
+
+#endif

@@ -2,6 +2,8 @@
 // RT64
 //
 
+#ifndef RT64_MINIMAL
+
 #include "../public/rt64.h"
 
 #include <map>
@@ -152,3 +154,4 @@ DLLEXPORT void RT64_DestroyScene(RT64_SCENE *scenePtr) {
 	delete (RT64::Scene *)(scenePtr);
 }
 
+#endif

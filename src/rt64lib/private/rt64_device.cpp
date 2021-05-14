@@ -6,7 +6,11 @@
 
 #include <dwmapi.h>
 
+#include "utf8conv/utf8conv.h"
+
 #include "rt64_device.h"
+
+#ifndef RT64_MINIMAL
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
 #include "rt64_texture.h"
@@ -25,10 +29,16 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
+#endif
 
 // Private
 
 RT64::Device::Device(HWND hwnd) {
+	createDXGIFactory();
+	createRaytracingDevice();
+
+#ifndef RT64_MINIMAL
+	assert(hwnd != 0);
 	this->hwnd = hwnd;
 	d3dAllocator = nullptr;
 	d3dCommandListOpen = true;
@@ -41,17 +51,10 @@ RT64::Device::Device(HWND hwnd) {
 	height = 0;
 
 	updateSize();
-
 	loadPipeline();
 	loadAssets();
-
-	// Check the raytracing capabilities of the device
-	checkRaytracingSupport();
-
-	// Create the raytracing pipeline, associating the shader code to symbol names
-	// and to their root signatures, and defining the amount of memory carried by
-	// rays (ray payload)
 	createRaytracingPipeline();
+#endif
 }
 
 RT64::Device::~Device() {
@@ -62,35 +65,116 @@ RT64::Device::~Device() {
 	*/
 }
 
+void RT64::Device::createDXGIFactory() {
+	UINT dxgiFactoryFlags = 0;
+	dxgiFactory = nullptr;
+
+#ifndef NDEBUG
+	ID3D12Debug *debugController;
+	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
+		debugController->EnableDebugLayer();
+
+		// Enable additional debug layers.
+		dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+	}
+#endif
+
+	D3D12_CHECK(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&dxgiFactory)));
+}
+
+void RT64::Device::createRaytracingDevice() {
+	d3dAdapter = nullptr;
+	d3dDevice = nullptr;
+
+	std::stringstream ss;
+	{
+		// Attempt to create D3D12 devices and pick the first one that actually supports raytracing.
+		// This implementation should detect more accurately cases where multiple D3D12 adapters are available
+		// but they're not raytracing capable, yet there's more devices on the system that fit the criteria.
+		DXGI_ADAPTER_DESC1 desc;
+		for (UINT adapterIndex = 0; dxgiFactory->EnumAdapters1(adapterIndex, &d3dAdapter) != DXGI_ERROR_NOT_FOUND; ++adapterIndex) {
+			d3dAdapter->GetDesc1(&desc);
+
+			// Ignore software adapters.
+			if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+				d3dAdapter->Release();
+				d3dAdapter = nullptr;
+				continue;
+			}
+
+			auto handleAdapterError = [this, &ss, &desc, &adapterIndex](const std::string &errorSuffix) {
+				ss << "Adapter " << win32::Utf16ToUtf8(desc.Description) << " (#" << adapterIndex << "): " << errorSuffix << std::endl;
+				if (d3dDevice != nullptr) {
+					d3dDevice->Release();
+					d3dDevice = nullptr;
+				}
+
+				if (d3dAdapter != nullptr) {
+					d3dAdapter->Release();
+					d3dAdapter = nullptr;
+				}
+			};
+
+			// Try creating the device for this adapter.
+			HRESULT deviceResult = D3D12CreateDevice(d3dAdapter, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&d3dDevice));
+			if (SUCCEEDED(deviceResult)) {
+				D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
+				HRESULT checkResult = d3dDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
+				if (SUCCEEDED(checkResult)) {
+					if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0) {
+						handleAdapterError("No raytracing support.");
+					}
+					else {
+						break;
+					}
+				}
+				else {
+					handleAdapterError("No feature checking at the required level.");
+					ss << "D3D12Device->CheckFeatureSupport error code: " << std::hex << checkResult << std::endl;
+				}
+			}
+			else {
+				handleAdapterError("No D3D12.1 feature level support.");
+				ss << "D3D12CreateDevice error code: " << std::hex << deviceResult << std::endl;
+			}
+		}
+	}
+
+	// Only throw an exception if no device was detected.
+	if (d3dDevice == nullptr) {
+		throw std::runtime_error("Unable to detect a device capable of raytracing.\n" + ss.str());
+	}
+}
+
+#ifndef RT64_MINIMAL
+
 void RT64::Device::updateSize() {
-	if (hwnd != 0) {
-		RECT rect;
-		GetClientRect(hwnd, &rect);
-		int newWidth = rect.right - rect.left;
-		int newHeight = rect.bottom - rect.top;
+	RECT rect;
+	GetClientRect(hwnd, &rect);
+	int newWidth = rect.right - rect.left;
+	int newHeight = rect.bottom - rect.top;
 
-		// Recrease the swap chain if the sizes have changed.
-		if (((newWidth != width) || (newHeight != height)) && (newWidth > 0) && (newHeight > 0)) {
-			width = newWidth;
-			height = newHeight;
-			aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-			d3dViewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
-			d3dScissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
+	// Recrease the swap chain if the sizes have changed.
+	if (((newWidth != width) || (newHeight != height)) && (newWidth > 0) && (newHeight > 0)) {
+		width = newWidth;
+		height = newHeight;
+		aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		d3dViewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
+		d3dScissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
 
-			if (d3dSwapChain != nullptr) {
-				releaseRTVs();
-				D3D12_CHECK(d3dSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
-				createRTVs();
-				d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
-			}
+		if (d3dSwapChain != nullptr) {
+			releaseRTVs();
+			D3D12_CHECK(d3dSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+			createRTVs();
+			d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
+		}
 
-			for (Scene *scene : scenes) {
-				scene->resize();
-			}
+		for (Scene *scene : scenes) {
+			scene->resize();
+		}
 
-			for (Inspector *inspector : inspectors) {
-				inspector->resize();
-			}
+		for (Inspector *inspector : inspectors) {
+			inspector->resize();
 		}
 	}
 }
@@ -142,37 +226,6 @@ void RT64::Device::createRTVs() {
 	resDesc.MipLevels = 1;
 	resDesc.SampleDesc.Count = 1;
 	d3dRenderTargetReadback = allocateResource(D3D12_HEAP_TYPE_READBACK, &resDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
-}
-
-// Helper function for acquiring the first available hardware adapter that supports Direct3D 12.
-// If no such adapter can be found, *ppAdapter will be set to nullptr.
-_Use_decl_annotations_
-void RT64::Device::getHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter)
-{
-	IDXGIAdapter1 *adapter;
-	*ppAdapter = nullptr;
-	
-	for (UINT adapterIndex = 0; DXGI_ERROR_NOT_FOUND != pFactory->EnumAdapters1(adapterIndex, &adapter); ++adapterIndex)
-	{
-		DXGI_ADAPTER_DESC1 desc;
-		adapter->GetDesc1(&desc);
-
-		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-		{
-			// Don't select the Basic Render Driver adapter.
-			// If you want a software adapter, pass in "/warp" on the command line.
-			continue;
-		}
-
-		// Check to see if the adapter supports Direct3D 12, but don't create the actual device yet.
-		if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
-		{
-			fwprintf(stdout, L"Adapter %s (#%d) picked as hardware adapter.\n", desc.Description, adapterIndex);
-			break;
-		}
-	}
-
-	*ppAdapter = adapter;
 }
 
 HWND RT64::Device::getHwnd() const {
@@ -317,30 +370,10 @@ float RT64::Device::getAspectRatio() const {
 }
 
 void RT64::Device::loadPipeline() {
-	UINT dxgiFactoryFlags = 0;
-
-#ifndef NDEBUG
-	ID3D12Debug *debugController;
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
-		debugController->EnableDebugLayer();
-
-		// Enable additional debug layers.
-		dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-	}
-#endif
-
-	IDXGIFactory4 *factory;
-	D3D12_CHECK(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
-
-	IDXGIAdapter1 *hardwareAdapter;
-	getHardwareAdapter(factory, &hardwareAdapter);
-
-	D3D12_CHECK(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&d3dDevice)));
-
 	// Create memory allocator.
 	D3D12MA::ALLOCATOR_DESC allocatorDesc = {};
 	allocatorDesc.pDevice = d3dDevice;
-	allocatorDesc.pAdapter = hardwareAdapter;
+	allocatorDesc.pAdapter = d3dAdapter;
 
 	D3D12_CHECK(D3D12MA::CreateAllocator(&allocatorDesc, &d3dAllocator));
 
@@ -352,23 +385,21 @@ void RT64::Device::loadPipeline() {
 	D3D12_CHECK(d3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3dCommandQueue)));
 
 	// Describe and create the swap chain.
-	if (hwnd != 0) {
-		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-		swapChainDesc.BufferCount = FrameCount;
-		swapChainDesc.Width = width;
-		swapChainDesc.Height = height;
-		swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		swapChainDesc.SampleDesc.Count = 1;
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	swapChainDesc.BufferCount = FrameCount;
+	swapChainDesc.Width = width;
+	swapChainDesc.Height = height;
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.SampleDesc.Count = 1;
 
-		IDXGISwapChain1 *swapChain;
-		D3D12_CHECK(factory->CreateSwapChainForHwnd(d3dCommandQueue, hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
-		d3dSwapChain = static_cast<IDXGISwapChain3 *>(swapChain);
-		d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
+	IDXGISwapChain1 *swapChain;
+	D3D12_CHECK(dxgiFactory->CreateSwapChainForHwnd(d3dCommandQueue, hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
+	d3dSwapChain = static_cast<IDXGISwapChain3 *>(swapChain);
+	d3dFrameIndex = d3dSwapChain->GetCurrentBackBufferIndex();
 
-		createRTVs();
-	}
+	createRTVs();
 
 	D3D12_CHECK(d3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&d3dCommandAllocator)));
 }
@@ -530,13 +561,6 @@ void RT64::Device::loadAssets() {
 
 	// Close command list and wait for it to finish.
 	waitForGPU();
-}
-
-void RT64::Device::checkRaytracingSupport() {
-	D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
-	D3D12_CHECK(d3dDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5)));
-	if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0)
-		throw std::runtime_error("Raytracing not supported on device");
 }
 
 void RT64::Device::createRaytracingPipeline() {
@@ -819,6 +843,8 @@ void RT64::Device::dumpRenderTarget(const std::string &path) {
 	d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 }
 
+#endif
+
 // Public
 
 DLLEXPORT RT64_DEVICE *RT64_CreateDevice(void *hwnd) {
@@ -829,6 +855,16 @@ DLLEXPORT RT64_DEVICE *RT64_CreateDevice(void *hwnd) {
 	return nullptr;
 }
 
+DLLEXPORT void RT64_DestroyDevice(RT64_DEVICE *devicePtr) {
+	assert(devicePtr != nullptr);
+	try {
+		delete (RT64::Device *)(devicePtr);
+	}
+	RT64_CATCH_EXCEPTION();
+}
+
+#ifndef RT64_MINIMAL
+
 DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *devicePtr, int vsyncInterval) {
 	assert(devicePtr != nullptr);
 	try {
@@ -838,10 +874,4 @@ DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *devicePtr, int vsyncInterval) {
 	RT64_CATCH_EXCEPTION();
 }
 
-DLLEXPORT void RT64_DestroyDevice(RT64_DEVICE *devicePtr) {
-	assert(devicePtr != nullptr);
-	try {
-		delete (RT64::Device *)(devicePtr);
-	}
-	RT64_CATCH_EXCEPTION();
-}
+#endif
