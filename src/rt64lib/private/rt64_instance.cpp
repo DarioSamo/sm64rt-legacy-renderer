@@ -19,6 +19,7 @@ RT64::Instance::Instance(Scene *scene) {
 	mesh = nullptr;
 	diffuseTexture = nullptr;
 	normalTexture = nullptr;
+	specularTexture = nullptr;
 	transform = XMMatrixIdentity();
 	material = DefaultMaterial;
 	scissorRect = { 0, 0, 0, 0 };
@@ -62,6 +63,14 @@ void RT64::Instance::setNormalTexture(Texture* texture) {
 
 RT64::Texture* RT64::Instance::getNormalTexture() const {
 	return normalTexture;
+}
+
+void RT64::Instance::setSpecularTexture(Texture* texture) {
+	this->specularTexture = texture;
+}
+
+RT64::Texture* RT64::Instance::getSpecularTexture() const {
+	return specularTexture;
 }
 
 void RT64::Instance::setTransform(float m[4][4]) {
@@ -128,6 +137,7 @@ DLLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INST
 	instance->setMaterial(instanceDesc.material);
 	instance->setDiffuseTexture((RT64::Texture *)(instanceDesc.diffuseTexture));
 	instance->setNormalTexture((RT64::Texture *)(instanceDesc.normalTexture));
+	instance->setSpecularTexture((RT64::Texture *)(instanceDesc.specularTexture));
 	instance->setFlags(instanceDesc.flags);
 	instance->setScissorRect(instanceDesc.scissorRect);
 	instance->setViewportRect(instanceDesc.viewportRect);

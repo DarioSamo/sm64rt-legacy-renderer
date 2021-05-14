@@ -65,6 +65,7 @@ namespace RT64 {
 		AllocatedResource rtHitDistance;
 		AllocatedResource rtHitColor;
 		AllocatedResource rtHitNormal;
+		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtHitInstanceIdReadback;
 		int rtWidth;

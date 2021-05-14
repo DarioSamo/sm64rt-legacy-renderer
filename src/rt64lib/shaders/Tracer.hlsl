@@ -290,6 +290,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
 		float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+		half hitSpecular = gHitSpecular[hitBufferIndex];
 		float refractionFactor = instanceProps[instanceId].materialProperties.refractionFactor;
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
@@ -331,8 +332,10 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 					maxGI--;
 				}
 
+
 				// Eye light.
-				float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
+				// Specular is applied here. Might need to adjust the intensity of scaling for actual use cases.
+				float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
 				float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
 				float eyeLightLambertFactor = max(dot(vertexNormal, -rayDirection), 0.0f);
 				float3 eyeLightReflected = reflect(rayDirection, vertexNormal);
