@@ -20,7 +20,7 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 	float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);
 	VertexAttributes vertex = GetVertexAttributes(vertexBuffer, indexBuffer, triangleId, barycentrics);
 	float4 texelColor = SampleTexture(gTextures[diffuseTexIndex], vertex.uv, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
-	half specularColor = half(0.0h);
+	half specularColor = half(1.0h);
 
 	// Only mix the texture if the alpha value is negative.
 	texelColor.rgb = lerp(texelColor.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));
@@ -87,16 +87,14 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 				vertex.normal = -vertex.normal;
 			}
 
+			half specularColor = (1.0h);
+
 			// Sample the specular map.
 			int specularTexIndex = instanceProps[instanceId].materialProperties.specularTexIndex;
 			if (specularTexIndex >= 0) {
 				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
 				specularColor = half(SampleTexture(gTextures[specularTexIndex], vertex.uv * uvDetailScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode).r);
-			}
-			else {
-				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
-				specularColor = (1.0h);
-			}
+				}
 
 			// Store hit data and increment the hit counter.
 			gHitDistance[hi] = tval;

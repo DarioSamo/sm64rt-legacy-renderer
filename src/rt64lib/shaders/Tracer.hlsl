@@ -276,7 +276,6 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 	float4 resColor = float4(0, 0, 0, 1);
 	float4 finalAlbedo = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	float4 finalNormal = float4(0.0f, 0.0f, 0.0f, 0.0f);
-	half finalSpecular = half(0.0h);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
 	uint maxSimpleLights = 1;
@@ -305,7 +304,6 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
 					finalAlbedo = hitColor;
 					finalNormal = float4(vertexNormal, 0.0f);
-					finalSpecular = half(hitSpecular);
 					resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, true, seed);
 					maxFullLights--;
 				}
@@ -337,7 +335,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 
 				// Eye light.
 				// Specular is applied here. Might need to adjust the intensity of scaling for actual use cases.
-				float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity * finalSpecular;
+				float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
 				float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
 				float eyeLightLambertFactor = max(dot(vertexNormal, -rayDirection), 0.0f);
 				float3 eyeLightReflected = reflect(rayDirection, vertexNormal);

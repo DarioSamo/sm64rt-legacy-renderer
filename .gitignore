@@ -17,5 +17,4 @@
 *.hlsl.h
 *.bat
 imgui.ini
-/src/rt64lib/x64/Debug
-/src/rt64lib/rt64lib.vcxproj.user
+/src/rt64lib/x64/Release
