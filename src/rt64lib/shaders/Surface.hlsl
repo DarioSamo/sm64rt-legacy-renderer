@@ -20,7 +20,7 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 	float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);
 	VertexAttributes vertex = GetVertexAttributes(vertexBuffer, indexBuffer, triangleId, barycentrics);
 	float4 texelColor = SampleTexture(gTextures[diffuseTexIndex], vertex.uv, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
-	float4 specularColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	half specularColor = half(0.0h);
 
 	// Only mix the texture if the alpha value is negative.
 	texelColor.rgb = lerp(texelColor.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));
@@ -91,17 +91,17 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 			int specularTexIndex = instanceProps[instanceId].materialProperties.specularTexIndex;
 			if (specularTexIndex >= 0) {
 				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
-				specularColor = SampleTexture(gTextures[specularTexIndex], vertex.uv * uvDetailScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
+				specularColor = half(SampleTexture(gTextures[specularTexIndex], vertex.uv * uvDetailScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode).r);
 			}
 			else {
 				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
-				specularColor = (1.0f, 1.0f, 1.0f, 1.0f);
+				specularColor = (1);
 			}
 
 			// Store hit data and increment the hit counter.
 			gHitDistance[hi] = tval;
 			gHitColor[hi] = resultColor;
-			gHitSpecular[hi] = float4(specularColor);
+			gHitSpecular[hi] = specularColor.r;
 			gHitNormal[hi] = float4(vertex.normal, 1.0f);
 			gHitInstanceId[hi] = instanceId;
 			

@@ -62,7 +62,6 @@ namespace RT64 {
 		AllocatedResource rtOutput;
 		AllocatedResource rtAlbedo;
 		AllocatedResource rtNormal;
-		AllocatedResource rtSpecular;
 		AllocatedResource rtHitDistance;
 		AllocatedResource rtHitColor;
 		AllocatedResource rtHitNormal;

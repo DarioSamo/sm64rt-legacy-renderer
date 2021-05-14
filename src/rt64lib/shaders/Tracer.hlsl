@@ -276,7 +276,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 	float4 resColor = float4(0, 0, 0, 1);
 	float4 finalAlbedo = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	float4 finalNormal = float4(0.0f, 0.0f, 0.0f, 0.0f);
-	float finalSpecular = float(0.0f);
+	half finalSpecular = half(0.0h);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
 	uint maxSimpleLights = 1;
@@ -291,7 +291,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
 		float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
-		half4 hitSpecular = gHitSpecular[hitBufferIndex];
+		half hitSpecular = gHitSpecular[hitBufferIndex];
 		float refractionFactor = instanceProps[instanceId].materialProperties.refractionFactor;
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
@@ -305,7 +305,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
 					finalAlbedo = hitColor;
 					finalNormal = float4(vertexNormal, 0.0f);
-					finalSpecular = float(hitSpecular.x);
+					finalSpecular = half(hitSpecular);
 					resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, true, seed);
 					maxFullLights--;
 				}

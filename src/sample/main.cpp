@@ -21,7 +21,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-#define WINDOW_TITLE "I Love You John Linneman"
+#define WINDOW_TITLE "RT64 Sample"
 
 struct {
 	RT64_LIBRARY lib;
