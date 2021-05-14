@@ -94,10 +94,11 @@ typedef struct {
 	int filterMode;
 	int diffuseTexIndex;
 	int normalTexIndex;
+	int specularTexIndex;
 	int hAddressMode;
 	int vAddressMode;
 	float ignoreNormalFactor;
-	float normalMapScale;
+	float uvDetailScale;
 	float reflectionFactor;
 	float reflectionFresnelFactor;
 	float reflectionShineFactor;
@@ -114,7 +115,7 @@ typedef struct {
 	RT64_VECTOR4 diffuseColorMix;
 	float fogMul;
 	float fogOffset;
-	int _padA[2];
+	int _padA[1];
 
 	// N64 Color combiner parameters.
 	int c0[4];
@@ -125,11 +126,11 @@ typedef struct {
 	int color_alpha_same;
 	int opt_alpha;
 	int opt_fog;
-	int opt_texture_edge;
-	int opt_noise;
+int opt_texture_edge;
+int opt_noise;
 
-	// Flag containing all attributes that are actually used by this material.
-	int enabledAttributes;
+// Flag containing all attributes that are actually used by this material.
+int enabledAttributes;
 } RT64_MATERIAL;
 
 // Light
@@ -158,6 +159,7 @@ typedef struct {
 	RT64_MATRIX4 transform;
 	RT64_TEXTURE *diffuseTexture;
 	RT64_TEXTURE *normalTexture;
+	RT64_TEXTURE *specularTexture;
 	RT64_MATERIAL material;
 	RT64_RECT scissorRect;
 	RT64_RECT viewportRect;
@@ -170,7 +172,7 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 	}
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_NORMAL_MAP_SCALE) {
-		dst->normalMapScale = src->normalMapScale;
+		dst->uvDetailScale = src->uvDetailScale;
 	}
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_REFLECTION_FACTOR) {

@@ -21,7 +21,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-#define WINDOW_TITLE "RT64 Sample"
+#define WINDOW_TITLE "I Love You John Linneman"
 
 struct {
 	RT64_LIBRARY lib;
@@ -35,6 +35,7 @@ struct {
 	RT64_MESH *mesh = nullptr;
 	RT64_TEXTURE *textureDif = nullptr;
 	RT64_TEXTURE *textureNrm = nullptr;
+	RT64_TEXTURE *textureSpc = nullptr;
 	RT64_MATERIAL baseMaterial;
 	RT64_MATERIAL frameMaterial;
 	RT64_MATERIAL materialMods;
@@ -92,6 +93,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			instDesc.transform = RT64.transform;
 			instDesc.diffuseTexture = RT64.textureDif;
 			instDesc.normalTexture = RT64.textureNrm;
+			instDesc.specularTexture = RT64.textureSpc;
 			instDesc.material = RT64.frameMaterial;
 			instDesc.flags = 0;
 
@@ -159,6 +161,10 @@ void setupRT64Scene() {
 	RT64.textureNrm = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
 	stbi_image_free(texBytes);
 
+	texBytes = stbi_load("res/grass_spc.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	RT64.textureSpc = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
+	stbi_image_free(texBytes);
+
 	// Make initial transform with a 0.1f scale.
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
 	RT64.transform.m[0][0] = 1.0f;
@@ -216,13 +222,13 @@ void setupRT64Scene() {
 	RT64.baseMaterial.hAddressMode = RT64_MATERIAL_ADDR_WRAP;
 	RT64.baseMaterial.vAddressMode = RT64_MATERIAL_ADDR_WRAP;
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
-	RT64.baseMaterial.normalMapScale = 1.0f;
+	RT64.baseMaterial.uvDetailScale = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
 	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
 	RT64.baseMaterial.specularIntensity = 1.0f;
-	RT64.baseMaterial.specularExponent = 25.0f;
+	RT64.baseMaterial.specularExponent = 1.0f;
 	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -286,6 +292,10 @@ void setupRT64Scene() {
 	RT64_TEXTURE* normalTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
 	stbi_image_free(texBytes);
 
+	texBytes = stbi_load("res/tiles_spc.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	RT64_TEXTURE* specularTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
+	stbi_image_free(texBytes);
+
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), indices, _countof(indices));
 
@@ -303,6 +313,7 @@ void setupRT64Scene() {
 	instDesc.transform = RT64.transform;
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = nullptr;
+	instDesc.specularTexture = nullptr;
 	instDesc.material = RT64.baseMaterial;
 	instDesc.flags = 0;
 
@@ -315,12 +326,14 @@ void setupRT64Scene() {
 	instDesc.mesh = RT64.mesh;
 	instDesc.diffuseTexture = RT64.textureDif;
 	instDesc.normalTexture = RT64.textureNrm;
+	instDesc.specularTexture = RT64.textureSpc;
 	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 
 	// Create HUD A Instance.
 	RT64_INSTANCE* instanceA = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = mesh;
 	instDesc.normalTexture = nullptr;
+	instDesc.specularTexture = nullptr;
 	instDesc.flags = RT64_INSTANCE_RASTER_BACKGROUND;
 	RT64.lib.SetInstanceDescription(instanceA, instDesc);
 
@@ -358,6 +371,7 @@ void setupRT64Scene() {
 	instDesc.transform = floorTransform;
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = normalTexture;
+	instDesc.specularTexture = specularTexture;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
 }

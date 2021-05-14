@@ -17,6 +17,7 @@ namespace RT64 {
 		Mesh *mesh;
 		Texture *diffuseTexture;
 		Texture* normalTexture;
+		Texture* specularTexture;
 		XMMATRIX transform;
 		RT64_MATERIAL material;
 		RT64_RECT scissorRect;
@@ -33,6 +34,8 @@ namespace RT64 {
 		Texture *getDiffuseTexture() const;
 		void setNormalTexture(Texture* texture);
 		Texture* getNormalTexture() const;
+		void setSpecularTexture(Texture* texture);
+		Texture* getSpecularTexture() const;
 		void setTransform(float m[4][4]);
 		XMMATRIX getTransform() const;
 		void setScissorRect(const RT64_RECT &rect);

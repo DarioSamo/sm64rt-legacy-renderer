@@ -6,10 +6,11 @@ struct MaterialProperties {
 	int filterMode;
 	int diffuseTexIndex;
 	int normalTexIndex;
+	int specularTexIndex;
 	int hAddressMode;
 	int vAddressMode;
 	float ignoreNormalFactor;
-	float normalMapScale;
+	float uvDetailScale;
 	float reflectionFactor;
 	float reflectionFresnelFactor;
 	float reflectionShineFactor;
@@ -27,5 +28,5 @@ struct MaterialProperties {
 	float fogMul;
 	float fogOffset;
 
-	uint2 _pad;
+	uint _pad;
 };

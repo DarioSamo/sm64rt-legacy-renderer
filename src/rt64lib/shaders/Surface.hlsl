@@ -20,7 +20,8 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 	float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);
 	VertexAttributes vertex = GetVertexAttributes(vertexBuffer, indexBuffer, triangleId, barycentrics);
 	float4 texelColor = SampleTexture(gTextures[diffuseTexIndex], vertex.uv, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
-	
+	float4 specularColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
+
 	// Only mix the texture if the alpha value is negative.
 	texelColor.rgb = lerp(texelColor.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));
 
@@ -56,6 +57,7 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 			gHitDistance[hi] = gHitDistance[lo];
 			gHitColor[hi] = gHitColor[lo];
 			gHitNormal[hi] = gHitNormal[lo];
+			gHitSpecular[hi] = gHitSpecular[lo];
 			gHitInstanceId[hi] = gHitInstanceId[lo];
 			hi -= hitStride;
 			lo -= hitStride;
@@ -68,8 +70,8 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 
 			int normalTexIndex = instanceProps[instanceId].materialProperties.normalTexIndex;
 			if (normalTexIndex >= 0) {
-				float normalMapScale = instanceProps[instanceId].materialProperties.normalMapScale;
-				float3 normalColor = SampleTexture(gTextures[normalTexIndex], vertex.uv * normalMapScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode).xyz;
+				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
+				float3 normalColor = SampleTexture(gTextures[normalTexIndex], vertex.uv * uvDetailScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode).xyz;
 				normalColor = (normalColor * 2.0f) - 1.0f;
 
 				float3 newNormal = normalize(vertex.normal * normalColor.z + vertex.tangent * normalColor.x + vertex.binormal * normalColor.y);
@@ -85,9 +87,21 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 				vertex.normal = -vertex.normal;
 			}
 
+			// Sample the specular map.
+			int specularTexIndex = instanceProps[instanceId].materialProperties.specularTexIndex;
+			if (specularTexIndex >= 0) {
+				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
+				specularColor = SampleTexture(gTextures[specularTexIndex], vertex.uv * uvDetailScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
+			}
+			else {
+				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
+				specularColor = (1.0f, 1.0f, 1.0f, 1.0f);
+			}
+
 			// Store hit data and increment the hit counter.
 			gHitDistance[hi] = tval;
 			gHitColor[hi] = resultColor;
+			gHitSpecular[hi] = float4(specularColor);
 			gHitNormal[hi] = float4(vertex.normal, 1.0f);
 			gHitInstanceId[hi] = instanceId;
 			
