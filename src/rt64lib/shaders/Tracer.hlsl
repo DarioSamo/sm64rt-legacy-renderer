@@ -56,7 +56,7 @@ float CalculateLightIntensitySimple(uint l, float3 position) {
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, float3 normal, uint maxLights, const bool checkShadows, uint seed) {
+float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, uint maxLights, const bool checkShadows, uint seed) {
 	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 	if (lightGroupMaskBits > 0) {
@@ -88,7 +88,6 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 		}
 
 		float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
-		float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity;
 		float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
 		float shadowRayBias = instanceProps[instanceId].materialProperties.shadowRayBias;
 		float3 lightingFactors;
@@ -129,7 +128,7 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 					sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
 				}
 
-				float sampleSpecularityFactor = specularIntensity * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+				float sampleSpecularityFactor = specular * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
 				lLambertFactor += sampleLambertFactor / maxSamples;
 				lSpecularityFactor += sampleSpecularityFactor / maxSamples;
 				lShadowFactor += sampleShadowFactor / maxSamples;
@@ -191,13 +190,15 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 			uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+			half hitSpecular = gHitSpecular[hitBufferIndex];
+			float specular = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
 			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 
 			// Reuse the previous computed lights result if available.
 			if (lightGroupMaskBits > 0) {
 				if (maxSimpleLights > 0) {
-					simpleLightsResult = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 1, checkShadows, seed + hit);
+					simpleLightsResult = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, checkShadows, seed + hit);
 					maxSimpleLights--;
 				}
 				
@@ -298,19 +299,21 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 			if (lightGroupMaskBits > 0) {
-				// Full light sampling.
+				float specular = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
 				bool solidColor = (hitColor.a >= FULL_QUALITY_ALPHA);
 				bool lastHit = (((hit + 1) >= hitCount) && (refractionFactor <= EPSILON));
+
+				// Full light sampling.
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
 					finalAlbedo = hitColor;
 					finalNormal = float4(vertexNormal, 0.0f);
-					resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, maxLightSamples, true, seed);
+					resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxLightSamples, true, seed);
 					maxFullLights--;
 				}
+				// Simple light sampling. Reuse previous result if calculated once already.
 				else {
-					// Simple light sampling. Reuse previous result if calculated once already.
 					if (maxSimpleLights > 0) {
-						simpleLightsResult += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, 2, true, seed);
+						simpleLightsResult += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 2, true, seed);
 						maxSimpleLights--;
 					}
 
@@ -332,14 +335,13 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 					maxGI--;
 				}
 
-
+				
 				// Eye light.
 				// Specular is applied here. Might need to adjust the intensity of scaling for actual use cases.
-				float specularIntensity = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
 				float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
 				float eyeLightLambertFactor = max(dot(vertexNormal, -rayDirection), 0.0f);
 				float3 eyeLightReflected = reflect(rayDirection, vertexNormal);
-				float eyeLightSpecularFactor = specularIntensity * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
+				float eyeLightSpecularFactor = specular * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
 
 				// TODO: Make these modifiable.
 				float3 eyeLightDiffuseColor = float3(0.15f, 0.15f, 0.15f);
