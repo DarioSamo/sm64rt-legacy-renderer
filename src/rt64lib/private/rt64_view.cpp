@@ -115,10 +115,10 @@ void RT64::View::createOutputBuffers() {
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
 	UINT64 hitCountBufferSizeAll = hitCountBufferSizeOne * MaxQueries;
 	rtHitDistance = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitColor = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitColor = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitNormal = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceId = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, hitCountBufferSizeOne * 2, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 	// Create the RTVs for the raster resources.
@@ -145,8 +145,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitDistance.Release();
 	rtHitColor.Release();
 	rtHitNormal.Release();
-	rtHitInstanceId.Release();
 	rtHitSpecular.Release();
+	rtHitInstanceId.Release();
 }
 
 void RT64::View::createInstancePropertiesBuffer() {
@@ -287,22 +287,23 @@ void RT64::View::createShaderResourceHeap() {
 	handle.ptr += handleIncrement;
 
 	// UAV for hit color buffer.
-	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitColor.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 	
 	// UAV for hit normal buffer.
-	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_SNORM;
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitNormal.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for hit specular buffer.
+	uavDesc.Format = DXGI_FORMAT_R8_UNORM;
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitSpecular.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for hit shading buffer.
 	uavDesc.Format = DXGI_FORMAT_R16_UINT;
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceId.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	uavDesc.Format = DXGI_FORMAT_R16_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitSpecular.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// SRV for background texture.

@@ -190,7 +190,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 			uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
-			half hitSpecular = gHitSpecular[hitBufferIndex];
+			float hitSpecular = gHitSpecular[hitBufferIndex];
 			float specular = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
 			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
@@ -291,7 +291,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
 		float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
-		half hitSpecular = gHitSpecular[hitBufferIndex];
+		float hitSpecular = gHitSpecular[hitBufferIndex];
 		float refractionFactor = instanceProps[instanceId].materialProperties.refractionFactor;
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {

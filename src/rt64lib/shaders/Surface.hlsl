@@ -86,20 +86,19 @@ void SurfaceAnyHit(inout HitInfo payload, Attributes attrib) {
 				vertex.normal = -vertex.normal;
 			}
 
-			half specularColor = (1.0h);
-
 			// Sample the specular map.
+			float specularColor = 1.0f;
 			int specularTexIndex = instanceProps[instanceId].materialProperties.specularTexIndex;
 			if (specularTexIndex >= 0) {
 				float uvDetailScale = instanceProps[instanceId].materialProperties.uvDetailScale;
-				specularColor = half(SampleTexture(gTextures[specularTexIndex], vertex.uv * uvDetailScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode).r);
-				}
+				specularColor = SampleTexture(gTextures[specularTexIndex], vertex.uv * uvDetailScale, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode).r;
+			}
 
 			// Store hit data and increment the hit counter.
 			gHitDistance[hi] = tval;
 			gHitColor[hi] = resultColor;
-			gHitSpecular[hi] = specularColor;
 			gHitNormal[hi] = float4(vertex.normal, 1.0f);
+			gHitSpecular[hi] = specularColor;
 			gHitInstanceId[hi] = instanceId;
 			
 			++payload.nhits;

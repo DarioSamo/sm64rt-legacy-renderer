@@ -41,8 +41,8 @@ namespace RT64 {
 		gHitDistance,
 		gHitColor,
 		gHitNormal,
-		gHitInstanceId,
 		gHitSpecular,
+		gHitInstanceId,
 		gBackground,
 		SceneBVH,
 		ViewParams,
@@ -59,8 +59,8 @@ namespace RT64 {
 		gHitDistance,
 		gHitColor,
 		gHitNormal,
-		gHitInstanceId,
-		gHitSpecular
+		gHitSpecular,
+		gHitInstanceId
 	};
 
 	enum class SRVIndices : int {
