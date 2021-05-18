@@ -15,7 +15,7 @@
 #define M_PI								3.14159265f
 #define RAY_MIN_DISTANCE					1.0f
 #define RAY_MAX_DISTANCE					100000.0f
-#define MAX_LIGHTS							16
+#define MAX_LIGHTS							32
 #define FULL_QUALITY_ALPHA					0.999f
 #define GI_MINIMUM_ALPHA					0.25f
 
@@ -56,7 +56,55 @@ float CalculateLightIntensitySimple(uint l, float3 position) {
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, uint maxLights, const bool checkShadows, uint seed) {
+float3 ComputeLight(uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, const bool checkShadows, uint seed) {
+	float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
+	float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
+	float shadowRayBias = instanceProps[instanceId].materialProperties.shadowRayBias;
+	float3 lightPosition = SceneLights[lightIndex].position;
+	float3 lightDirection = normalize(lightPosition - position);
+	float lightRadius = SceneLights[lightIndex].attenuationRadius;
+	float lightAttenuation = SceneLights[lightIndex].attenuationExponent;
+	float lightPointRadius = (softLightSamples > 0) ? SceneLights[lightIndex].pointRadius : 0.0f;
+	float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
+	if (all(perpX == 0.0f)) {
+		perpX.x = 1.0;
+	}
+
+	float3 perpY = cross(perpX, -lightDirection);
+	float shadowOffset = SceneLights[lightIndex].shadowOffset;
+	const uint maxSamples = max(softLightSamples, 1);
+	uint samples = maxSamples;
+	float lLambertFactor = 0.0f;
+	float lSpecularityFactor = 0.0f;
+	float lShadowFactor = 0.0f;
+	while (samples > 0) {
+		float2 sampleCoordinate = float2(nextRand(seed), nextRand(seed)) * 2.0f - 1.0f;
+		sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
+
+		float3 samplePosition = lightPosition + perpX * sampleCoordinate.x * lightPointRadius + perpY * sampleCoordinate.y * lightPointRadius;
+		float sampleDistance = length(position - samplePosition);
+		float3 sampleDirection = normalize(samplePosition - position);
+		float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
+		float3 reflectedLight = reflect(-sampleDirection, normal);
+		float NdotL = max(dot(normal, sampleDirection), 0.0f);
+		float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
+		float sampleShadowFactor = 1.0f;
+		if (checkShadows) {
+			sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
+		}
+
+		float sampleSpecularityFactor = specular * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+		lLambertFactor += sampleLambertFactor / maxSamples;
+		lSpecularityFactor += sampleSpecularityFactor / maxSamples;
+		lShadowFactor += sampleShadowFactor / maxSamples;
+
+		samples--;
+	}
+
+	return (SceneLights[lightIndex].diffuseColor * lLambertFactor + SceneLights[lightIndex].diffuseColor * SceneLights[lightIndex].specularIntensity * lSpecularityFactor) * lShadowFactor;
+}
+
+float3 ComputeLightsOrdered(float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, uint maxLights, const bool checkShadows, uint seed) {
 	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
 	if (lightGroupMaskBits > 0) {
@@ -87,56 +135,64 @@ float3 ComputeLights(float3 rayDirection, uint instanceId, float3 position, floa
 			}
 		}
 
-		float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
-		float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
-		float shadowRayBias = instanceProps[instanceId].materialProperties.shadowRayBias;
 		float3 lightingFactors;
 		sLightCount = min(sLightCount, sMaxLightCount);
 		for (uint s = 0; s < sLightCount; s++) {
-			uint l = sLightIndices[s];
+			resultLight += ComputeLight(sLightIndices[s], rayDirection, instanceId, position, normal, specular, checkShadows, seed + s);
+		}
+	}
 
-			float3 lightPosition = SceneLights[l].position;
-			float3 lightDirection = normalize(lightPosition - position);
-			float lightRadius = SceneLights[l].attenuationRadius;
-			float lightAttenuation = SceneLights[l].attenuationExponent;
-			float lightPointRadius = (softLightSamples > 0) ? SceneLights[l].pointRadius : 0.0f;
-			float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
-			if (all(perpX == 0.0f)) {
-				perpX.x = 1.0;
-			}
+	return resultLight;
+}
 
-			float3 perpY = cross(perpX, -lightDirection);
-			float shadowOffset = SceneLights[l].shadowOffset;
-			const uint maxSamples = max(softLightSamples, 1);
-			uint samples = maxSamples;
-			float lLambertFactor = 0.0f;
-			float lSpecularityFactor = 0.0f;
-			float lShadowFactor = 0.0f;
-			while (samples > 0) {
-				float2 sampleCoordinate = float2(nextRand(seed), nextRand(seed)) * 2.0f - 1.0f;
-				sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
-
-				float3 samplePosition = lightPosition + perpX * sampleCoordinate.x * lightPointRadius + perpY * sampleCoordinate.y * lightPointRadius;
-				float sampleDistance = length(position - samplePosition);
-				float3 sampleDirection = normalize(samplePosition - position);
-				float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
-				float3 reflectedLight = reflect(-sampleDirection, normal);
-				float NdotL = max(dot(normal, sampleDirection), 0.0f);
-				float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
-				float sampleShadowFactor = 1.0f;
-				if (checkShadows) {
-					sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
+float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, uint maxLights, const bool checkShadows, uint seed) {
+	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
+	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+	if (lightGroupMaskBits > 0) {
+		uint sLightCount = 0;
+		uint gLightCount, gLightStride;
+		uint sLightIndices[MAX_LIGHTS + 1];
+		float sLightIntensities[MAX_LIGHTS + 1];
+		float totalLightIntensity = 0.0f;
+		SceneLights.GetDimensions(gLightCount, gLightStride);
+		for (uint l = 1; (l < gLightCount) && (sLightCount < MAX_LIGHTS); l++) {
+			if (lightGroupMaskBits & SceneLights[l].groupBits) {
+				float lightIntensity = CalculateLightIntensitySimple(l, position);
+				if (lightIntensity > EPSILON) {
+					sLightIntensities[sLightCount] = lightIntensity;
+					sLightIndices[sLightCount] = l;
+					totalLightIntensity += lightIntensity;
+					sLightCount++;
 				}
+			}
+		}
 
-				float sampleSpecularityFactor = specular * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
-				lLambertFactor += sampleLambertFactor / maxSamples;
-				lSpecularityFactor += sampleSpecularityFactor / maxSamples;
-				lShadowFactor += sampleShadowFactor / maxSamples;
-
-				samples--;
+		float randomRange = totalLightIntensity;
+		uint lLightCount = min(sLightCount, maxLights);
+		
+		// TODO: Probability is disabled when more than one light is sampled because it's
+		// not trivial to calculate the probability of the dependent events without replacement.
+		// In any case, it is likely more won't be needed when a temporally stable denoiser is
+		// implemented.
+		bool useProbability = lLightCount == 1;
+		for (uint s = 0; s < lLightCount; s++) {
+			float r = nextRand(seed) * randomRange;
+			uint chosen = 0;
+			float rLightIntensity = sLightIntensities[chosen];
+			while ((chosen < (sLightCount - 1)) && (r >= rLightIntensity)) {
+				chosen++;
+				rLightIntensity += sLightIntensities[chosen];
 			}
 
-			resultLight += (SceneLights[l].diffuseColor * lLambertFactor + SceneLights[l].diffuseColor * SceneLights[l].specularIntensity * lSpecularityFactor) * lShadowFactor;
+			// Store and clear the light intensity from the array.
+			float cLightIntensity = sLightIntensities[chosen];
+			uint cLightIndex = sLightIndices[chosen];
+			float invProbability = useProbability ? (randomRange / cLightIntensity) : 1.0f;
+			sLightIntensities[chosen] = 0.0f;
+			randomRange -= cLightIntensity;
+
+			// Compute and add the light.
+			resultLight += ComputeLight(cLightIndex, rayDirection, instanceId, position, normal, specular, checkShadows, seed + s) * invProbability;
 		}
 	}
 
@@ -198,7 +254,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 			// Reuse the previous computed lights result if available.
 			if (lightGroupMaskBits > 0) {
 				if (maxSimpleLights > 0) {
-					simpleLightsResult = ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, checkShadows, seed + hit);
+					simpleLightsResult = ComputeLightsOrdered(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, checkShadows, seed + hit);
 					maxSimpleLights--;
 				}
 				
@@ -307,13 +363,13 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
 					finalAlbedo = hitColor;
 					finalNormal = float4(vertexNormal, 0.0f);
-					resultLight += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxLightSamples, true, seed);
+					resultLight += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxLightSamples, true, seed);
 					maxFullLights--;
 				}
 				// Simple light sampling. Reuse previous result if calculated once already.
 				else {
 					if (maxSimpleLights > 0) {
-						simpleLightsResult += ComputeLights(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 2, true, seed);
+						simpleLightsResult += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 2, true, seed);
 						maxSimpleLights--;
 					}
 
