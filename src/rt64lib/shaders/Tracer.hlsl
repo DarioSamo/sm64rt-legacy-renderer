@@ -46,13 +46,15 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	return shadowPayload.shadowHit;
 }
 
-float CalculateLightIntensitySimple(uint l, float3 position) {
+float CalculateLightIntensitySimple(uint l, float3 position, float3 normal) {
 	float3 lightPosition = SceneLights[l].position;
 	float lightRadius = SceneLights[l].attenuationRadius;
 	float lightAttenuation = SceneLights[l].attenuationExponent;
 	float lightDistance = length(position - lightPosition);
 	float3 lightDirection = normalize(lightPosition - position);
-	float sampleIntensityFactor = pow(max(1.0f - (lightDistance / lightRadius), 0.0f), lightAttenuation);
+	const float surfaceBiasDotOffset = 0.707106f;
+	float surfaceBias = max(dot(normal, lightDirection) + surfaceBiasDotOffset, 0.0f);
+	float sampleIntensityFactor = pow(max(1.0f - (lightDistance / lightRadius), 0.0f), lightAttenuation) * surfaceBias;
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
@@ -117,7 +119,7 @@ float3 ComputeLightsOrdered(float3 rayDirection, uint instanceId, float3 positio
 		SceneLights.GetDimensions(gLightCount, gLightStride);
 		for (uint l = 1; l < gLightCount; l++) {
 			if (lightGroupMaskBits & SceneLights[l].groupBits) {
-				float lightIntensityFactor = CalculateLightIntensitySimple(l, position);
+				float lightIntensityFactor = CalculateLightIntensitySimple(l, position, normal);
 				if (lightIntensityFactor > EPSILON) {
 					uint hi = min(sLightCount, sMaxLightCount);
 					uint lo = hi - 1;
@@ -157,7 +159,7 @@ float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position
 		SceneLights.GetDimensions(gLightCount, gLightStride);
 		for (uint l = 1; (l < gLightCount) && (sLightCount < MAX_LIGHTS); l++) {
 			if (lightGroupMaskBits & SceneLights[l].groupBits) {
-				float lightIntensity = CalculateLightIntensitySimple(l, position);
+				float lightIntensity = CalculateLightIntensitySimple(l, position, normal);
 				if (lightIntensity > EPSILON) {
 					sLightIntensities[sLightCount] = lightIntensity;
 					sLightIndices[sLightCount] = l;
