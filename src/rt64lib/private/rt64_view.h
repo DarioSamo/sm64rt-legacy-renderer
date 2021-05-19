@@ -14,6 +14,7 @@
 namespace RT64 {
 	class Denoiser;
 	class Scene;
+	class Shader;
 	class Inspector;
 	class Instance;
 	class Texture;
@@ -28,6 +29,7 @@ namespace RT64 {
 			ID3D12Resource* bottomLevelAS;
 			DirectX::XMMATRIX transform;
 			RT64_MATERIAL material;
+			Shader *shader;
 			CD3DX12_RECT scissorRect;
 			CD3DX12_VIEWPORT viewport;
 			UINT flags;
@@ -87,12 +89,14 @@ namespace RT64 {
 		ViewParamsBuffer viewParamsBufferData;
 		uint32_t viewParamsBufferSize;
 		bool viewParamsBufferUpdatedThisFrame;
-		AllocatedResource activeInstancesBufferProps;
-		uint32_t activeInstancesBufferPropsSize;
+		AllocatedResource activeInstancesBufferTransforms;
+		uint32_t activeInstancesBufferTransformsSize;
+		AllocatedResource activeInstancesBufferMaterials;
+		uint32_t activeInstancesBufferMaterialsSize;
 		std::vector<RenderInstance> rasterBgInstances;
 		std::vector<RenderInstance> rasterFgInstances;
 		std::vector<RenderInstance> rtInstances;
-		std::vector<Texture*> usedTextures;
+		std::vector<Texture *> usedTextures;
 		bool scissorApplied;
 		bool viewportApplied;
 
@@ -102,8 +106,10 @@ namespace RT64 {
 		
 		void createOutputBuffers();
 		void releaseOutputBuffers();
-		void createInstancePropertiesBuffer();
-		void updateInstancePropertiesBuffer();
+		void createInstanceTransformsBuffer();
+		void updateInstanceTransformsBuffer();
+		void createInstanceMaterialsBuffer();
+		void updateInstanceMaterialsBuffer();
 		void createTopLevelAS(const std::vector<RenderInstance> &rtInstances);
 		void createShaderResourceHeap();
 		void createShaderBindingTable();

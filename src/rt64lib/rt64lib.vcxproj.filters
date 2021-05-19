@@ -114,6 +114,9 @@
     <ClInclude Include="private\rt64_denoiser.h">
       <Filter>private</Filter>
     </ClInclude>
+    <ClInclude Include="private\rt64_shader.h">
+      <Filter>private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">
@@ -180,6 +183,9 @@
       <Filter>contrib\nv_helpers_dx12</Filter>
     </ClCompile>
     <ClCompile Include="private\rt64_denoiser.cpp">
+      <Filter>private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_shader.cpp">
       <Filter>private</Filter>
     </ClCompile>
   </ItemGroup>

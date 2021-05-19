@@ -12,12 +12,12 @@
 [shader("anyhit")]
 void ShadowAnyHit(inout ShadowHitInfo payload, Attributes attrib) {
 	uint instanceId = NonUniformResourceIndex(InstanceIndex());
-	if (instanceProps[instanceId].ccFeatures.opt_alpha) {
+	if (instanceMaterials[instanceId].ccFeatures.opt_alpha) {
 		uint triangleId = PrimitiveIndex();
 		float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);
 		VertexAttributes vertex = GetVertexAttributes(vertexBuffer, indexBuffer, triangleId, barycentrics);
-		int diffuseTexIndex = instanceProps[instanceId].materialProperties.diffuseTexIndex;
-		float4 texelColor = SampleTexture(gTextures[diffuseTexIndex], vertex.uv, instanceProps[instanceId].materialProperties.filterMode, instanceProps[instanceId].materialProperties.hAddressMode, instanceProps[instanceId].materialProperties.vAddressMode);
+		int diffuseTexIndex = instanceMaterials[instanceId].materialProperties.diffuseTexIndex;
+		float4 texelColor = SampleTexture(gTextures[diffuseTexIndex], vertex.uv, instanceMaterials[instanceId].materialProperties.filterMode, instanceMaterials[instanceId].materialProperties.hAddressMode, instanceMaterials[instanceId].materialProperties.vAddressMode);
 
 		ColorCombinerInputs ccInputs;
 		ccInputs.input1 = vertex.input[0];
@@ -29,7 +29,7 @@ void ShadowAnyHit(inout ShadowHitInfo payload, Attributes attrib) {
 
 		uint noiseScale = resolution.y / NOISE_SCALE_HEIGHT;
 		uint seed = initRand((DispatchRaysIndex().x / noiseScale) + (DispatchRaysIndex().y / noiseScale) * DispatchRaysDimensions().x, frameCount, 16);
-		float resultAlpha = clamp(CombineColors(instanceProps[instanceId].ccFeatures, ccInputs, seed).a * instanceProps[instanceId].materialProperties.shadowAlphaMultiplier, 0.0f, 1.0f);
+		float resultAlpha = clamp(CombineColors(instanceMaterials[instanceId].ccFeatures, ccInputs, seed).a * instanceMaterials[instanceId].materialProperties.shadowAlphaMultiplier, 0.0f, 1.0f);
 		payload.shadowHit = max(payload.shadowHit - resultAlpha, 0.0f);
 		if (payload.shadowHit > 0.0f) {
 			IgnoreHit();

@@ -59,9 +59,9 @@ float CalculateLightIntensitySimple(uint l, float3 position, float3 normal) {
 }
 
 float3 ComputeLight(uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, const bool checkShadows, uint seed) {
-	float ignoreNormalFactor = instanceProps[instanceId].materialProperties.ignoreNormalFactor;
-	float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
-	float shadowRayBias = instanceProps[instanceId].materialProperties.shadowRayBias;
+	float ignoreNormalFactor = instanceMaterials[instanceId].materialProperties.ignoreNormalFactor;
+	float specularExponent = instanceMaterials[instanceId].materialProperties.specularExponent;
+	float shadowRayBias = instanceMaterials[instanceId].materialProperties.shadowRayBias;
 	float3 lightPosition = SceneLights[lightIndex].position;
 	float3 lightDirection = normalize(lightPosition - position);
 	float lightRadius = SceneLights[lightIndex].attenuationRadius;
@@ -108,7 +108,7 @@ float3 ComputeLight(uint lightIndex, float3 rayDirection, uint instanceId, float
 
 float3 ComputeLightsOrdered(float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, uint maxLights, const bool checkShadows, uint seed) {
 	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
-	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+	uint lightGroupMaskBits = instanceMaterials[instanceId].materialProperties.lightGroupMaskBits;
 	if (lightGroupMaskBits > 0) {
 		// Build an array of the n closest lights by measuring their intensity.
 		uint sMaxLightCount = min(maxLights, MAX_LIGHTS);
@@ -149,7 +149,7 @@ float3 ComputeLightsOrdered(float3 rayDirection, uint instanceId, float3 positio
 
 float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position, float3 normal, float specular, uint maxLights, const bool checkShadows, uint seed) {
 	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
-	uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+	uint lightGroupMaskBits = instanceMaterials[instanceId].materialProperties.lightGroupMaskBits;
 	if (lightGroupMaskBits > 0) {
 		uint sLightCount = 0;
 		uint gLightCount, gLightStride;
@@ -202,9 +202,9 @@ float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position
 }
 
 float4 ComputeFog(uint instanceId, float3 position) {
-	float4 fogColor = float4(instanceProps[instanceId].materialProperties.fogColor, 0.0f);
-	float fogMul = instanceProps[instanceId].materialProperties.fogMul;
-	float fogOffset = instanceProps[instanceId].materialProperties.fogOffset;
+	float4 fogColor = float4(instanceMaterials[instanceId].materialProperties.fogColor, 0.0f);
+	float fogMul = instanceMaterials[instanceId].materialProperties.fogMul;
+	float fogOffset = instanceMaterials[instanceId].materialProperties.fogOffset;
 	float4 clipPos = mul(mul(projection, view), float4(position.xyz, 1.0f));
 
 	// Values from the game are designed around -1 to 1 space.
@@ -245,12 +245,12 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
-			uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
+			uint lightGroupMaskBits = instanceMaterials[instanceId].materialProperties.lightGroupMaskBits;
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float hitSpecular = gHitSpecular[hitBufferIndex];
-			float specular = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
-			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+			float specular = instanceMaterials[instanceId].materialProperties.specularIntensity * hitSpecular;
+			float3 resultLight = instanceMaterials[instanceId].materialProperties.selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 
 			// Reuse the previous computed lights result if available.
@@ -350,14 +350,14 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
 		float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 		float hitSpecular = gHitSpecular[hitBufferIndex];
-		float refractionFactor = instanceProps[instanceId].materialProperties.refractionFactor;
+		float refractionFactor = instanceMaterials[instanceId].materialProperties.refractionFactor;
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
-			uint lightGroupMaskBits = instanceProps[instanceId].materialProperties.lightGroupMaskBits;
-			float3 resultLight = instanceProps[instanceId].materialProperties.selfLight;
+			uint lightGroupMaskBits = instanceMaterials[instanceId].materialProperties.lightGroupMaskBits;
+			float3 resultLight = instanceMaterials[instanceId].materialProperties.selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 			if (lightGroupMaskBits > 0) {
-				float specular = instanceProps[instanceId].materialProperties.specularIntensity * hitSpecular;
+				float specular = instanceMaterials[instanceId].materialProperties.specularIntensity * hitSpecular;
 				bool solidColor = (hitColor.a >= FULL_QUALITY_ALPHA);
 				bool lastHit = (((hit + 1) >= hitCount) && (refractionFactor <= EPSILON));
 
@@ -396,7 +396,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				
 				// Eye light.
 				// Specular is applied here. Might need to adjust the intensity of scaling for actual use cases.
-				float specularExponent = instanceProps[instanceId].materialProperties.specularExponent;
+				float specularExponent = instanceMaterials[instanceId].materialProperties.specularExponent;
 				float eyeLightLambertFactor = max(dot(vertexNormal, -rayDirection), 0.0f);
 				float3 eyeLightReflected = reflect(rayDirection, vertexNormal);
 				float eyeLightSpecularFactor = specular * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
@@ -411,16 +411,16 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			hitColor.rgb *= resultLight;
 
 			// Add reflections.
-			float reflectionFactor = instanceProps[instanceId].materialProperties.reflectionFactor;
+			float reflectionFactor = instanceMaterials[instanceId].materialProperties.reflectionFactor;
 			if (reflectionFactor > EPSILON) {
-				float reflectionFresnelFactor = instanceProps[instanceId].materialProperties.reflectionFresnelFactor;
-				float reflectionShineFactor = instanceProps[instanceId].materialProperties.reflectionShineFactor;
+				float reflectionFresnelFactor = instanceMaterials[instanceId].materialProperties.reflectionFresnelFactor;
+				float reflectionShineFactor = instanceMaterials[instanceId].materialProperties.reflectionShineFactor;
 				float4 reflectionColor = ComputeReflection(reflectionFactor, reflectionShineFactor, reflectionFresnelFactor, rayDirection, vertexPosition, vertexNormal, hitCount, launchIndex, pixelDims, seed);
 				hitColor.rgb = lerp(hitColor.rgb, reflectionColor.rgb, reflectionColor.a);
 			}
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
-			if (instanceProps[instanceId].ccFeatures.opt_fog) {
+			if (instanceMaterials[instanceId].ccFeatures.opt_fog) {
 				float4 fogColor = ComputeFog(instanceId, vertexPosition);
 				hitColor.rgb = lerp(hitColor.rgb, fogColor.rgb, fogColor.a);
 			}

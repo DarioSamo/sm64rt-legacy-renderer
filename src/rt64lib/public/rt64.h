@@ -26,7 +26,7 @@
 // Material attributes.
 #define RT64_ATTRIBUTE_NONE							0x0000
 #define RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR			0x0001
-#define RT64_ATTRIBUTE_NORMAL_MAP_SCALE				0x0002
+#define RT64_ATTRIBUTE_UV_DETAIL_SCALE				0x0002
 #define RT64_ATTRIBUTE_REFLECTION_FACTOR			0x0004
 #define RT64_ATTRIBUTE_REFLECTION_FRESNEL_FACTOR	0x0008
 #define RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR		0x0010
@@ -45,6 +45,13 @@
 #define RT64_MESH_RAYTRACE_ENABLED				0x1
 #define RT64_MESH_RAYTRACE_UPDATABLE			0x2
 
+// Shader flags.
+#define RT64_SHADER_FILTER_POINT				0x0
+#define RT64_SHADER_FILTER_LINEAR				0x1
+#define RT64_SHADER_ADDRESSING_WRAP				0x0
+#define RT64_SHADER_ADDRESSING_MIRROR			0x1
+#define RT64_SHADER_ADDRESSING_CLAMP			0x2
+
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1
 #define RT64_INSTANCE_DISABLE_BACKFACE_CULLING	0x2
@@ -61,6 +68,7 @@ typedef struct RT64_SCENE RT64_SCENE;
 typedef struct RT64_INSTANCE RT64_INSTANCE;
 typedef struct RT64_MESH RT64_MESH;
 typedef struct RT64_TEXTURE RT64_TEXTURE;
+typedef struct RT64_SHADER RT64_SHADER;
 typedef struct RT64_INSPECTOR RT64_INSPECTOR;
 
 typedef struct {
@@ -160,6 +168,7 @@ typedef struct {
 	RT64_TEXTURE *diffuseTexture;
 	RT64_TEXTURE *normalTexture;
 	RT64_TEXTURE *specularTexture;
+	RT64_SHADER *shader;
 	RT64_MATERIAL material;
 	RT64_RECT scissorRect;
 	RT64_RECT viewportRect;
@@ -171,7 +180,7 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 		dst->ignoreNormalFactor = src->ignoreNormalFactor;
 	}
 
-	if (src->enabledAttributes & RT64_ATTRIBUTE_NORMAL_MAP_SCALE) {
+	if (src->enabledAttributes & RT64_ATTRIBUTE_UV_DETAIL_SCALE) {
 		dst->uvDetailScale = src->uvDetailScale;
 	}
 
@@ -244,6 +253,8 @@ typedef void(*DestroyScenePtr)(RT64_SCENE* scenePtr);
 typedef RT64_MESH* (*CreateMeshPtr)(RT64_DEVICE* devicePtr, int flags);
 typedef void (*SetMeshPtr)(RT64_MESH* meshPtr, RT64_VERTEX* vertexArray, int vertexCount, unsigned int* indexArray, int indexCount);
 typedef void (*DestroyMeshPtr)(RT64_MESH* meshPtr);
+typedef RT64_SHADER *(*CreateShaderPtr)(RT64_DEVICE *devicePtr, unsigned int shaderId, unsigned int filter, unsigned int hAddr, unsigned int vAddr);
+typedef void (*DestroyShaderPtr)(RT64_SHADER *shaderPtr);
 typedef RT64_INSTANCE* (*CreateInstancePtr)(RT64_SCENE* scenePtr);
 typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTANCE_DESC instanceDesc);
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
@@ -275,6 +286,8 @@ typedef struct {
 	CreateMeshPtr CreateMesh;
 	SetMeshPtr SetMesh;
 	DestroyMeshPtr DestroyMesh;
+	CreateShaderPtr CreateShader;
+	DestroyShaderPtr DestroyShader;
 	CreateInstancePtr CreateInstance;
 	SetInstanceDescriptionPtr SetInstanceDescription;
 	DestroyInstancePtr DestroyInstance;
@@ -320,6 +333,8 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.CreateMesh = (CreateMeshPtr)(GetProcAddress(lib.handle, "RT64_CreateMesh"));
 		lib.SetMesh = (SetMeshPtr)(GetProcAddress(lib.handle, "RT64_SetMesh"));
 		lib.DestroyMesh = (DestroyMeshPtr)(GetProcAddress(lib.handle, "RT64_DestroyMesh"));
+		lib.CreateShader = (CreateShaderPtr)(GetProcAddress(lib.handle, "RT64_CreateShader"));
+		lib.DestroyShader = (DestroyShaderPtr)(GetProcAddress(lib.handle, "RT64_DestroyShader"));
 		lib.CreateInstance = (CreateInstancePtr)(GetProcAddress(lib.handle, "RT64_CreateInstance"));
 		lib.SetInstanceDescription = (SetInstanceDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetInstanceDescription"));
 		lib.DestroyInstance = (DestroyInstancePtr)(GetProcAddress(lib.handle, "RT64_DestroyInstance"));

@@ -15,6 +15,7 @@
 
 namespace RT64 {
 	class Scene;
+	class Shader;
 	class Inspector;
 	class Texture;
 
@@ -34,8 +35,9 @@ namespace RT64 {
 		int width;
 		int height;
 		float aspectRatio;
-		std::vector<Scene*> scenes;
-		std::vector<Inspector*> inspectors;
+		std::vector<Scene *> scenes;
+		std::vector<Shader *> shaders;
+		std::vector<Inspector *> inspectors;
 
 		CD3DX12_VIEWPORT d3dViewport;
 		CD3DX12_RECT d3dScissorRect;
@@ -58,6 +60,8 @@ namespace RT64 {
 		ID3D12RootSignature *d3dComposeRootSignature;
 		ID3D12PipelineState *d3dComposePipelineState;
 		UINT d3dRtvDescriptorSize;
+		IDxcCompiler *d3dDxcCompiler;
+		IDxcLibrary *d3dDxcLibrary;
 		IDxcBlob *d3dTracerLibrary;
 		IDxcBlob *d3dSurfaceLibrary;
 		IDxcBlob *d3dShadowLibrary;
@@ -69,6 +73,7 @@ namespace RT64 {
 		ID3D12RootSignature *im3dRootSignature;
 		ID3D12StateObject *d3dRtStateObject;
 		ID3D12StateObjectProperties *d3dRtStateObjectProps;
+		bool d3dRtStateObjectDirty;
 		D3D12_RESOURCE_BARRIER lastCommandQueueBarrier;
 		bool lastCommandQueueBarrierActive;
 		D3D12_RESOURCE_BARRIER lastCopyQueueBarrier;
@@ -81,6 +86,7 @@ namespace RT64 {
 		void loadPipeline();
 		void loadAssets();
 		void createRaytracingPipeline();
+		void createDxcCompiler();
 		ID3D12RootSignature *createTracerSignature();
 		ID3D12RootSignature *createSurfaceShadowSignature();
 		void preRender();
@@ -93,6 +99,8 @@ namespace RT64 {
 		void draw(int vsyncInterval);
 		void addScene(Scene *scene);
 		void removeScene(Scene *scene);
+		void addShader(Shader *shader);
+		void removeShader(Shader *shader);
 		void addInspector(Inspector* inspector);
 		void removeInspector(Inspector* inspector);
 		HWND getHwnd() const;
@@ -110,6 +118,8 @@ namespace RT64 {
 		ID3D12PipelineState *getIm3dPipelineStatePoint();
 		ID3D12PipelineState *getIm3dPipelineStateLine();
 		ID3D12PipelineState *getIm3dPipelineStateTriangle();
+		IDxcCompiler *getDxcCompiler() const;
+		IDxcLibrary *getDxcLibrary() const;
 		CD3DX12_VIEWPORT getD3D12Viewport();
 		CD3DX12_RECT getD3D12ScissorRect(); 
 		AllocatedResource allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue, bool committed = false, bool shared = false);

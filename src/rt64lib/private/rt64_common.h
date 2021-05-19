@@ -47,7 +47,8 @@ namespace RT64 {
 		SceneBVH,
 		ViewParams,
 		SceneLights,
-		instanceProps,
+		instanceTransforms,
+		instanceMaterials,
 		gTextures,
 		MAX
 	};
@@ -69,7 +70,8 @@ namespace RT64 {
 		vertexBuffer,
 		indexBuffer,
 		SceneLights,
-		instanceProps,
+		instanceTransforms,
+		instanceMaterials,
 		gTextures
 	};
 
@@ -118,10 +120,9 @@ namespace RT64 {
 		}
 	};
 
-	struct InstanceProperties {
+	struct InstanceTransforms {
 		XMMATRIX objectToWorld;
 		XMMATRIX objectToWorldNormal;
-		RT64_MATERIAL material;
 	};
 
 	struct AccelerationStructureBuffers {

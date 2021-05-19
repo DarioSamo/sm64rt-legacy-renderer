@@ -156,7 +156,7 @@ void RootSignatureGenerator::AddRootParameter(D3D12_ROOT_PARAMETER_TYPE type,
 //--------------------------------------------------------------------------------------------------
 //
 // Create the root signature from the set of parameters, in the order of the addition calls
-ID3D12RootSignature* RootSignatureGenerator::Generate(ID3D12Device* device, bool isLocal, bool allowInputLayout, bool makeSamplers)
+ID3D12RootSignature* RootSignatureGenerator::Generate(ID3D12Device* device, bool isLocal, bool allowInputLayout, const D3D12_STATIC_SAMPLER_DESC *samplerDescs, unsigned int numSamplers)
 {
   // Go through all the parameters, and set the actual addresses of the heap range descriptors based
   // on their indices in the range set array
@@ -172,52 +172,9 @@ ID3D12RootSignature* RootSignatureGenerator::Generate(ID3D12Device* device, bool
   rootDesc.NumParameters = static_cast<UINT>(m_parameters.size());
   rootDesc.pParameters = m_parameters.data();
 
-  // TODO: This is a horrible solution, but we likely need shader generation for each type of sampler to correct this.
-  D3D12_STATIC_SAMPLER_DESC samplerDesc[16];
-  if (makeSamplers) {
-	  const D3D12_TEXTURE_ADDRESS_MODE addressModes[] = {
-			D3D12_TEXTURE_ADDRESS_MODE_WRAP,
-			D3D12_TEXTURE_ADDRESS_MODE_MIRROR,
-			D3D12_TEXTURE_ADDRESS_MODE_CLAMP
-	  };
-      
-	  int samplerIndex = 0;
-      for (int filter = 0; filter < 2; filter++) {
-          for (int cms = 0; cms < 3; cms++) {
-              for (int cmt = 0; cmt < 3; cmt++) {
-                  // TODO: These filters are rarely used and it helps to get around the sampler limit.
-                  // This limitation will be gone when shader generation is implemented.
-                  if (filter == 0 && cms == 2 && cmt == 1)
-                      continue;
-
-                  if (filter == 0 && cms == 1 && cmt == 2)
-                      continue;
-
-                  samplerDesc[samplerIndex] = {};
-                  samplerDesc[samplerIndex].Filter = filter ? D3D12_FILTER_MIN_MAG_MIP_LINEAR : D3D12_FILTER_MIN_MAG_MIP_POINT;
-                  samplerDesc[samplerIndex].AddressU = addressModes[cms];
-                  samplerDesc[samplerIndex].AddressV = addressModes[cmt];
-                  samplerDesc[samplerIndex].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-                  samplerDesc[samplerIndex].MinLOD = 0;
-                  samplerDesc[samplerIndex].MaxLOD = D3D12_FLOAT32_MAX;
-                  samplerDesc[samplerIndex].MipLODBias = 0.0f;
-                  samplerDesc[samplerIndex].MaxAnisotropy = 1;
-                  samplerDesc[samplerIndex].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-                  samplerDesc[samplerIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-                  samplerDesc[samplerIndex].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-                  samplerDesc[samplerIndex].ShaderRegister = samplerIndex;
-                  samplerDesc[samplerIndex].RegisterSpace = 0;
-                  samplerIndex++;
-
-                  if (samplerIndex >= _countof(samplerDesc)) {
-                      break;
-                  }
-              }
-          }
-      }
-
-	  rootDesc.pStaticSamplers = samplerDesc;
-	  rootDesc.NumStaticSamplers = _countof(samplerDesc);
+  if (samplerDescs != nullptr) {
+      rootDesc.pStaticSamplers = samplerDescs;
+      rootDesc.NumStaticSamplers = numSamplers;
   }
 
   // Set the flags of the signature. By default root signatures are global, for example for vertex
