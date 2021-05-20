@@ -208,9 +208,6 @@
     <None Include="shaders\Materials.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
-    <None Include="shaders\Mesh.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
     <None Include="shaders\N64CC.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
@@ -237,13 +234,7 @@
     <CustomBuild Include="shaders\Tracer.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\Surface.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
     <CustomBuild Include="shaders\RasterPS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\Shadow.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="shaders\RasterVS.hlsl">

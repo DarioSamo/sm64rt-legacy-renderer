@@ -63,10 +63,10 @@ namespace RT64 {
 		IDxcCompiler *d3dDxcCompiler;
 		IDxcLibrary *d3dDxcLibrary;
 		IDxcBlob *d3dTracerLibrary;
-		IDxcBlob *d3dSurfaceLibrary;
-		IDxcBlob *d3dShadowLibrary;
+		void *traceRayGenID;
+		void *surfaceMissID;
+		void *shadowMissID;
 		ID3D12RootSignature *d3dTracerSignature;
-		ID3D12RootSignature *d3dSurfaceShadowSignature;
 		ID3D12PipelineState *im3dPipelineStatePoint;
 		ID3D12PipelineState *im3dPipelineStateLine;
 		ID3D12PipelineState *im3dPipelineStateTriangle;
@@ -88,7 +88,6 @@ namespace RT64 {
 		void createRaytracingPipeline();
 		void createDxcCompiler();
 		ID3D12RootSignature *createTracerSignature();
-		ID3D12RootSignature *createSurfaceShadowSignature();
 		void preRender();
 		void postRender(int vsyncInterval);
 #endif
@@ -118,6 +117,9 @@ namespace RT64 {
 		ID3D12PipelineState *getIm3dPipelineStatePoint();
 		ID3D12PipelineState *getIm3dPipelineStateLine();
 		ID3D12PipelineState *getIm3dPipelineStateTriangle();
+		void *getTraceRayGenID() const;
+		void *getSurfaceMissID() const;
+		void *getShadowMissID() const;
 		IDxcCompiler *getDxcCompiler() const;
 		IDxcLibrary *getDxcLibrary() const;
 		CD3DX12_VIEWPORT getD3D12Viewport();

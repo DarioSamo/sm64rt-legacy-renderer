@@ -77,7 +77,7 @@ void RT64::Inspector::reset() {
     toPrint.clear();
 }
 
-void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
+void RT64::Inspector::render(View *activeView, int cursorX, int cursorY, bool &rtStateDirty) {
     setupWithView(activeView, cursorX, cursorY);
     
     // Start the frame.
@@ -86,7 +86,7 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
     ImGui::NewFrame();
     Im3d::NewFrame();
 
-    renderViewParams(activeView);
+    renderViewParams(activeView, rtStateDirty);
     renderMaterialInspector();
     renderLightInspector();
     renderCameraControl(activeView, cursorX, cursorY);
@@ -115,7 +115,7 @@ void RT64::Inspector::resize() {
     ImGui_ImplDX12_CreateDeviceObjects();
 }
 
-void RT64::Inspector::renderViewParams(View *view) {
+void RT64::Inspector::renderViewParams(View *view, bool &rtStateDirty) {
     assert(view != nullptr);
 
     ImGui::Begin("View Params Inspector");
@@ -133,6 +133,8 @@ void RT64::Inspector::renderViewParams(View *view) {
 	ImGui::DragFloat("Ambient GI Mix", &ambGIMix, 0.01f, 0.0f, 1.0f);
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
+
+    if (ImGui::Button("DIRTY STATE")) rtStateDirty = true;
 
     // Dumping toggle.
     bool isDumping = !dumpPath.empty();

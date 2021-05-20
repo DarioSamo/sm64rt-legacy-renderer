@@ -492,3 +492,13 @@ void TraceRayGen() {
 	uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
 	TraceFull(rayOrigin, rayDirection, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, launchIndex, launchDims, seed);
 }
+
+[shader("miss")]
+void SurfaceMiss(inout HitInfo payload : SV_RayPayload) {
+	// No-op.
+}
+
+[shader("miss")]
+void ShadowMiss(inout ShadowHitInfo payload : SV_RayPayload) {
+	// No-op.
+}

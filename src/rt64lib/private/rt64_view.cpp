@@ -439,20 +439,23 @@ void RT64::View::createShaderBindingTable() {
 	auto heapPointer = reinterpret_cast<UINT64 *>(srvUavHeapHandle.ptr);
 
 	// The ray generation only uses heap data.
-	sbtHelper.AddRayGenerationProgram(L"TraceRayGen", { heapPointer });
-
-	// The shadow miss shader does not use any external data.
-	sbtHelper.AddMissProgram(L"ShadowMiss", {});
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getTraceRayGenID(), { heapPointer });
+	
+	// Miss shaders don't use any external data.
+	sbtHelper.AddMissProgram(scene->getDevice()->getSurfaceMissID(), {});
+	sbtHelper.AddMissProgram(scene->getDevice()->getShadowMissID(), {});
 
 	// Add the vertex buffers from all the meshes used by the instances to the hit group.
 	for (const RenderInstance &rtInstance :rtInstances) {
-		sbtHelper.AddHitGroup(rtInstance.shader->getHitGroupName(), {
+		const auto &surfaceHitGroup = rtInstance.shader->getSurfaceHitGroup();
+		sbtHelper.AddHitGroup(surfaceHitGroup.id, {
 			(void *)(rtInstance.vertexBufferView->BufferLocation),
 			(void *)(rtInstance.indexBufferView->BufferLocation),
 			heapPointer
 		});
-
-		sbtHelper.AddHitGroup(L"ShadowHitGroup", {
+		
+		const auto &shadowHitGroup = rtInstance.shader->getShadowHitGroup();
+		sbtHelper.AddHitGroup(shadowHitGroup.id, {
 			(void*)(rtInstance.vertexBufferView->BufferLocation),
 			(void*)(rtInstance.indexBufferView->BufferLocation),
 			heapPointer
