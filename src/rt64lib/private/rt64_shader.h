@@ -22,27 +22,44 @@ namespace RT64 {
 			Clamp
 		};
 
+		struct RasterGroup {
+			IDxcBlob *blobVS = nullptr;
+			IDxcBlob *blobPS = nullptr;
+			ID3D12PipelineState *pipelineState = nullptr;
+			ID3D12RootSignature *rootSignature = nullptr;
+			std::wstring vertexShaderName;
+			std::wstring pixelShaderName;
+		};
+
 		struct HitGroup {
-			IDxcBlob *shaderBlob;
+			void *id = nullptr;
+			IDxcBlob *blob = nullptr;
+			ID3D12RootSignature *rootSignature = nullptr;
 			std::wstring hitGroupName;
 			std::wstring closestHitName;
 			std::wstring anyHitName;
-			ID3D12RootSignature *rootSignature;
-			void *id;
 		};
 	private:
 		Device *device;
+		RasterGroup rasterGroup;
 		HitGroup surfaceHitGroup;
 		HitGroup shadowHitGroup;
 
 		unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
-		void generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName);
+		void generateRasterGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &vertexShaderName, const std::string &pixelShaderName);
+		void generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName);
 		void generateShadowHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName);
-		void compileShaderCode(const std::string &shaderCode, IDxcBlob **shaderBlob);
+		void fillSamplerDesc(D3D12_STATIC_SAMPLER_DESC &desc, Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
+		ID3D12RootSignature *generateRasterRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
+		ID3D12RootSignature *generateHitRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex, bool hitBuffers);
+		void compileShaderCode(const std::string &shaderCode, const std::wstring &entryName, const std::wstring &profile, IDxcBlob **shaderBlob);
 	public:
-		Shader(Device *device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr);
+		Shader(Device *device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags);
 		~Shader();
+		const RasterGroup &getRasterGroup() const;
 		HitGroup &getSurfaceHitGroup();
 		HitGroup &getShadowHitGroup();
+		bool hasRasterGroup() const;
+		bool hasHitGroups() const;
 	};
 };

@@ -22,8 +22,6 @@
 #include "shaders/Im3DVS.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
 #include "shaders/Im3DGSLines.hlsl.h"
-#include "shaders/RasterPS.hlsl.h"
-#include "shaders/RasterVS.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -150,6 +148,10 @@ void RT64::Device::createRaytracingDevice() {
 	if (d3dDevice == nullptr) {
 		throw std::runtime_error("Unable to detect a device capable of raytracing.\n" + ss.str());
 	}
+
+	///
+	///D3D12_CHECK(d3dDevice->SetBackgroundProcessingMode(D3D12_BACKGROUND_PROCESSING_MODE_ALLOW_INTRUSIVE_MEASUREMENTS, D3D12_MEASUREMENTS_ACTION_KEEP_ALL, nullptr, nullptr));
+	///
 }
 
 #ifndef RT64_MINIMAL
@@ -260,14 +262,6 @@ ID3D12Resource *RT64::Device::getD3D12RenderTarget() {
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE RT64::Device::getD3D12RTV() {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
-}
-
-ID3D12RootSignature* RT64::Device::getD3D12RootSignature() {
-	return d3dRootSignature;
-}
-
-ID3D12PipelineState* RT64::Device::getD3D12PipelineState() {
-	return d3dPipelineState;
 }
 
 ID3D12RootSignature *RT64::Device::getComposeRootSignature() {
@@ -512,47 +506,6 @@ void RT64::Device::loadAssets() {
 		psoDesc.SampleDesc.Count = 1;
 	};
 
-	// Raster root signature.
-	{
-		nv_helpers_dx12::RootSignatureGenerator rsc;
-		rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS, 0);
-		rsc.AddHeapRangesParameter({
-			{ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) },
-			{ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) },
-			{ SRV_INDEX(gTextures), 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) }
-		});
-
-		D3D12_STATIC_SAMPLER_DESC samplerDescs[16];
-		fillSamplersDeprecated(samplerDescs, _countof(samplerDescs));
-		d3dRootSignature = rsc.Generate(d3dDevice, false, true, samplerDescs, _countof(samplerDescs));
-	}
-
-	// Create the pipeline state, which includes compiling and loading shaders.
-	{
-		// Define the vertex input layout.
-		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 64, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 80, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 96, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-		};
-
-		// Describe and create the graphics pipeline state object (PSO).
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		setPsoDefaults(psoDesc, alphaBlendDesc);
-		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
-		psoDesc.pRootSignature = d3dRootSignature;
-		psoDesc.VS = CD3DX12_SHADER_BYTECODE(RasterVSBlob, sizeof(RasterVSBlob));
-		psoDesc.PS = CD3DX12_SHADER_BYTECODE(RasterPSBlob, sizeof(RasterPSBlob));
-		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dPipelineState)));
-	}
-
 	// Im3d Root signature.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
@@ -623,7 +576,7 @@ void RT64::Device::loadAssets() {
 	}
 
 	// Create the command list.
-	D3D12_CHECK(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, d3dPipelineState, IID_PPV_ARGS(&d3dCommandList)));
+	D3D12_CHECK(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, nullptr, IID_PPV_ARGS(&d3dCommandList)));
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
 	D3D12_CHECK(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));
@@ -658,8 +611,8 @@ void RT64::Device::createRaytracingPipeline() {
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
 		const auto &shadowHitGroup = shader->getShadowHitGroup();
-		pipeline.AddLibrary(surfaceHitGroup.shaderBlob, { surfaceHitGroup.closestHitName, surfaceHitGroup.anyHitName });
-		pipeline.AddLibrary(shadowHitGroup.shaderBlob, { shadowHitGroup.closestHitName, shadowHitGroup.anyHitName });
+		pipeline.AddLibrary(surfaceHitGroup.blob, { surfaceHitGroup.closestHitName, surfaceHitGroup.anyHitName });
+		pipeline.AddLibrary(shadowHitGroup.blob, { shadowHitGroup.closestHitName, shadowHitGroup.anyHitName });
 	}
 
 	// Create root signatures.
@@ -744,7 +697,6 @@ void RT64::Device::preRender() {
 	resetCommandList();
 
 	// Set necessary state.
-	d3dCommandList->SetGraphicsRootSignature(d3dRootSignature);
 	d3dCommandList->RSSetViewports(1, &d3dViewport);
 	d3dCommandList->RSSetScissorRects(1, &d3dScissorRect);
 
@@ -841,14 +793,18 @@ void RT64::Device::removeScene(Scene *scene) {
 
 void RT64::Device::addShader(Shader *shader) {
 	assert(shader != nullptr);
-	shaders.push_back(shader);
-	d3dRtStateObjectDirty = true;
+	if (shader->hasHitGroups()) {
+		shaders.push_back(shader);
+		d3dRtStateObjectDirty = true;
+	}
 }
 
 void RT64::Device::removeShader(Shader *shader) {
 	assert(shader != nullptr);
-	shaders.erase(std::remove(shaders.begin(), shaders.end(), shader), shaders.end());
-	d3dRtStateObjectDirty = true;
+	if (shader->hasHitGroups()) {
+		shaders.erase(std::remove(shaders.begin(), shaders.end(), shader), shaders.end());
+		d3dRtStateObjectDirty = true;
+	}
 }
 
 void RT64::Device::addInspector(Inspector* inspector) {
@@ -866,7 +822,7 @@ void RT64::Device::resetCommandList() {
 	d3dCommandAllocator->Reset();
 
 	// Reset the command list.
-	d3dCommandList->Reset(d3dCommandAllocator, d3dPipelineState);
+	d3dCommandList->Reset(d3dCommandAllocator, nullptr);
 
 	d3dCommandListOpen = true;
 }

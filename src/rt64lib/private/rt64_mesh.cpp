@@ -16,6 +16,7 @@ RT64::Mesh::Mesh(Device *device, int flags) {
 	this->flags = flags;
 	vertexCount = 0;
 	indexCount = 0;
+	vertexStride = 0;
 }
 
 RT64::Mesh::~Mesh() {
@@ -26,8 +27,8 @@ RT64::Mesh::~Mesh() {
 	d3dBottomLevelASBuffers.Release();
 }
 
-void RT64::Mesh::updateVertexBuffer(RT64_VERTEX *vertexArray, int vertexCount) {
-	const UINT vertexBufferSize = vertexCount * sizeof(RT64_VERTEX);
+void RT64::Mesh::updateVertexBuffer(void *vertexArray, int vertexCount, int vertexStride) {
+	const UINT vertexBufferSize = vertexCount * vertexStride;
 
 	if (!vertexBuffer.IsNull() && (this->vertexCount != vertexCount)) {
 		vertexBuffer.Release();
@@ -61,11 +62,12 @@ void RT64::Mesh::updateVertexBuffer(RT64_VERTEX *vertexArray, int vertexCount) {
 
 	// Configure vertex buffer view.
 	d3dVertexBufferView.BufferLocation = vertexBuffer.Get()->GetGPUVirtualAddress();
-	d3dVertexBufferView.StrideInBytes = sizeof(RT64_VERTEX);
+	d3dVertexBufferView.StrideInBytes = vertexStride;
 	d3dVertexBufferView.SizeInBytes = vertexBufferSize;
 
-	// Store the new vertex count.
+	// Store the new vertex count and stride.
 	this->vertexCount = vertexCount;
+	this->vertexStride = vertexStride;
 }
 
 void RT64::Mesh::updateIndexBuffer(unsigned int *indexArray, int indexCount) {
@@ -133,10 +135,10 @@ void RT64::Mesh::createBottomLevelAS(std::vector<std::pair<ID3D12Resource *, uin
 	nv_helpers_dx12::BottomLevelASGenerator bottomLevelAS;
 	for (size_t i = 0; i < vVertexBuffers.size(); i++) {
 		if ((i < vIndexBuffers.size()) && (vIndexBuffers[i].second > 0)) {
-			bottomLevelAS.AddVertexBuffer(vVertexBuffers[i].first, 0, vVertexBuffers[i].second, sizeof(RT64_VERTEX), vIndexBuffers[i].first, 0, vIndexBuffers[i].second, nullptr, 0, true);
+			bottomLevelAS.AddVertexBuffer(vVertexBuffers[i].first, 0, vVertexBuffers[i].second, vertexStride, vIndexBuffers[i].first, 0, vIndexBuffers[i].second, nullptr, 0, true);
 		}
 		else {
-			bottomLevelAS.AddVertexBuffer(vVertexBuffers[i].first, 0, vVertexBuffers[i].second, sizeof(RT64_VERTEX), 0, 0);
+			bottomLevelAS.AddVertexBuffer(vVertexBuffers[i].first, 0, vVertexBuffers[i].second, vertexStride, 0, 0);
 		}
 	}
 
@@ -188,14 +190,14 @@ DLLEXPORT RT64_MESH *RT64_CreateMesh(RT64_DEVICE *devicePtr, int flags) {
 	return (RT64_MESH *)(new RT64::Mesh(device, flags));
 }
 
-DLLEXPORT void RT64_SetMesh(RT64_MESH *meshPtr, RT64_VERTEX *vertexArray, int vertexCount, unsigned int *indexArray, int indexCount) {
+DLLEXPORT void RT64_SetMesh(RT64_MESH *meshPtr, void *vertexArray, int vertexCount, int vertexStride, unsigned int *indexArray, int indexCount) {
 	assert(meshPtr != nullptr);
 	assert(vertexArray != nullptr);
 	assert(vertexCount > 0);
 	assert(indexArray != nullptr);
 	assert(indexCount > 0);
 	RT64::Mesh *mesh = (RT64::Mesh *)(meshPtr);
-	mesh->updateVertexBuffer(vertexArray, vertexCount);
+	mesh->updateVertexBuffer(vertexArray, vertexCount, vertexStride);
 	mesh->updateIndexBuffer(indexArray, indexCount);
 	mesh->updateBottomLevelAS();
 }

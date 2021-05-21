@@ -66,6 +66,13 @@ public:
   /// Add a set of heap range descriptors as a parameter of the root signature.
   void AddHeapRangesParameter(const std::vector<D3D12_DESCRIPTOR_RANGE>& ranges);
 
+  typedef std::vector<std::tuple<UINT, // BaseShaderRegister,
+      UINT, // NumDescriptors
+      UINT, // RegisterSpace
+      D3D12_DESCRIPTOR_RANGE_TYPE, // RangeType
+      UINT // OffsetInDescriptorsFromTableStart
+      >> HeapRanges;
+
   /// Add a set of heap ranges as a parameter of the root signature. Each range
   /// is defined as follows:
   /// - UINT BaseShaderRegister: the first register index in the range, e.g. the
@@ -84,13 +91,7 @@ public:
   /// be explicit, or implicit using D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND. In
   /// this case the index in the heap is the one directly following the last
   /// parameter range (or 0 if it's the first)
-  void AddHeapRangesParameter(std::vector<std::tuple<UINT, // BaseShaderRegister,
-                                                     UINT, // NumDescriptors
-                                                     UINT, // RegisterSpace
-                                                     D3D12_DESCRIPTOR_RANGE_TYPE, // RangeType
-                                                     UINT // OffsetInDescriptorsFromTableStart
-                                                     >>
-                                  ranges);
+  void AddHeapRangesParameter(HeapRanges ranges);
 
   /// Add a root parameter to the shader, defined by its type: constant buffer (CBV), shader
   /// resource (SRV), unordered access (UAV), or root constant (CBV, directly defined by its value

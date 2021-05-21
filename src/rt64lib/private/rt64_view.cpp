@@ -267,7 +267,7 @@ void RT64::View::createTopLevelAS(const std::vector<RenderInstance>& rtInstances
 }
 
 void RT64::View::createShaderResourceHeap() {
-	assert(usedTextures.size() <= 1024);
+	assert(usedTextures.size() <= 512);
 
 	uint32_t entryCount = ((uint32_t)(HeapIndices::MAX) - 1) + (uint32_t)(usedTextures.size());
 
@@ -398,6 +398,7 @@ void RT64::View::createShaderResourceHeap() {
 	// Add the texture SRV.
 	for (size_t i = 0; i < usedTextures.size(); i++) {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(usedTextures[i]->getTexture(), &textureSRVDesc, handle);
+		usedTextures[i]->setCurrentIndex(-1);
 		handle.ptr += handleIncrement;
 	}
 
@@ -523,6 +524,7 @@ void RT64::View::update() {
 		// Create the active instance vectors.
 		RenderInstance renderInstance;
 		Mesh* usedMesh = nullptr;
+		Texture *usedDiffuse = nullptr;
 		size_t totalInstances = scene->getInstances().size();
 		unsigned int instFlags = 0;
 		unsigned int screenHeight = getHeight();
@@ -534,7 +536,22 @@ void RT64::View::update() {
 		rtInstances.reserve(totalInstances);
 		rasterBgInstances.reserve(totalInstances);
 		rasterFgInstances.reserve(totalInstances);
-		usedTextures.reserve(1024);
+		usedTextures.reserve(512);
+
+		auto getTextureIndex = [this](Texture *texture) {
+			if (texture == nullptr) {
+				return -1;
+			}
+
+			int currentIndex = texture->getCurrentIndex();
+			if (currentIndex < 0) {
+				currentIndex = (int)(usedTextures.size());
+				texture->setCurrentIndex(currentIndex);
+				usedTextures.push_back(texture);
+			}
+
+			return currentIndex;
+		};
 
 		for (Instance *instance : scene->getInstances()) {
 			instFlags = instance->getFlags();
@@ -547,9 +564,10 @@ void RT64::View::update() {
 			renderInstance.indexCount = usedMesh->getIndexCount();
 			renderInstance.indexBufferView = usedMesh->getIndexBufferView();
 			renderInstance.vertexBufferView = usedMesh->getVertexBufferView();
-			renderInstance.material.diffuseTexIndex = (int)(usedTextures.size());
 			renderInstance.flags = (instFlags & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE : D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-			usedTextures.push_back(instance->getDiffuseTexture());
+			renderInstance.material.diffuseTexIndex = getTextureIndex(instance->getDiffuseTexture());
+			renderInstance.material.normalTexIndex = getTextureIndex(instance->getNormalTexture());
+			renderInstance.material.specularTexIndex = getTextureIndex(instance->getSpecularTexture());
 
 			if (instance->hasScissorRect()) {
 				RT64_RECT rect = instance->getScissorRect();
@@ -575,22 +593,6 @@ void RT64::View::update() {
 				renderInstance.viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, 0.0f, 0.0f);
 			}
 
-			if (instance->getNormalTexture() != nullptr) {
-				renderInstance.material.normalTexIndex = (int)(usedTextures.size());
-				usedTextures.push_back(instance->getNormalTexture());
-			}
-			else {
-				renderInstance.material.normalTexIndex = -1;
-			}
-
-			if (instance->getSpecularTexture() != nullptr) {
-				renderInstance.material.specularTexIndex = (int)(usedTextures.size());
-				usedTextures.push_back(instance->getSpecularTexture());
-			}
-			else {
-				renderInstance.material.specularTexIndex = -1;
-			}
-			
 			if (renderInstance.bottomLevelAS != nullptr) {
 				rtInstances.push_back(renderInstance);
 			}
@@ -642,16 +644,6 @@ void RT64::View::render() {
 	auto d3d12RenderTarget = scene->getDevice()->getD3D12RenderTarget();
 	std::vector<ID3D12DescriptorHeap *> heaps = { descriptorHeap };
 
-	auto resetPipeline = [d3dCommandList, &heaps, this]() {
-		// Set the right pipeline state and root graphics signature used for rasterization.
-		d3dCommandList->SetPipelineState(scene->getDevice()->getD3D12PipelineState());
-		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getD3D12RootSignature());
-
-		// Bind the descriptor heap and the set heap as a descriptor table.
-		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
-		d3dCommandList->SetGraphicsRootDescriptorTable(1, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	};
-
 	// Configure the current viewport.
 	auto resetScissor = [this, d3dCommandList, &scissorRect]() {
 		d3dCommandList->RSSetScissorRects(1, &scissorRect);
@@ -683,14 +675,27 @@ void RT64::View::render() {
 		}
 	};
 
-	auto drawInstances = [d3dCommandList, &scissorRect, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance> &rasterInstances, UINT baseInstanceIndex, bool applyScissorsAndViewports) {
+	auto drawInstances = [d3dCommandList, &scissorRect, &heaps, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance> &rasterInstances, UINT baseInstanceIndex, bool applyScissorsAndViewports) {
 		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		UINT rasterSz = (UINT)(rasterInstances.size());
+		Shader *previousShader = nullptr;
 		for (UINT j = 0; j < rasterSz; j++) {
 			const RenderInstance &renderInstance = rasterInstances[j];
 			if (applyScissorsAndViewports) {
 				applyScissor(renderInstance.scissorRect);
 				applyViewport(renderInstance.viewport);
+			}
+
+			if (previousShader != renderInstance.shader) {
+				const auto &rasterGroup = renderInstance.shader->getRasterGroup();
+				d3dCommandList->SetPipelineState(rasterGroup.pipelineState);
+				d3dCommandList->SetGraphicsRootSignature(rasterGroup.rootSignature);
+				previousShader = renderInstance.shader;
+			}
+
+			if (j == 0) {
+				d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+				d3dCommandList->SetGraphicsRootDescriptorTable(1, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 			}
 
 			d3dCommandList->SetGraphicsRoot32BitConstant(0, baseInstanceIndex + j, 0);
@@ -701,7 +706,6 @@ void RT64::View::render() {
 	};
 
 	// Draw the background instances to the screen.
-	resetPipeline();
 	resetScissor();
 	resetViewport();
 	drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
@@ -828,7 +832,6 @@ void RT64::View::render() {
 	}
 	
 	// Draw the foreground to the screen.
-	resetPipeline();
 	resetScissor();
 	resetViewport();
 	drawInstances(rasterFgInstances, (UINT)(rasterBgInstances.size() + rtInstances.size()), true);

@@ -53,9 +53,7 @@ namespace RT64 {
 		AllocatedResource d3dRenderTargetReadback;
 		UINT d3dRenderTargetReadbackRowWidth;
 		ID3D12CommandAllocator *d3dCommandAllocator;
-		ID3D12RootSignature *d3dRootSignature;
 		ID3D12DescriptorHeap *d3dRtvHeap;
-		ID3D12PipelineState *d3dPipelineState;
 		ID3D12DescriptorHeap *d3dDsvHeap;
 		ID3D12RootSignature *d3dComposeRootSignature;
 		ID3D12PipelineState *d3dComposePipelineState;
@@ -109,8 +107,6 @@ namespace RT64 {
 		ID3D12StateObjectProperties *getD3D12RtStateObjectProperties();
 		ID3D12Resource *getD3D12RenderTarget();
 		CD3DX12_CPU_DESCRIPTOR_HANDLE getD3D12RTV();
-		ID3D12RootSignature* getD3D12RootSignature();
-		ID3D12PipelineState *getD3D12PipelineState();
 		ID3D12RootSignature *getComposeRootSignature();
 		ID3D12PipelineState *getComposePipelineState();
 		ID3D12RootSignature *getIm3dRootSignature();

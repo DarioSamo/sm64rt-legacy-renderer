@@ -89,11 +89,7 @@ void RootSignatureGenerator::AddHeapRangesParameter(
 // be explicit, or implicit using D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND. In
 // this case the index in the heap is the one directly following the last
 // parameter range (or 0 if it's the first)
-void RootSignatureGenerator::AddHeapRangesParameter(
-    std::vector<std::tuple<UINT, /* BaseShaderRegister, */ UINT, /* NumDescriptors */ UINT,
-                           /* RegisterSpace */ D3D12_DESCRIPTOR_RANGE_TYPE,
-                           /* RangeType */ UINT /* OffsetInDescriptorsFromTableStart */>>
-        ranges)
+void RootSignatureGenerator::AddHeapRangesParameter(HeapRanges ranges)
 {
   // Build and store the set of descriptors for the ranges
   std::vector<D3D12_DESCRIPTOR_RANGE> rangeStorage;

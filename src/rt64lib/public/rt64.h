@@ -51,6 +51,8 @@
 #define RT64_SHADER_ADDRESSING_WRAP				0x0
 #define RT64_SHADER_ADDRESSING_MIRROR			0x1
 #define RT64_SHADER_ADDRESSING_CLAMP			0x2
+#define RT64_SHADER_RASTER_ENABLED				0x1
+#define RT64_SHADER_RAYTRACE_ENABLED			0x2
 
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1
@@ -86,13 +88,6 @@ typedef struct {
 typedef struct {
 	float m[4][4];
 } RT64_MATRIX4;
-
-typedef struct {
-	RT64_VECTOR3 position;
-	RT64_VECTOR3 normal;
-	RT64_VECTOR2 uv;
-	RT64_VECTOR4 inputs[4];
-} RT64_VERTEX;
 
 typedef struct {
 	int x, y, w, h;
@@ -251,9 +246,9 @@ typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
 typedef void (*SetSceneLightsPtr)(RT64_SCENE* scenePtr, RT64_LIGHT* lightArray, int lightCount);
 typedef void(*DestroyScenePtr)(RT64_SCENE* scenePtr);
 typedef RT64_MESH* (*CreateMeshPtr)(RT64_DEVICE* devicePtr, int flags);
-typedef void (*SetMeshPtr)(RT64_MESH* meshPtr, RT64_VERTEX* vertexArray, int vertexCount, unsigned int* indexArray, int indexCount);
+typedef void (*SetMeshPtr)(RT64_MESH* meshPtr, void* vertexArray, int vertexCount, int vertexStride, unsigned int* indexArray, int indexCount);
 typedef void (*DestroyMeshPtr)(RT64_MESH* meshPtr);
-typedef RT64_SHADER *(*CreateShaderPtr)(RT64_DEVICE *devicePtr, unsigned int shaderId, unsigned int filter, unsigned int hAddr, unsigned int vAddr);
+typedef RT64_SHADER *(*CreateShaderPtr)(RT64_DEVICE *devicePtr, unsigned int shaderId, unsigned int filter, unsigned int hAddr, unsigned int vAddr, int flags);
 typedef void (*DestroyShaderPtr)(RT64_SHADER *shaderPtr);
 typedef RT64_INSTANCE* (*CreateInstancePtr)(RT64_SCENE* scenePtr);
 typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTANCE_DESC instanceDesc);

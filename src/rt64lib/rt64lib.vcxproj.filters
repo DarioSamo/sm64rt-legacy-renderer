@@ -234,12 +234,6 @@
     <CustomBuild Include="shaders\Tracer.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\RasterPS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\RasterVS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
     <CustomBuild Include="shaders\Im3DPS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>

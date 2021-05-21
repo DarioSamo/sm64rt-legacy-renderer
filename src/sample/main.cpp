@@ -33,6 +33,13 @@ static void errorMessage(HWND hWnd, const char *message) {
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+typedef struct {
+	RT64_VECTOR4 position;
+	RT64_VECTOR3 normal;
+	RT64_VECTOR2 uv;
+	RT64_VECTOR4 input1;
+} VERTEX;
+
 struct {
 	RT64_LIBRARY lib;
 	RT64_LIGHT lights[16];
@@ -53,7 +60,7 @@ struct {
 	RT64_MATERIAL materialMods;
 	RT64_MATRIX4 transform;
 	RT64_INSTANCE *instance = nullptr;
-	std::vector<RT64_VERTEX> objVertices;
+	std::vector<VERTEX> objVertices;
 	std::vector<unsigned int> objIndices;
 } RT64;
 
@@ -142,8 +149,8 @@ void setupRT64Scene() {
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
 
 	// Setup shader.
-	RT64.shaderA = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP);
-	RT64.shaderB = RT64.lib.CreateShader(RT64.device, 0x03200a00, RT64_SHADER_FILTER_POINT, RT64_SHADER_ADDRESSING_CLAMP, RT64_SHADER_ADDRESSING_CLAMP);
+	RT64.shaderA = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED);
+	RT64.shaderB = RT64.lib.CreateShader(RT64.device, 0x03200a00, RT64_SHADER_FILTER_POINT, RT64_SHADER_ADDRESSING_CLAMP, RT64_SHADER_ADDRESSING_CLAMP, RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED);
 
 	// Setup lights.
 	// Light 0 only needs the diffuse color because it is always the ambient light.
@@ -210,14 +217,11 @@ void setupRT64Scene() {
 			size_t fnum = shapes[i].mesh.num_face_vertices[f];
 			for (size_t v = 0; v < fnum; v++) {
 				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-				RT64_VERTEX vertex;
-				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2] };
+				VERTEX vertex;
+				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
 				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
 				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
-				vertex.inputs[0] = { 1.0f, 1.0f, 1.0f, 1.0f };
-				vertex.inputs[1] = { 1.0f, 1.0f, 1.0f, 1.0f };
-				vertex.inputs[2] = { 1.0f, 1.0f, 1.0f, 1.0f };
-				vertex.inputs[3] = { 1.0f, 1.0f, 1.0f, 1.0f };
+				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 				RT64.objIndices.push_back((unsigned int)(RT64.objVertices.size()));
 				RT64.objVertices.push_back(vertex);
@@ -228,7 +232,7 @@ void setupRT64Scene() {
 	}
 	
 	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_UPDATABLE);
-	RT64.lib.SetMesh(RT64.mesh, RT64.objVertices.data(), (int)(RT64.objVertices.size()), RT64.objIndices.data(), (int)(RT64.objIndices.size()));
+	RT64.lib.SetMesh(RT64.mesh, RT64.objVertices.data(), (int)(RT64.objVertices.size()), sizeof(VERTEX), RT64.objIndices.data(), (int)(RT64.objIndices.size()));
 	
 	// Configure material.
 	RT64.baseMaterial.filterMode = RT64_MATERIAL_FILTER_LINEAR;
@@ -272,28 +276,21 @@ void setupRT64Scene() {
 	RT64.baseMaterial.opt_texture_edge = 0;
 	RT64.baseMaterial.opt_noise = 0;
 	
-	RT64_VERTEX vertices[3];
-	vertices[0].position = { -1.0f, 0.1f, 0.0f } ;
+	VERTEX vertices[3];
+	vertices[0].position = { -1.0f, 0.1f, 0.0f, 1.0f } ;
 	vertices[0].normal = { 0.0f, 1.0f, 0.0f };
 	vertices[0].uv = { 0.0f, 0.0f };
-	vertices[0].inputs[0] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[0].inputs[1] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[0].inputs[2] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[0].inputs[3] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vertices[0].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	vertices[1].position = { -0.5f, 0.1f, 0.0f };
+	vertices[1].position = { -0.5f, 0.1f, 0.0f, 1.0f };
+	vertices[1].normal = { 0.0f, 1.0f, 0.0f };
 	vertices[1].uv = { 1.0f, 0.0f };
-	vertices[1].inputs[0] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[1].inputs[1] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[1].inputs[2] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[1].inputs[3] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vertices[1].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	vertices[2].position = { -0.75f, 0.3f, 0.0f };
+	vertices[2].position = { -0.75f, 0.3f, 0.0f, 1.0f };
+	vertices[2].normal = { 0.0f, 1.0f, 0.0f };
 	vertices[2].uv = { 0.0f, 1.0f };
-	vertices[2].inputs[0] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[2].inputs[1] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[2].inputs[2] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	vertices[2].inputs[3] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
 
@@ -310,14 +307,14 @@ void setupRT64Scene() {
 	stbi_image_free(texBytes);
 
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
-	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), indices, _countof(indices));
+	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
 
 	vertices[0].position.y += 0.15f;
 	vertices[1].position.y += 0.15f;
 	vertices[2].position.y += 0.15f;
 
 	RT64_MESH* altMesh = RT64.lib.CreateMesh(RT64.device, 0);
-	RT64.lib.SetMesh(altMesh, vertices, _countof(vertices), indices, _countof(indices));
+	RT64.lib.SetMesh(altMesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
 
 	RT64_INSTANCE_DESC instDesc;
 	instDesc.scissorRect = { 0, 0, 0, 0 };
@@ -352,24 +349,21 @@ void setupRT64Scene() {
 	RT64.lib.SetInstanceDescription(instanceA, instDesc);
 
 	// Create floor.
-	RT64_VERTEX floorVertices[4];
+	VERTEX floorVertices[4];
 	RT64_MATRIX4 floorTransform;
 	unsigned int floorIndices[6] = { 2, 1, 0, 1, 2, 3 };
-	floorVertices[0].position = { -1.5f, 0.0f, -1.0f };
+	floorVertices[0].position = { -1.5f, 0.0f, -1.0f, 1.0f };
 	floorVertices[0].uv = { 0.0f, 0.0f };
-	floorVertices[1].position = { 1.0f, 0.0f, -1.0f };
+	floorVertices[1].position = { 1.0f, 0.0f, -1.0f, 1.0f };
 	floorVertices[1].uv = { 1.0f, 0.0f };
-	floorVertices[2].position = { -1.5f, 0.0f, 1.0f };
+	floorVertices[2].position = { -1.5f, 0.0f, 1.0f, 1.0f };
 	floorVertices[2].uv = { 0.0f, 1.0f };
-	floorVertices[3].position = { 1.0f, 0.0f, 1.0f };
+	floorVertices[3].position = { 1.0f, 0.0f, 1.0f, 1.0f };
 	floorVertices[3].uv = { 1.0f, 1.0f };
 
 	for (int i = 0; i < _countof(floorVertices); i++) {
 		floorVertices[i].normal = { 0.0f, 1.0f, 0.0f };
-		floorVertices[i].inputs[0] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		floorVertices[i].inputs[1] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		floorVertices[i].inputs[2] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		floorVertices[i].inputs[3] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		floorVertices[i].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	}
 
 	memset(&floorTransform, 0, sizeof(RT64_MATRIX4));
@@ -379,7 +373,7 @@ void setupRT64Scene() {
 	floorTransform.m[3][3] = 1.0f;
 
 	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
-	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), floorIndices, _countof(floorIndices));
+	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(VERTEX), floorIndices, _countof(floorIndices));
 	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = floorMesh;
 	instDesc.transform = floorTransform;

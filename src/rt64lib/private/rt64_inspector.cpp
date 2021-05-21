@@ -135,6 +135,7 @@ void RT64::Inspector::renderViewParams(View *view, bool &rtStateDirty) {
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
 
     if (ImGui::Button("DIRTY STATE")) rtStateDirty = true;
+    if (ImGui::Button("COMMIT RESULTS")) D3D12_CHECK(device->getD3D12Device()->SetBackgroundProcessingMode(D3D12_BACKGROUND_PROCESSING_MODE_ALLOWED, D3D12_MEASUREMENTS_ACTION_COMMIT_RESULTS_HIGH_PRIORITY, nullptr, nullptr));
 
     // Dumping toggle.
     bool isDumping = !dumpPath.empty();
