@@ -50,8 +50,7 @@ struct {
 	RT64_VIEW *view = nullptr;
 	RT64_MATRIX4 viewMatrix;
 	RT64_MESH *mesh = nullptr;
-	RT64_SHADER *shaderA = nullptr;
-	RT64_SHADER *shaderB = nullptr;
+	RT64_SHADER *shader = nullptr;
 	RT64_TEXTURE *textureDif = nullptr;
 	RT64_TEXTURE *textureNrm = nullptr;
 	RT64_TEXTURE *textureSpc = nullptr;
@@ -110,7 +109,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			instDesc.normalTexture = RT64.textureNrm;
 			instDesc.specularTexture = RT64.textureSpc;
 			instDesc.material = RT64.frameMaterial;
-			instDesc.shader = RT64.shaderA;
+			instDesc.shader = RT64.shader;
 			instDesc.flags = 0;
 
 			RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
@@ -150,8 +149,7 @@ void setupRT64Scene() {
 
 	// Setup shader.
 	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
-	RT64.shaderA = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
-	RT64.shaderB = RT64.lib.CreateShader(RT64.device, 0x03200a00, RT64_SHADER_FILTER_POINT, RT64_SHADER_ADDRESSING_CLAMP, RT64_SHADER_ADDRESSING_CLAMP, shaderFlags);
+	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
 	// Light 0 only needs the diffuse color because it is always the ambient light.
@@ -303,7 +301,7 @@ void setupRT64Scene() {
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
 	instDesc.material = RT64.baseMaterial;
-	instDesc.shader = RT64.shaderA;
+	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
 
 	// Create HUD B Instance.
@@ -358,7 +356,7 @@ void setupRT64Scene() {
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;
-	instDesc.shader = RT64.shaderB;
+	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
 }

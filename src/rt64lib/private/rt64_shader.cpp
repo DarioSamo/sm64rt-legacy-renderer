@@ -94,23 +94,29 @@ RT64::Shader::Shader(Device *device, unsigned int shaderId, Filter filter, Addre
 	assert(device != nullptr);
 	this->device = device;
 
+	bool normalMapEnabled = flags & RT64_SHADER_NORMAL_MAP_ENABLED;
+	bool specularMapEnabled = flags & RT64_SHADER_SPECULAR_MAP_ENABLED;
+	const std::string baseName =
+		"Shader_" +
+		std::to_string(shaderId) +
+		"_" + std::to_string(uniqueSamplerRegisterIndex(filter, hAddr, vAddr)) +
+		(normalMapEnabled ? "_Nrm" : "") +
+		(specularMapEnabled ? "_Spc" : "");
+
 	if (flags & RT64_SHADER_RASTER_ENABLED) {
-		const std::string baseName = "Shader_" + std::to_string(shaderId) + "_" + std::to_string(uniqueSamplerRegisterIndex(filter, hAddr, vAddr));
 		const std::string vertexShader = baseName + "VS";
 		const std::string pixelShader = baseName + "PS";
 		generateRasterGroup(shaderId, filter, hAddr, vAddr, vertexShader, pixelShader);
 	}
 
 	if (flags & RT64_SHADER_RAYTRACE_ENABLED) {
-		// Generate shader with unique name based on the shader ID, the filtering and the addressing modes.
-		const std::string baseName = "Shader_" + std::to_string(shaderId) + "_" + std::to_string(uniqueSamplerRegisterIndex(filter, hAddr, vAddr));
 		const std::string hitGroup = baseName + "HitGroup";
 		const std::string closestHit = baseName + "ClosestHit";
 		const std::string anyHit = baseName + "AnyHit";
 		const std::string shadowHitGroup = baseName + "ShadowHitGroup";
 		const std::string shadowClosestHit = baseName + "ShadowClosestHit";
 		const std::string shadowAnyHit = baseName + "ShadowAnyHit";
-		generateSurfaceHitGroup(shaderId, filter, hAddr, vAddr, flags & RT64_SHADER_NORMAL_MAP_ENABLED, flags & RT64_SHADER_SPECULAR_MAP_ENABLED, hitGroup, closestHit, anyHit);
+		generateSurfaceHitGroup(shaderId, filter, hAddr, vAddr, normalMapEnabled, specularMapEnabled, hitGroup, closestHit, anyHit);
 		generateShadowHitGroup(shaderId, filter, hAddr, vAddr, shadowHitGroup, shadowClosestHit, shadowAnyHit);
 	}
 

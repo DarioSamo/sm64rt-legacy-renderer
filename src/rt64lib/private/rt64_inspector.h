@@ -29,7 +29,7 @@ namespace RT64 {
 		std::vector<std::string> toPrint;
 
 		void setupWithView(View *view, int cursorX, int cursorY);
-		void renderViewParams(View *view, bool &rtStateDirty);
+		void renderViewParams(View *view);
 		void renderMaterialInspector();
 		void renderLightInspector();
 		void renderPrint();
@@ -38,7 +38,7 @@ namespace RT64 {
 		Inspector(Device* device);
 		~Inspector();
 		void reset();
-		void render(View *activeView, int cursorX, int cursorY, bool &rtStateDirty);
+		void render(View *activeView, int cursorX, int cursorY);
 		void resize();
 		void setMaterial(RT64_MATERIAL *material, const std::string& materialName);
 		void setLights(RT64_LIGHT *lights, int *lightCount, int maxLightCount);

@@ -148,10 +148,6 @@ void RT64::Device::createRaytracingDevice() {
 	if (d3dDevice == nullptr) {
 		throw std::runtime_error("Unable to detect a device capable of raytracing.\n" + ss.str());
 	}
-
-	///
-	///D3D12_CHECK(d3dDevice->SetBackgroundProcessingMode(D3D12_BACKGROUND_PROCESSING_MODE_ALLOW_INTRUSIVE_MEASUREMENTS, D3D12_MEASUREMENTS_ACTION_KEEP_ALL, nullptr, nullptr));
-	///
 }
 
 #ifndef RT64_MINIMAL
@@ -758,7 +754,7 @@ void RT64::Device::draw(int vsyncInterval) {
 	// Render the inspectors on the active view.
 	if (activeView != nullptr) {
 		for (Inspector *inspector : inspectors) {
-			inspector->render(activeView, cursorPos.x, cursorPos.y, d3dRtStateObjectDirty);
+			inspector->render(activeView, cursorPos.x, cursorPos.y);
 			inspector->reset();
 		}
 	}
