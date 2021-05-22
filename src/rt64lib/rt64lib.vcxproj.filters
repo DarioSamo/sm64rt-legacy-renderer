@@ -117,6 +117,9 @@
     <ClInclude Include="private\rt64_shader.h">
       <Filter>private</Filter>
     </ClInclude>
+    <ClInclude Include="private\rt64_shader_hlsli.h">
+      <Filter>private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">
@@ -209,9 +212,6 @@
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Ray.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\Samplers.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Im3DCommon.hlsli">

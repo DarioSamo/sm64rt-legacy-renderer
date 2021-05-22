@@ -2,6 +2,9 @@
 // RT64
 //
 
+#ifdef SHADER_AS_STRING
+R"raw(
+#else
 #ifndef RANDOM_HLSLI_INCLUDED
 #define RANDOM_HLSLI_INCLUDED
 
@@ -60,4 +63,6 @@ float3 getCosHemisphereSample(inout uint randSeed, float3 hitNorm)
 	return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
 }
 
+#endif
+//)raw"
 #endif

@@ -233,7 +233,7 @@ void RT64::Inspector::renderMaterialInspector() {
         pushFloat("Reflection fresnel factor", RT64_ATTRIBUTE_REFLECTION_FRESNEL_FACTOR, &material->reflectionFresnelFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Reflection shine factor", RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR, &material->reflectionShineFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Refraction factor", RT64_ATTRIBUTE_REFRACTION_FACTOR, &material->refractionFactor, &material->enabledAttributes, 0.01f, 0.0f, 2.0f);
-        pushFloat("Specular intensity", RT64_ATTRIBUTE_SPECULAR_INTENSITY, &material->specularIntensity, &material->enabledAttributes, 0.01f, 0.0f, 100.0f);
+        pushVector3("Specular color", RT64_ATTRIBUTE_SPECULAR_COLOR, &material->specularColor, &material->enabledAttributes, 0.01f, 0.0f, 100.0f);
         pushFloat("Specular exponent", RT64_ATTRIBUTE_SPECULAR_EXPONENT, &material->specularExponent, &material->enabledAttributes, 0.1f, 0.0f, 1000.0f);
         pushFloat("Solid alpha multiplier", RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER, &material->solidAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushFloat("Shadow alpha multiplier", RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER, &material->shadowAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
@@ -270,7 +270,7 @@ void RT64::Inspector::renderLightInspector() {
                     ImGui::DragFloat("Point radius", &lights[i].pointRadius);
                     Im3d::SetColor(lights[i].diffuseColor.x * 0.5f, lights[i].diffuseColor.y * 0.5f, lights[i].diffuseColor.z * 0.5f);
                     Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].pointRadius, SphereDetail);
-                    ImGui::DragFloat("Specular intensity", &lights[i].specularIntensity);
+                    ImGui::DragFloat3("Specular color", &lights[i].specularColor.x, 0.01f);
                     ImGui::DragFloat("Shadow offset", &lights[i].shadowOffset);
                     Im3d::SetColor(Im3d::Color_Black);
                     Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].shadowOffset, SphereDetail);

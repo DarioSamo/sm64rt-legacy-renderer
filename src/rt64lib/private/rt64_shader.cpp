@@ -6,6 +6,7 @@
 #include "rt64_shader.h"
 
 #include "rt64_device.h"
+#include "rt64_shader_hlsli.h"
 
 #include "utf8conv/utf8conv.h"
 
@@ -109,7 +110,7 @@ RT64::Shader::Shader(Device *device, unsigned int shaderId, Filter filter, Addre
 		const std::string shadowHitGroup = baseName + "ShadowHitGroup";
 		const std::string shadowClosestHit = baseName + "ShadowClosestHit";
 		const std::string shadowAnyHit = baseName + "ShadowAnyHit";
-		generateSurfaceHitGroup(shaderId, filter, hAddr, vAddr, false /*TODO MAKE CONFIGURABLE*/, hitGroup, closestHit, anyHit);
+		generateSurfaceHitGroup(shaderId, filter, hAddr, vAddr, flags & RT64_SHADER_NORMAL_MAP_ENABLED, flags & RT64_SHADER_SPECULAR_MAP_ENABLED, hitGroup, closestHit, anyHit);
 		generateShadowHitGroup(shaderId, filter, hAddr, vAddr, shadowHitGroup, shadowClosestHit, shadowAnyHit);
 	}
 
@@ -128,7 +129,8 @@ RT64::Shader::~Shader() {
 #define SS(x) ss << x << std::endl;
 
 unsigned int RT64::Shader::uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr) {
-	unsigned int uniqueID = 32;
+	// Index 0 is reserved by the sampler used in the tracer.
+	unsigned int uniqueID = 1;
 	uniqueID += (unsigned int)(filter) * 9;
 	uniqueID += (unsigned int)(hAddr) * 3;
 	uniqueID += (unsigned int)(vAddr);
@@ -138,66 +140,6 @@ unsigned int RT64::Shader::uniqueSamplerRegisterIndex(Filter filter, AddressingM
 void incMeshBuffers(std::stringstream &ss) {
 	SS("ByteAddressBuffer vertexBuffer : register(t2);");
 	SS("ByteAddressBuffer indexBuffer : register(t3);");
-}
-
-void incInstanceBuffers(std::stringstream &ss) {
-	SS("struct InstanceTransforms {");
-	SS("    float4x4 objectToWorld;");
-	SS("    float4x4 objectToWorldNormal;");
-	SS("};");
-	SS("struct MaterialProperties {");
-	SS("    int diffuseTexIndex;");
-	SS("    int normalTexIndex;");
-	SS("    int specularTexIndex;");
-	SS("    float ignoreNormalFactor;");
-	SS("    float uvDetailScale;");
-	SS("    float reflectionFactor;");
-	SS("    float reflectionFresnelFactor;");
-	SS("    float reflectionShineFactor;");
-	SS("    float refractionFactor;");
-	SS("    float specularIntensity;");
-	SS("    float specularExponent;");
-	SS("    float solidAlphaMultiplier;");
-	SS("    float shadowAlphaMultiplier;");
-	SS("    float depthBias;");
-	SS("    float shadowRayBias;");
-	SS("    float3 selfLight;");
-	SS("    uint lightGroupMaskBits;");
-	SS("    float3 fogColor;");
-	SS("    float4 diffuseColorMix;");
-	SS("    float fogMul;");
-	SS("    float fogOffset;");
-	SS("    uint fogEnabled;");
-	SS("    uint3 _reserved;")
-	SS("};");
-	SS("struct InstanceMaterials {");
-	SS("	MaterialProperties materialProperties;");
-	SS("};");
-	SS("StructuredBuffer<InstanceTransforms> instanceTransforms : register(t5);");
-	SS("StructuredBuffer<InstanceMaterials> instanceMaterials : register(t6);");
-	SS("static const float InstanceIdBias = 0.001f;");
-	SS("float WithDistanceBias(float distance, uint instanceId) {");
-	SS("    float depthBias = instanceMaterials[instanceId].materialProperties.depthBias;");
-	SS("    return distance - (instanceId * InstanceIdBias) - depthBias;");
-	SS("}");
-}
-
-void incRayAttributes(std::stringstream &ss) {
-	SS("struct Attributes {");
-	SS("    float2 bary;");
-	SS("};");
-}
-
-void incGlobalHitBuffers(std::stringstream &ss) {
-	SS("#define MAX_HIT_QUERIES 16");
-	SS("RWBuffer<float> gHitDistance : register(u3);");
-	SS("RWBuffer<float4> gHitColor : register(u4);");
-	SS("RWBuffer<float4> gHitNormal : register(u5);");
-	SS("RWBuffer<float> gHitSpecular : register(u6);");
-	SS("RWBuffer<uint> gHitInstanceId : register(u7);");
-	SS("uint getHitBufferIndex(uint hitPos, uint2 pixelIdx, uint2 pixelDims) {");
-	SS("    return (hitPos * pixelDims.y + pixelIdx.y) * pixelDims.x + pixelIdx.x;");
-	SS("}");
 }
 
 void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal, bool vertexUV, int inputCount, bool useAlpha, bool vertexBinormalAndTangent) {
@@ -391,8 +333,8 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 	VertexLayout vl(true, true, vertexUV, cc.inputCount, cc.opt_alpha);
 
 	std::stringstream ss;
-	incInstanceBuffers(ss);
-
+	SS(INCLUDE_HLSLI(MaterialsHLSLI));
+	SS(INCLUDE_HLSLI(InstancesHLSLI));
 	SS("int instanceIndex : register(b0);");
 
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
@@ -446,7 +388,7 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 	SS("    int instanceId = NonUniformResourceIndex(instanceIndex);");
 
 	if (cc.useTextures[0]) {
-		SS("    int diffuseTexIndex = instanceMaterials[instanceId].materialProperties.diffuseTexIndex;");
+		SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
 		SS("    float4 texVal0 = gTextures[diffuseTexIndex].SampleLevel(gTextureSampler, vertexUV, 0);");
 	}
 
@@ -518,14 +460,18 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 	D3D12_CHECK(device->getD3D12Device()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&rasterGroup.pipelineState)));
 }
 
-void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName) {
+void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, bool specularMapEnabled, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName) {
 	ColorCombinerParams cc(shaderId);
 
 	std::stringstream ss;
 	incMeshBuffers(ss);
-	incRayAttributes(ss);
-	incGlobalHitBuffers(ss);
-	incInstanceBuffers(ss);
+
+	SS(INCLUDE_HLSLI(MaterialsHLSLI));
+	SS(INCLUDE_HLSLI(InstancesHLSLI));
+	SS(INCLUDE_HLSLI(GlobalHitBuffersHLSLI));
+	SS(INCLUDE_HLSLI(RayHLSLI));
+	SS(INCLUDE_HLSLI(RandomHLSLI));
+	SS(INCLUDE_HLSLI(ViewParamsHLSLI));
 
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
@@ -533,23 +479,18 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		incTextures(ss);
 	}
 
-	SS("struct HitInfo {");
-	SS("    uint nhits;");
-	SS("    uint ohits;");
-	SS("};");
-
 	SS("[shader(\"anyhit\")]");
 	SS("void " << anyHitName << "(inout HitInfo payload, Attributes attrib) {");
 	SS("    uint instanceId = NonUniformResourceIndex(InstanceIndex());");
 	SS("    uint triangleIndex = PrimitiveIndex();");
 	SS("    float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);");
-	SS("    float4 diffuseColorMix = instanceMaterials[instanceId].materialProperties.diffuseColorMix;");
+	SS("    float4 diffuseColorMix = instanceMaterials[instanceId].diffuseColorMix;");
 
 	bool vertexUV = cc.useTextures[0] || cc.useTextures[1];
 	getVertexData(ss, true, true, vertexUV, cc.inputCount, cc.opt_alpha, vertexUV && normalMapEnabled);
 
 	if (cc.useTextures[0]) {
-		SS("    int diffuseTexIndex = instanceMaterials[instanceId].materialProperties.diffuseTexIndex;");
+		SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
 		SS("    float4 texVal0 = gTextures[diffuseTexIndex].SampleLevel(gTextureSampler, vertexUV, 0);");
 		SS("    texVal0.rgb = lerp(texVal0.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));");
 	}
@@ -570,17 +511,17 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("    resultColor.rgb = lerp(resultColor.rgb, diffuseColorMix.rgb, max(diffuseColorMix.a, 0.0f));");
 
 	// Apply the solid alpha multiplier.
-	SS("    resultColor.a = clamp(instanceMaterials[instanceId].materialProperties.solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);")
+	SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);")
 
 	if (cc.opt_noise) {
-		//SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
-		//SS("    resultColor.a *= round(nextRand(seed));");
+		SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
+		SS("    resultColor.a *= round(nextRand(seed));");
 	}
 
 	if (vertexUV && normalMapEnabled) {
-		SS("    int normalTexIndex = instanceMaterials[instanceId].materialProperties.normalTexIndex;");
+		SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
 		SS("    if (normalTexIndex >= 0) {");
-		SS("        float uvDetailScale = instanceMaterials[instanceId].materialProperties.uvDetailScale;");
+		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
 		SS("        float3 normalColor = gTextures[normalTexIndex].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, 0).xyz;");
 		SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
 		SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
@@ -590,21 +531,19 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 
 	transformVertexNormal(ss);
 
-	SS("    float vertexSpecular = 1.0f;");
-
-	/*
-		float specularColor = 1.0f;
-		int specularTexIndex = instanceMaterials[instanceId].materialProperties.specularTexIndex;
-		if (specularTexIndex >= 0) {
-			float uvDetailScale = instanceMaterials[instanceId].materialProperties.uvDetailScale;
-			specularColor = SampleTexture(gTextures[specularTexIndex], vertex.uv * uvDetailScale, instanceMaterials[instanceId].materialProperties.filterMode, instanceMaterials[instanceId].materialProperties.hAddressMode, instanceMaterials[instanceId].materialProperties.vAddressMode).r;
-		}
+	SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
+	if (vertexUV && specularMapEnabled) {
+		SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
+		SS("    if (specularTexIndex >= 0) {");
+		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
+		SS("        vertexSpecular = gTextures[specularTexIndex].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, 0).rgb;");
+		SS("    }");
 	}
-	*/
 
 	SS("    uint2 pixelIdx = DispatchRaysIndex().xy;");
 	SS("    uint2 pixelDims = DispatchRaysDimensions().xy;");
 	SS("    uint hitStride = pixelDims.x * pixelDims.y;");
+
 	// HACK: Add some bias for the comparison based on the instance ID so coplanar surfaces are friendlier with each other.
 	// This can likely be implemented as an instance property at some point to control depth sorting.
 	SS("    float tval = WithDistanceBias(RayTCurrent(), instanceId);");
@@ -625,7 +564,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("        gHitDistance[hi] = tval;");
 	SS("        gHitColor[hi] = resultColor;");
 	SS("        gHitNormal[hi] = float4(vertexNormal, 1.0f);");
-	SS("        gHitSpecular[hi] = vertexSpecular;");
+	SS("        gHitSpecular[hi] = float4(vertexSpecular, 1.0f);");
 	SS("        gHitInstanceId[hi] = instanceId;");
 	SS("        ++payload.nhits;");
 	SS("        if (hitPos != MAX_HIT_QUERIES - 1) {");
@@ -652,18 +591,18 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 	ColorCombinerParams cc(shaderId);
 	std::stringstream ss;
 	incMeshBuffers(ss);
-	incRayAttributes(ss);
-	incInstanceBuffers(ss);
+	
+	SS(INCLUDE_HLSLI(MaterialsHLSLI));
+	SS(INCLUDE_HLSLI(InstancesHLSLI));
+	SS(INCLUDE_HLSLI(RayHLSLI));
+	SS(INCLUDE_HLSLI(RandomHLSLI));
+	SS(INCLUDE_HLSLI(ViewParamsHLSLI));
 
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
 		SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 		incTextures(ss);
 	}
-
-	SS("struct ShadowHitInfo {");
-	SS("    float shadowHit;");
-	SS("};");
 	
 	SS("[shader(\"anyhit\")]");
 	SS("void " << anyHitName << "(inout ShadowHitInfo payload, Attributes attrib) {");
@@ -675,7 +614,7 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 		getVertexData(ss, true, true, cc.useTextures[0] || cc.useTextures[1], cc.inputCount, cc.opt_alpha, false);
 
 		if (cc.useTextures[0]) {
-			SS("    int diffuseTexIndex = instanceMaterials[instanceId].materialProperties.diffuseTexIndex;");
+			SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
 			SS("    float4 texVal0 = gTextures[diffuseTexIndex].SampleLevel(gTextureSampler, vertexUV, 0);");
 		}
 
@@ -691,9 +630,13 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 			SS("    float resultAlpha = (" + colorFormula(cc.c, cc.do_single[0], cc.do_multiply[0], cc.do_mix[0], cc.opt_alpha, cc.opt_alpha) + ").a;");
 		}
 
-		// uint noiseScale = resolution.y / NOISE_SCALE_HEIGHT;
-		// uint seed = initRand((DispatchRaysIndex().x / noiseScale) + (DispatchRaysIndex().y / noiseScale) * DispatchRaysDimensions().x, frameCount, 16);
-		SS("    resultAlpha = clamp(resultAlpha * instanceMaterials[instanceId].materialProperties.shadowAlphaMultiplier, 0.0f, 1.0f);");
+		SS("    resultAlpha = clamp(resultAlpha * instanceMaterials[instanceId].shadowAlphaMultiplier, 0.0f, 1.0f);");
+
+		if (cc.opt_noise) {
+			SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
+			SS("    resultAlpha *= round(nextRand(seed));");
+		}
+
 		SS("    payload.shadowHit = max(payload.shadowHit - resultAlpha, 0.0f);");
 		SS("    if (payload.shadowHit > 0.0f) {");
 		SS("		IgnoreHit();");
@@ -762,7 +705,7 @@ ID3D12RootSignature *RT64::Shader::generateHitRootSignature(Filter filter, Addre
 	heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
 	heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
 	heapRanges.push_back({ SRV_INDEX(gTextures), 512, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
-	//heapRanges.push_back({ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) });
+	heapRanges.push_back({ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) });
 	rsc.AddHeapRangesParameter(heapRanges);
 
 	D3D12_STATIC_SAMPLER_DESC samplerDesc;

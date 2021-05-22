@@ -424,50 +424,6 @@ void RT64::Device::loadPipeline() {
 	D3D12_CHECK(d3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&d3dCommandAllocator)));
 }
 
-void fillSamplersDeprecated(D3D12_STATIC_SAMPLER_DESC *samplerDesc, unsigned int samplerDescCount) {
-	// TODO: This is a horrible solution, but we likely need shader generation for each type of sampler to correct this.
-	const D3D12_TEXTURE_ADDRESS_MODE addressModes[] = {
-		  D3D12_TEXTURE_ADDRESS_MODE_WRAP,
-		  D3D12_TEXTURE_ADDRESS_MODE_MIRROR,
-		  D3D12_TEXTURE_ADDRESS_MODE_CLAMP
-	};
-
-	unsigned int samplerIndex = 0;
-	for (int filter = 0; filter < 2; filter++) {
-		for (int cms = 0; cms < 3; cms++) {
-			for (int cmt = 0; cmt < 3; cmt++) {
-				// TODO: These filters are rarely used and it helps to get around the sampler limit.
-				// This limitation will be gone when shader generation is implemented.
-				if (filter == 0 && cms == 2 && cmt == 1)
-					continue;
-
-				if (filter == 0 && cms == 1 && cmt == 2)
-					continue;
-
-				samplerDesc[samplerIndex] = {};
-				samplerDesc[samplerIndex].Filter = filter ? D3D12_FILTER_MIN_MAG_MIP_LINEAR : D3D12_FILTER_MIN_MAG_MIP_POINT;
-				samplerDesc[samplerIndex].AddressU = addressModes[cms];
-				samplerDesc[samplerIndex].AddressV = addressModes[cmt];
-				samplerDesc[samplerIndex].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-				samplerDesc[samplerIndex].MinLOD = 0;
-				samplerDesc[samplerIndex].MaxLOD = D3D12_FLOAT32_MAX;
-				samplerDesc[samplerIndex].MipLODBias = 0.0f;
-				samplerDesc[samplerIndex].MaxAnisotropy = 1;
-				samplerDesc[samplerIndex].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-				samplerDesc[samplerIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-				samplerDesc[samplerIndex].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-				samplerDesc[samplerIndex].ShaderRegister = samplerIndex;
-				samplerDesc[samplerIndex].RegisterSpace = 0;
-				samplerIndex++;
-
-				if (samplerIndex >= samplerDescCount) {
-					break;
-				}
-			}
-		}
-	}
-}
-
 void RT64::Device::loadAssets() {
 	const D3D12_RENDER_TARGET_BLEND_DESC alphaBlendDesc = {
 		TRUE, FALSE,
@@ -558,9 +514,22 @@ void RT64::Device::loadAssets() {
 			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 }
 		});
 
-		D3D12_STATIC_SAMPLER_DESC samplerDescs[16];
-		fillSamplersDeprecated(samplerDescs, _countof(samplerDescs));
-		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, samplerDescs, _countof(samplerDescs));
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc;
+		desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		desc.MinLOD = 0;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+		desc.MipLODBias = 0.0f;
+		desc.MaxAnisotropy = 1;
+		desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		desc.ShaderRegister = 0;
+		desc.RegisterSpace = 0;
+		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
 	}
 
 	{
@@ -665,6 +634,8 @@ void RT64::Device::createDxcCompiler() {
 
 ID3D12RootSignature *RT64::Device::createTracerSignature() {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
+
+	// Fill out the heap parameters.
 	rsc.AddHeapRangesParameter({
 		{ UAV_INDEX(gOutput), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gOutput) },
 		{ UAV_INDEX(gAlbedo), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gAlbedo) },
@@ -682,9 +653,23 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 	});
 
-	D3D12_STATIC_SAMPLER_DESC samplerDescs[16];
-	fillSamplersDeprecated(samplerDescs, _countof(samplerDescs));
-	return rsc.Generate(d3dDevice, true, false, samplerDescs, _countof(samplerDescs));
+	// Fill out the samplers.
+	D3D12_STATIC_SAMPLER_DESC desc;
+	desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+	desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+	desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	desc.MinLOD = 0;
+	desc.MaxLOD = D3D12_FLOAT32_MAX;
+	desc.MipLODBias = 0.0f;
+	desc.MaxAnisotropy = 1;
+	desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	desc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	desc.ShaderRegister = 0;
+	desc.RegisterSpace = 0;
+
+	return rsc.Generate(d3dDevice, true, false, &desc, 1);
 }
 
 void RT64::Device::preRender() {

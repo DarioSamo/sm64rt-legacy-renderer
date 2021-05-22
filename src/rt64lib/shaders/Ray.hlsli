@@ -2,6 +2,9 @@
 // RT64
 //
 
+#ifdef SHADER_AS_STRING
+R"raw(
+#else
 // Structures
 
 struct HitInfo {
@@ -20,3 +23,5 @@ struct ShadowHitInfo {
 // Root signature
 
 RaytracingAccelerationStructure SceneBVH : register(t0);
+//)raw"
+#endif

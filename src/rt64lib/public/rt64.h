@@ -31,7 +31,7 @@
 #define RT64_ATTRIBUTE_REFLECTION_FRESNEL_FACTOR	0x0008
 #define RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR		0x0010
 #define RT64_ATTRIBUTE_REFRACTION_FACTOR			0x0020
-#define RT64_ATTRIBUTE_SPECULAR_INTENSITY			0x0040
+#define RT64_ATTRIBUTE_SPECULAR_COLOR				0x0040
 #define RT64_ATTRIBUTE_SPECULAR_EXPONENT			0x0080
 #define RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER		0x0100
 #define RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER		0x0200
@@ -53,6 +53,8 @@
 #define RT64_SHADER_ADDRESSING_CLAMP			0x2
 #define RT64_SHADER_RASTER_ENABLED				0x1
 #define RT64_SHADER_RAYTRACE_ENABLED			0x2
+#define RT64_SHADER_NORMAL_MAP_ENABLED			0x4
+#define RT64_SHADER_SPECULAR_MAP_ENABLED		0x8
 
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1
@@ -103,7 +105,7 @@ typedef struct {
 	float reflectionFresnelFactor;
 	float reflectionShineFactor;
 	float refractionFactor;
-	float specularIntensity;
+	RT64_VECTOR3 specularColor;
 	float specularExponent;
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
@@ -119,7 +121,6 @@ typedef struct {
 
 	// Flag containing all attributes that are actually used by this material.
 	int enabledAttributes;
-	int _reserved[2];
 } RT64_MATERIAL;
 
 // Light
@@ -128,7 +129,7 @@ typedef struct {
 	RT64_VECTOR3 diffuseColor;
 	float attenuationRadius;
 	float pointRadius;
-	float specularIntensity;
+	RT64_VECTOR3 specularColor;
 	float shadowOffset;
 	float attenuationExponent;
 	float flickerIntensity;
@@ -181,8 +182,8 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 		dst->refractionFactor = src->refractionFactor;
 	}
 
-	if (src->enabledAttributes & RT64_ATTRIBUTE_SPECULAR_INTENSITY) {
-		dst->specularIntensity = src->specularIntensity;
+	if (src->enabledAttributes & RT64_ATTRIBUTE_SPECULAR_COLOR) {
+		dst->specularColor = src->specularColor;
 	}
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_SPECULAR_EXPONENT) {

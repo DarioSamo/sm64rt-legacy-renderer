@@ -41,6 +41,7 @@
     <ClInclude Include="private\rt64_mesh.h" />
     <ClInclude Include="private\rt64_scene.h" />
     <ClInclude Include="private\rt64_shader.h" />
+    <ClInclude Include="private\rt64_shader_hlsli.h" />
     <ClInclude Include="private\rt64_texture.h" />
     <ClInclude Include="private\rt64_view.h" />
     <ClInclude Include="public\rt64.h" />
@@ -80,7 +81,6 @@
     <None Include="shaders\Lights.hlsli" />
     <None Include="shaders\Materials.hlsli" />
     <None Include="shaders\Ray.hlsli" />
-    <None Include="shaders\Samplers.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Tracer.hlsl">

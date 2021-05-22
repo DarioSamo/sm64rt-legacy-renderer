@@ -149,8 +149,9 @@ void setupRT64Scene() {
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
 
 	// Setup shader.
-	RT64.shaderA = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED);
-	RT64.shaderB = RT64.lib.CreateShader(RT64.device, 0x03200a00, RT64_SHADER_FILTER_POINT, RT64_SHADER_ADDRESSING_CLAMP, RT64_SHADER_ADDRESSING_CLAMP, RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED);
+	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+	RT64.shaderA = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
+	RT64.shaderB = RT64.lib.CreateShader(RT64.device, 0x03200a00, RT64_SHADER_FILTER_POINT, RT64_SHADER_ADDRESSING_CLAMP, RT64_SHADER_ADDRESSING_CLAMP, shaderFlags);
 
 	// Setup lights.
 	// Light 0 only needs the diffuse color because it is always the ambient light.
@@ -159,7 +160,7 @@ void setupRT64Scene() {
 	RT64.lights[1].attenuationRadius = 1e9;
 	RT64.lights[1].pointRadius = 5000.0f;
 	RT64.lights[1].diffuseColor = { 0.8f, 0.75f, 0.65f };
-	RT64.lights[1].specularIntensity = 1.0f;
+	RT64.lights[1].specularColor = { 0.8f, 0.75f, 0.65f };
 	RT64.lights[1].shadowOffset = 0.0f;
 	RT64.lights[1].attenuationExponent = 1.0f;
 	RT64.lightCount = 2;
@@ -241,7 +242,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
-	RT64.baseMaterial.specularIntensity = 1.0f;
+	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
 	RT64.baseMaterial.specularExponent = 1.0f;
 	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
