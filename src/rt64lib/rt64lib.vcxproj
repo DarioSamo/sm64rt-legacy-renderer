@@ -79,11 +79,8 @@
     <None Include="shaders\Instances.hlsli" />
     <None Include="shaders\Lights.hlsli" />
     <None Include="shaders\Materials.hlsli" />
-    <None Include="shaders\N64CC.hlsli" />
-    <None Include="shaders\PSInput.hlsli" />
     <None Include="shaders\Ray.hlsli" />
     <None Include="shaders\Samplers.hlsli" />
-    <None Include="shaders\Textures.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Tracer.hlsl">

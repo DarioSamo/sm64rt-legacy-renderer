@@ -3,7 +3,6 @@
 //
 
 #include "Materials.hlsli"
-#include "N64CC.hlsli"
 
 struct InstanceTransforms {
 	float4x4 objectToWorld;
@@ -12,7 +11,6 @@ struct InstanceTransforms {
 
 struct InstanceMaterials {
 	MaterialProperties materialProperties;
-	ColorCombinerFeatures ccFeatures;
 };
 
 static const float InstanceIdBias = 0.001f;

@@ -94,12 +94,9 @@ typedef struct {
 } RT64_RECT;
 
 typedef struct {
-	int filterMode;
 	int diffuseTexIndex;
 	int normalTexIndex;
 	int specularTexIndex;
-	int hAddressMode;
-	int vAddressMode;
 	float ignoreNormalFactor;
 	float uvDetailScale;
 	float reflectionFactor;
@@ -118,22 +115,11 @@ typedef struct {
 	RT64_VECTOR4 diffuseColorMix;
 	float fogMul;
 	float fogOffset;
-	int _padA[1];
-
-	// N64 Color combiner parameters.
-	int c0[4];
-	int c1[4];
-	int do_single[2];
-	int do_multiply[2];
-	int do_mix[2];
-	int color_alpha_same;
-	int opt_alpha;
-	int opt_fog;
-	int opt_texture_edge;
-	int opt_noise;
+	unsigned int fogEnabled;
 
 	// Flag containing all attributes that are actually used by this material.
 	int enabledAttributes;
+	int _reserved[2];
 } RT64_MATERIAL;
 
 // Light

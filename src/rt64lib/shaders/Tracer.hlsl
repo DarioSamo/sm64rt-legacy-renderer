@@ -420,7 +420,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			}
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
-			if (instanceMaterials[instanceId].ccFeatures.opt_fog) {
+			if (instanceMaterials[instanceId].materialProperties.fogEnabled) {
 				float4 fogColor = ComputeFog(instanceId, vertexPosition);
 				hitColor.rgb = lerp(hitColor.rgb, fogColor.rgb, fogColor.a);
 			}

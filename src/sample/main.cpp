@@ -235,9 +235,6 @@ void setupRT64Scene() {
 	RT64.lib.SetMesh(RT64.mesh, RT64.objVertices.data(), (int)(RT64.objVertices.size()), sizeof(VERTEX), RT64.objIndices.data(), (int)(RT64.objIndices.size()));
 	
 	// Configure material.
-	RT64.baseMaterial.filterMode = RT64_MATERIAL_FILTER_LINEAR;
-	RT64.baseMaterial.hAddressMode = RT64_MATERIAL_ADDR_WRAP;
-	RT64.baseMaterial.vAddressMode = RT64_MATERIAL_ADDR_WRAP;
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.uvDetailScale = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
@@ -254,27 +251,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.fogColor = { 0.3f, 0.5f, 0.7f };
 	RT64.baseMaterial.fogMul = 1.0f;
 	RT64.baseMaterial.fogOffset = 0.0f;
-
-	// Configure N64 Color combiner parameters.
-	RT64.baseMaterial.c0[0] = 0;
-	RT64.baseMaterial.c0[1] = 0;
-	RT64.baseMaterial.c0[2] = 0;
-	RT64.baseMaterial.c0[3] = RT64_MATERIAL_CC_SHADER_TEXEL0;
-	RT64.baseMaterial.c1[0] = 0;
-	RT64.baseMaterial.c1[1] = 0;
-	RT64.baseMaterial.c1[2] = 0;
-	RT64.baseMaterial.c1[3] = 0;
-	RT64.baseMaterial.do_single[0] = 1;
-	RT64.baseMaterial.do_single[1] = 0;
-	RT64.baseMaterial.do_multiply[0] = 0;
-	RT64.baseMaterial.do_multiply[1] = 0;
-	RT64.baseMaterial.do_mix[0] = 0;
-	RT64.baseMaterial.do_mix[1] = 0;
-	RT64.baseMaterial.color_alpha_same = 0;
-	RT64.baseMaterial.opt_alpha = 0;
-	RT64.baseMaterial.opt_fog = 1;
-	RT64.baseMaterial.opt_texture_edge = 0;
-	RT64.baseMaterial.opt_noise = 0;
+	RT64.baseMaterial.fogEnabled = 0;
 	
 	VERTEX vertices[3];
 	vertices[0].position = { -1.0f, 0.1f, 0.0f, 1.0f } ;

@@ -23,8 +23,6 @@ enum {
 };
 
 #define SHADER_OPT_ALPHA (1 << 24)
-#define SHADER_OPT_FOG (1 << 25)
-#define SHADER_OPT_TEXTURE_EDGE (1 << 26)
 #define SHADER_OPT_NOISE (1 << 27)
 
 struct ColorCombinerParams {
@@ -36,8 +34,6 @@ struct ColorCombinerParams {
 	int do_mix[2];
 	int color_alpha_same;
 	int opt_alpha;
-	int opt_fog;
-	int opt_texture_edge;
 	int opt_noise;
 
 	ColorCombinerParams(int shaderId) {
@@ -71,8 +67,6 @@ struct ColorCombinerParams {
 
 		color_alpha_same = (shaderId & 0xfff) == ((shaderId >> 12) & 0xfff);
 		opt_alpha = (shaderId & SHADER_OPT_ALPHA) != 0;
-		opt_fog = (shaderId & SHADER_OPT_FOG) != 0;
-		opt_texture_edge = (shaderId & SHADER_OPT_TEXTURE_EDGE) != 0;
 		opt_noise = (shaderId & SHADER_OPT_NOISE) != 0;
 	}
 };
@@ -152,12 +146,9 @@ void incInstanceBuffers(std::stringstream &ss) {
 	SS("    float4x4 objectToWorldNormal;");
 	SS("};");
 	SS("struct MaterialProperties {");
-	SS("    int filterMode;");
 	SS("    int diffuseTexIndex;");
 	SS("    int normalTexIndex;");
 	SS("    int specularTexIndex;");
-	SS("    int hAddressMode;");
-	SS("    int vAddressMode;");
 	SS("    float ignoreNormalFactor;");
 	SS("    float uvDetailScale;");
 	SS("    float reflectionFactor;");
@@ -176,24 +167,11 @@ void incInstanceBuffers(std::stringstream &ss) {
 	SS("    float4 diffuseColorMix;");
 	SS("    float fogMul;");
 	SS("    float fogOffset;");
-	SS("    uint _pad;");
-	SS("};");
-	SS("struct ColorCombinerFeatures {");
-	SS("	int4 c0;");
-	SS("	int4 c1;");
-	SS("	int2 do_single;");
-	SS("	int2 do_multiply;");
-	SS("	int2 do_mix;");
-	SS("	int color_alpha_same;");
-	SS("	int opt_alpha;");
-	SS("	int opt_fog;");
-	SS("	int opt_texture_edge;");
-	SS("	int opt_noise;");
-	SS("	float _padding;");
+	SS("    uint fogEnabled;");
+	SS("    uint3 _reserved;")
 	SS("};");
 	SS("struct InstanceMaterials {");
 	SS("	MaterialProperties materialProperties;");
-	SS("	ColorCombinerFeatures ccFeatures;");
 	SS("};");
 	SS("StructuredBuffer<InstanceTransforms> instanceTransforms : register(t5);");
 	SS("StructuredBuffer<InstanceMaterials> instanceMaterials : register(t6);");

@@ -208,19 +208,10 @@
     <None Include="shaders\Materials.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
-    <None Include="shaders\N64CC.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
     <None Include="shaders\Ray.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Samplers.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\Textures.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\PSInput.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Im3DCommon.hlsli">
