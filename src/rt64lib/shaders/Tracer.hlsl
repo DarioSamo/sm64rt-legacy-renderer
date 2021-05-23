@@ -373,7 +373,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				// Simple light sampling. Reuse previous result if calculated once already.
 				else {
 					if (maxSimpleLights > 0) {
-						simpleLightsResult += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 2, true, seed);
+						simpleLightsResult += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, true, seed);
 						maxSimpleLights--;
 					}
 

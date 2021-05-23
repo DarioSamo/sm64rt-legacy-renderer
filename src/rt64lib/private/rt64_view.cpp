@@ -1132,6 +1132,7 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setResolutionScale(viewDesc.resolutionScale);
+	view->setMaxLightSamples(viewDesc.maxLightSamples);
 	view->setSoftLightSamples(viewDesc.softLightSamples);
 	view->setGIBounces(viewDesc.giBounces);
 	view->setAmbGIMixWeight(viewDesc.ambGiMixWeight);

@@ -138,6 +138,7 @@ typedef struct {
 
 typedef struct {
 	float resolutionScale;
+	unsigned int maxLightSamples;
 	unsigned int softLightSamples;
 	unsigned int giBounces;
 	float ambGiMixWeight;
