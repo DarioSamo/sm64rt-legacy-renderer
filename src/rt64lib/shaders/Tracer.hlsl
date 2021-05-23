@@ -342,6 +342,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 	uint maxSimpleLights = 1;
 	uint maxFullLights = 1;
 	uint maxGI = 1;
+	uint maxSimpleLightSamples = min(maxLightSamples, 2);
 	for (uint hit = 0; hit < hitCount; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
 		uint instanceId = gHitInstanceId[hitBufferIndex];
@@ -373,7 +374,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				// Simple light sampling. Reuse previous result if calculated once already.
 				else {
 					if (maxSimpleLights > 0) {
-						simpleLightsResult += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, true, seed);
+						simpleLightsResult += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxSimpleLightSamples, true, seed);
 						maxSimpleLights--;
 					}
 
