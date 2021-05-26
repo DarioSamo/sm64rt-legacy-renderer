@@ -19,6 +19,7 @@ namespace RT64 {
 		AllocatedResource indexBufferUpload;
 		D3D12_INDEX_BUFFER_VIEW d3dIndexBufferView;
 		int vertexCount;
+		int vertexStride;
 		int indexCount;
 		RT64::AccelerationStructureBuffers d3dBottomLevelASBuffers;
 		int flags;
@@ -27,7 +28,7 @@ namespace RT64 {
 	public:
 		Mesh(Device *device, int flags);
 		virtual ~Mesh();
-		void updateVertexBuffer(RT64_VERTEX *vertexArray, int vertexCount);
+		void updateVertexBuffer(void *vertexArray, int vertexCount, int vertexStride);
 		ID3D12Resource *getVertexBuffer() const;
 		const D3D12_VERTEX_BUFFER_VIEW *getVertexBufferView() const;
 		int getVertexCount() const;

@@ -14,9 +14,12 @@ namespace RT64 {
 		Device *device;
 		AllocatedResource texture;
 		AllocatedResource textureUpload;
+		int currentIndex;
 	public:
 		Texture(Device *device, const void *bytes, int width, int height, int stride);
 		virtual ~Texture();
 		ID3D12Resource *getTexture();
+		void setCurrentIndex(int v);
+		int getCurrentIndex() const;
 	};
 };

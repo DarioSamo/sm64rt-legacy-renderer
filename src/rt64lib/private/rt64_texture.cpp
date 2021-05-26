@@ -16,6 +16,7 @@ RT64::Texture::Texture(Device *device, const void *bytes, int width, int height,
 	assert(bytes != nullptr);
 
 	this->device = device;
+	currentIndex = -1;
 
 	UINT rowWidth, rowPadding;
 	CalculateTextureRowWidthPadding(width, stride, rowWidth, rowPadding);
@@ -115,6 +116,14 @@ RT64::Texture::~Texture() {
 
 ID3D12Resource *RT64::Texture::getTexture() {
 	return texture.Get();
+}
+
+void RT64::Texture::setCurrentIndex(int v) {
+	currentIndex = v;
+}
+
+int RT64::Texture::getCurrentIndex() const {
+	return currentIndex;
 }
 
 // Public

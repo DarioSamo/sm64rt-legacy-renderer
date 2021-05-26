@@ -233,7 +233,7 @@ public:
             copyImageResToCuda(albedo);
             copyImageResToCuda(normal);
             OPTIX_CHECK(optixDenoiserComputeIntensity(optixDenoiser, nullptr, &color.optixImage, optixIntensity, optixScratch, optixScratchSize));
-            OPTIX_CHECK(optixUtilDenoiserInvokeTiled(optixDenoiser, nullptr, &optixParams, optixState, optixStateSize, &optixGuideLayer, &optixDenoiserLayer, 1, optixScratch, optixScratchSize, 0, width, height));
+            OPTIX_CHECK(optixDenoiserInvoke(optixDenoiser, nullptr, &optixParams, optixState, optixStateSize, &optixGuideLayer, &optixDenoiserLayer, 1, 0, 0, optixScratch, optixScratchSize));
             copyImageCudaToRes(output);
             CUDA_CHECK(cudaDeviceSynchronize());
         }

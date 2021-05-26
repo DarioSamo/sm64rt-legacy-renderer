@@ -9,6 +9,7 @@
 namespace RT64 {
 	class Mesh;
 	class Scene;
+	class Shader;
 	class Texture;
 
 	class Instance {
@@ -20,6 +21,7 @@ namespace RT64 {
 		Texture* specularTexture;
 		XMMATRIX transform;
 		RT64_MATERIAL material;
+		Shader *shader;
 		RT64_RECT scissorRect;
 		RT64_RECT viewportRect;
 		unsigned int flags;
@@ -30,6 +32,8 @@ namespace RT64 {
 		Mesh *getMesh() const;
 		void setMaterial(const RT64_MATERIAL &material);
 		const RT64_MATERIAL &getMaterial() const;
+		void setShader(Shader *shader);
+		Shader *getShader() const;
 		void setDiffuseTexture(Texture *texture);
 		Texture *getDiffuseTexture() const;
 		void setNormalTexture(Texture* texture);

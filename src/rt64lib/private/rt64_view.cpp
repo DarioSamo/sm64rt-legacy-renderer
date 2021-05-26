@@ -14,6 +14,7 @@
 #include "rt64_instance.h"
 #include "rt64_mesh.h"
 #include "rt64_scene.h"
+#include "rt64_shader.h"
 #include "rt64_texture.h"
 #include "rt64_view.h"
 
@@ -33,7 +34,8 @@ RT64::View::View(Scene *scene) {
 	descriptorHeapEntryCount = 0;
 	composeHeap = nullptr;
 	sbtStorageSize = 0;
-	activeInstancesBufferPropsSize = 0;
+	activeInstancesBufferTransformsSize = 0;
+	activeInstancesBufferMaterialsSize = 0;
 	viewParamsBufferData.randomSeed = 0;
 	viewParamsBufferData.softLightSamples = 0;
 	viewParamsBufferData.giBounces = 0;
@@ -115,10 +117,10 @@ void RT64::View::createOutputBuffers() {
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
 	UINT64 hitCountBufferSizeAll = hitCountBufferSizeOne * MaxQueries;
 	rtHitDistance = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitColor = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitColor = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitNormal = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceId = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, hitCountBufferSizeOne * 2, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 	// Create the RTVs for the raster resources.
@@ -145,25 +147,25 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitDistance.Release();
 	rtHitColor.Release();
 	rtHitNormal.Release();
-	rtHitInstanceId.Release();
 	rtHitSpecular.Release();
+	rtHitInstanceId.Release();
 }
 
-void RT64::View::createInstancePropertiesBuffer() {
+void RT64::View::createInstanceTransformsBuffer() {
 	uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
-	uint32_t newBufferSize = ROUND_UP(totalInstances * sizeof(InstanceProperties), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-	if (activeInstancesBufferPropsSize != newBufferSize) {
-		activeInstancesBufferProps.Release();
-		activeInstancesBufferProps = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, newBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
-		activeInstancesBufferPropsSize = newBufferSize;
+	uint32_t newBufferSize = ROUND_UP(totalInstances * sizeof(InstanceTransforms), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (activeInstancesBufferTransformsSize != newBufferSize) {
+		activeInstancesBufferTransforms.Release();
+		activeInstancesBufferTransforms = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, newBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+		activeInstancesBufferTransformsSize = newBufferSize;
 	}
 }
 
-void RT64::View::updateInstancePropertiesBuffer() {
-	InstanceProperties *current = nullptr;
+void RT64::View::updateInstanceTransformsBuffer() {
+	InstanceTransforms *current = nullptr;
 	CD3DX12_RANGE readRange(0, 0);
 
-	D3D12_CHECK(activeInstancesBufferProps.Get()->Map(0, &readRange, reinterpret_cast<void **>(&current)));
+	D3D12_CHECK(activeInstancesBufferTransforms.Get()->Map(0, &readRange, reinterpret_cast<void **>(&current)));
 
 	for (const RenderInstance &inst : rtInstances) {
 		// Store world transform.
@@ -182,22 +184,44 @@ void RT64::View::updateInstancePropertiesBuffer() {
 		XMVECTOR det;
 		current->objectToWorldNormal = XMMatrixTranspose(XMMatrixInverse(&det, upper3x3));
 
-		// Store material.
-		current->material = inst.material;
+		current++;
+	}
+
+	activeInstancesBufferTransforms.Get()->Unmap(0, nullptr);
+}
+
+void RT64::View::createInstanceMaterialsBuffer() {
+	uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
+	uint32_t newBufferSize = ROUND_UP(totalInstances * sizeof(RT64_MATERIAL), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (activeInstancesBufferMaterialsSize != newBufferSize) {
+		activeInstancesBufferMaterials.Release();
+		activeInstancesBufferMaterials = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, newBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+		activeInstancesBufferMaterialsSize = newBufferSize;
+	}
+}
+
+void RT64::View::updateInstanceMaterialsBuffer() {
+	RT64_MATERIAL *current = nullptr;
+	CD3DX12_RANGE readRange(0, 0);
+
+	D3D12_CHECK(activeInstancesBufferMaterials.Get()->Map(0, &readRange, reinterpret_cast<void **>(&current)));
+
+	for (const RenderInstance &inst : rtInstances) {
+		*current = inst.material;
 		current++;
 	}
 
 	for (const RenderInstance &inst : rasterBgInstances) {
-		current->material = inst.material;
+		*current = inst.material;
 		current++;
 	}
 
 	for (const RenderInstance& inst : rasterFgInstances) {
-		current->material = inst.material;
+		*current = inst.material;
 		current++;
 	}
 
-	activeInstancesBufferProps.Get()->Unmap(0, nullptr);
+	activeInstancesBufferMaterials.Get()->Unmap(0, nullptr);
 }
 
 void RT64::View::createTopLevelAS(const std::vector<RenderInstance>& rtInstances) {
@@ -243,7 +267,7 @@ void RT64::View::createTopLevelAS(const std::vector<RenderInstance>& rtInstances
 }
 
 void RT64::View::createShaderResourceHeap() {
-	assert(usedTextures.size() <= 1024);
+	assert(usedTextures.size() <= 512);
 
 	uint32_t entryCount = ((uint32_t)(HeapIndices::MAX) - 1) + (uint32_t)(usedTextures.size());
 
@@ -287,22 +311,23 @@ void RT64::View::createShaderResourceHeap() {
 	handle.ptr += handleIncrement;
 
 	// UAV for hit color buffer.
-	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitColor.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 	
 	// UAV for hit normal buffer.
-	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_SNORM;
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitNormal.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for hit specular buffer.
+	uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitSpecular.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for hit shading buffer.
 	uavDesc.Format = DXGI_FORMAT_R16_UINT;
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceId.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	uavDesc.Format = DXGI_FORMAT_R16_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitSpecular.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// SRV for background texture.
@@ -348,20 +373,32 @@ void RT64::View::createShaderResourceHeap() {
 
 	handle.ptr += handleIncrement;
 
+	// Describe the transforms buffer per instance.
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	srvDesc.Buffer.FirstElement = 0;
+	srvDesc.Buffer.NumElements = static_cast<UINT>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
+	srvDesc.Buffer.StructureByteStride = sizeof(InstanceTransforms);
+	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(activeInstancesBufferTransforms.Get(), &srvDesc, handle);
+	handle.ptr += handleIncrement;
+
 	// Describe the properties buffer per instance.
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	srvDesc.Buffer.FirstElement = 0;
 	srvDesc.Buffer.NumElements = static_cast<UINT>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
-	srvDesc.Buffer.StructureByteStride = sizeof(InstanceProperties);
+	srvDesc.Buffer.StructureByteStride = sizeof(RT64_MATERIAL);
 	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(activeInstancesBufferProps.Get(), &srvDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(activeInstancesBufferMaterials.Get(), &srvDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// Add the texture SRV.
 	for (size_t i = 0; i < usedTextures.size(); i++) {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(usedTextures[i]->getTexture(), &textureSRVDesc, handle);
+		usedTextures[i]->setCurrentIndex(-1);
 		handle.ptr += handleIncrement;
 	}
 
@@ -403,20 +440,23 @@ void RT64::View::createShaderBindingTable() {
 	auto heapPointer = reinterpret_cast<UINT64 *>(srvUavHeapHandle.ptr);
 
 	// The ray generation only uses heap data.
-	sbtHelper.AddRayGenerationProgram(L"TraceRayGen", { heapPointer });
-
-	// The shadow miss shader does not use any external data.
-	sbtHelper.AddMissProgram(L"ShadowMiss", {});
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getTraceRayGenID(), { heapPointer });
+	
+	// Miss shaders don't use any external data.
+	sbtHelper.AddMissProgram(scene->getDevice()->getSurfaceMissID(), {});
+	sbtHelper.AddMissProgram(scene->getDevice()->getShadowMissID(), {});
 
 	// Add the vertex buffers from all the meshes used by the instances to the hit group.
 	for (const RenderInstance &rtInstance :rtInstances) {
-		sbtHelper.AddHitGroup(L"SurfaceHitGroup", {
+		const auto &surfaceHitGroup = rtInstance.shader->getSurfaceHitGroup();
+		sbtHelper.AddHitGroup(surfaceHitGroup.id, {
 			(void *)(rtInstance.vertexBufferView->BufferLocation),
 			(void *)(rtInstance.indexBufferView->BufferLocation),
 			heapPointer
 		});
-
-		sbtHelper.AddHitGroup(L"ShadowHitGroup", {
+		
+		const auto &shadowHitGroup = rtInstance.shader->getShadowHitGroup();
+		sbtHelper.AddHitGroup(shadowHitGroup.id, {
 			(void*)(rtInstance.vertexBufferView->BufferLocation),
 			(void*)(rtInstance.indexBufferView->BufferLocation),
 			heapPointer
@@ -484,6 +524,7 @@ void RT64::View::update() {
 		// Create the active instance vectors.
 		RenderInstance renderInstance;
 		Mesh* usedMesh = nullptr;
+		Texture *usedDiffuse = nullptr;
 		size_t totalInstances = scene->getInstances().size();
 		unsigned int instFlags = 0;
 		unsigned int screenHeight = getHeight();
@@ -495,7 +536,22 @@ void RT64::View::update() {
 		rtInstances.reserve(totalInstances);
 		rasterBgInstances.reserve(totalInstances);
 		rasterFgInstances.reserve(totalInstances);
-		usedTextures.reserve(1024);
+		usedTextures.reserve(512);
+
+		auto getTextureIndex = [this](Texture *texture) {
+			if (texture == nullptr) {
+				return -1;
+			}
+
+			int currentIndex = texture->getCurrentIndex();
+			if (currentIndex < 0) {
+				currentIndex = (int)(usedTextures.size());
+				texture->setCurrentIndex(currentIndex);
+				usedTextures.push_back(texture);
+			}
+
+			return currentIndex;
+		};
 
 		for (Instance *instance : scene->getInstances()) {
 			instFlags = instance->getFlags();
@@ -504,12 +560,14 @@ void RT64::View::update() {
 			renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
 			renderInstance.transform = instance->getTransform();
 			renderInstance.material = instance->getMaterial();
+			renderInstance.shader = instance->getShader();
 			renderInstance.indexCount = usedMesh->getIndexCount();
 			renderInstance.indexBufferView = usedMesh->getIndexBufferView();
 			renderInstance.vertexBufferView = usedMesh->getVertexBufferView();
-			renderInstance.material.diffuseTexIndex = (int)(usedTextures.size());
 			renderInstance.flags = (instFlags & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE : D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-			usedTextures.push_back(instance->getDiffuseTexture());
+			renderInstance.material.diffuseTexIndex = getTextureIndex(instance->getDiffuseTexture());
+			renderInstance.material.normalTexIndex = getTextureIndex(instance->getNormalTexture());
+			renderInstance.material.specularTexIndex = getTextureIndex(instance->getSpecularTexture());
 
 			if (instance->hasScissorRect()) {
 				RT64_RECT rect = instance->getScissorRect();
@@ -535,22 +593,6 @@ void RT64::View::update() {
 				renderInstance.viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, 0.0f, 0.0f);
 			}
 
-			if (instance->getNormalTexture() != nullptr) {
-				renderInstance.material.normalTexIndex = (int)(usedTextures.size());
-				usedTextures.push_back(instance->getNormalTexture());
-			}
-			else {
-				renderInstance.material.normalTexIndex = -1;
-			}
-
-			if (instance->getSpecularTexture() != nullptr) {
-				renderInstance.material.specularTexIndex = (int)(usedTextures.size());
-				usedTextures.push_back(instance->getSpecularTexture());
-			}
-			else {
-				renderInstance.material.specularTexIndex = -1;
-			}
-			
 			if (renderInstance.bottomLevelAS != nullptr) {
 				rtInstances.push_back(renderInstance);
 			}
@@ -567,8 +609,9 @@ void RT64::View::update() {
 			createTopLevelAS(rtInstances);
 		}
 
-		// Create the instance properties buffer for the active instances (if necessary).
-		createInstancePropertiesBuffer();
+		// Create the instance buffers for the active instances (if necessary).
+		createInstanceTransformsBuffer();
+		createInstanceMaterialsBuffer();
 		
 		// Create the buffer containing the raytracing result (always output in a
 		// UAV), and create the heap referencing the resources used by the raytracing,
@@ -579,8 +622,9 @@ void RT64::View::update() {
 		// are invoked for each instance in the AS.
 		createShaderBindingTable();
 
-		// Update the instance properties buffer for the active instances.
-		updateInstancePropertiesBuffer();
+		// Update the instance buffers for the active instances.
+		updateInstanceTransformsBuffer();
+		updateInstanceMaterialsBuffer();
 	}
 	else {
 		rtInstances.clear();
@@ -599,16 +643,6 @@ void RT64::View::render() {
 	auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
 	auto d3d12RenderTarget = scene->getDevice()->getD3D12RenderTarget();
 	std::vector<ID3D12DescriptorHeap *> heaps = { descriptorHeap };
-
-	auto resetPipeline = [d3dCommandList, &heaps, this]() {
-		// Set the right pipeline state and root graphics signature used for rasterization.
-		d3dCommandList->SetPipelineState(scene->getDevice()->getD3D12PipelineState());
-		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getD3D12RootSignature());
-
-		// Bind the descriptor heap and the set heap as a descriptor table.
-		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
-		d3dCommandList->SetGraphicsRootDescriptorTable(1, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	};
 
 	// Configure the current viewport.
 	auto resetScissor = [this, d3dCommandList, &scissorRect]() {
@@ -641,14 +675,27 @@ void RT64::View::render() {
 		}
 	};
 
-	auto drawInstances = [d3dCommandList, &scissorRect, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance> &rasterInstances, UINT baseInstanceIndex, bool applyScissorsAndViewports) {
+	auto drawInstances = [d3dCommandList, &scissorRect, &heaps, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance> &rasterInstances, UINT baseInstanceIndex, bool applyScissorsAndViewports) {
 		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		UINT rasterSz = (UINT)(rasterInstances.size());
+		Shader *previousShader = nullptr;
 		for (UINT j = 0; j < rasterSz; j++) {
 			const RenderInstance &renderInstance = rasterInstances[j];
 			if (applyScissorsAndViewports) {
 				applyScissor(renderInstance.scissorRect);
 				applyViewport(renderInstance.viewport);
+			}
+
+			if (previousShader != renderInstance.shader) {
+				const auto &rasterGroup = renderInstance.shader->getRasterGroup();
+				d3dCommandList->SetPipelineState(rasterGroup.pipelineState);
+				d3dCommandList->SetGraphicsRootSignature(rasterGroup.rootSignature);
+				previousShader = renderInstance.shader;
+			}
+
+			if (j == 0) {
+				d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+				d3dCommandList->SetGraphicsRootDescriptorTable(1, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 			}
 
 			d3dCommandList->SetGraphicsRoot32BitConstant(0, baseInstanceIndex + j, 0);
@@ -659,7 +706,6 @@ void RT64::View::render() {
 	};
 
 	// Draw the background instances to the screen.
-	resetPipeline();
 	resetScissor();
 	resetViewport();
 	drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
@@ -786,7 +832,6 @@ void RT64::View::render() {
 	}
 	
 	// Draw the foreground to the screen.
-	resetPipeline();
 	resetScissor();
 	resetViewport();
 	drawInstances(rasterFgInstances, (UINT)(rasterBgInstances.size() + rtInstances.size()), true);
@@ -1087,6 +1132,7 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setResolutionScale(viewDesc.resolutionScale);
+	view->setMaxLightSamples(viewDesc.maxLightSamples);
 	view->setSoftLightSamples(viewDesc.softLightSamples);
 	view->setGIBounces(viewDesc.giBounces);
 	view->setAmbGIMixWeight(viewDesc.ambGiMixWeight);

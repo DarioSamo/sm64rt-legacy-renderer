@@ -41,13 +41,14 @@ namespace RT64 {
 		gHitDistance,
 		gHitColor,
 		gHitNormal,
-		gHitInstanceId,
 		gHitSpecular,
+		gHitInstanceId,
 		gBackground,
 		SceneBVH,
 		ViewParams,
 		SceneLights,
-		instanceProps,
+		instanceTransforms,
+		instanceMaterials,
 		gTextures,
 		MAX
 	};
@@ -59,8 +60,8 @@ namespace RT64 {
 		gHitDistance,
 		gHitColor,
 		gHitNormal,
-		gHitInstanceId,
-		gHitSpecular
+		gHitSpecular,
+		gHitInstanceId
 	};
 
 	enum class SRVIndices : int {
@@ -69,7 +70,8 @@ namespace RT64 {
 		vertexBuffer,
 		indexBuffer,
 		SceneLights,
-		instanceProps,
+		instanceTransforms,
+		instanceMaterials,
 		gTextures
 	};
 
@@ -118,10 +120,9 @@ namespace RT64 {
 		}
 	};
 
-	struct InstanceProperties {
+	struct InstanceTransforms {
 		XMMATRIX objectToWorld;
 		XMMATRIX objectToWorldNormal;
-		RT64_MATERIAL material;
 	};
 
 	struct AccelerationStructureBuffers {

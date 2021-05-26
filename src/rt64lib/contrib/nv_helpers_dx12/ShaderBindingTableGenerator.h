@@ -120,15 +120,15 @@ class ShaderBindingTableGenerator
 public:
   /// Add a ray generation program by name, with its list of data pointers or values according to
   /// the layout of its root signature
-  void AddRayGenerationProgram(const std::wstring& entryPoint, const std::vector<void*>& inputData);
+  void AddRayGenerationProgram(void *id, const std::vector<void*>& inputData);
 
   /// Add a miss program by name, with its list of data pointers or values according to
   /// the layout of its root signature
-  void AddMissProgram(const std::wstring& entryPoint, const std::vector<void*>& inputData);
+  void AddMissProgram(void *id, const std::vector<void*>& inputData);
 
   /// Add a hit group by name, with its list of data pointers or values according to
   /// the layout of its root signature
-  void AddHitGroup(const std::wstring& entryPoint, const std::vector<void*>& inputData);
+  void AddHitGroup(void *id, const std::vector<void*>& inputData);
 
   /// Compute the size of the SBT based on the set of programs and hit groups it contains
   uint32_t ComputeSBTSize();
@@ -165,9 +165,9 @@ private:
   /// which can be either pointers or raw 32-bit constants
   struct SBTEntry
   {
-    SBTEntry(std::wstring entryPoint, std::vector<void*> inputData);
+    SBTEntry(void *id, std::vector<void*> inputData);
 
-    const std::wstring m_entryPoint;
+    const void *m_id;
     const std::vector<void*> m_inputData;
   };
 

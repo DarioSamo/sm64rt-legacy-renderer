@@ -50,30 +50,27 @@ namespace nv_helpers_dx12
 //
 // Add a ray generation program by name, with its list of data pointers or values according to
 // the layout of its root signature
-void ShaderBindingTableGenerator::AddRayGenerationProgram(const std::wstring& entryPoint,
-                                                          const std::vector<void*>& inputData)
+void ShaderBindingTableGenerator::AddRayGenerationProgram(void *id, const std::vector<void*>& inputData)
 {
-  m_rayGen.emplace_back(SBTEntry(entryPoint, inputData));
+  m_rayGen.emplace_back(SBTEntry(id, inputData));
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 // Add a miss program by name, with its list of data pointers or values according to
 // the layout of its root signature
-void ShaderBindingTableGenerator::AddMissProgram(const std::wstring& entryPoint,
-                                                 const std::vector<void*>& inputData)
+void ShaderBindingTableGenerator::AddMissProgram(void *id, const std::vector<void*>& inputData)
 {
-  m_miss.emplace_back(SBTEntry(entryPoint, inputData));
+  m_miss.emplace_back(SBTEntry(id, inputData));
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 // Add a hit group by name, with its list of data pointers or values according to
 // the layout of its root signature
-void ShaderBindingTableGenerator::AddHitGroup(const std::wstring& entryPoint,
-                                              const std::vector<void*>& inputData)
+void ShaderBindingTableGenerator::AddHitGroup(void *id, const std::vector<void*>& inputData)
 {
-  m_hitGroup.emplace_back(SBTEntry(entryPoint, inputData));
+  m_hitGroup.emplace_back(SBTEntry(id, inputData));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -208,16 +205,8 @@ uint32_t ShaderBindingTableGenerator::CopyShaderData(
   uint8_t* pData = outputData;
   for (const auto& shader : shaders)
   {
-    // Get the shader identifier, and check whether that identifier is known
-    void* id = raytracingPipeline->GetShaderIdentifier(shader.m_entryPoint.c_str());
-    if (!id)
-    {
-      std::wstring errMsg(std::wstring(L"Unknown shader identifier used in the SBT: ") +
-                          shader.m_entryPoint);
-      throw std::logic_error(std::string(errMsg.begin(), errMsg.end()));
-    }
     // Copy the shader identifier
-    memcpy(pData, id, m_progIdSize);
+    memcpy(pData, shader.m_id, m_progIdSize);
     // Copy all its resources pointers or values in bulk
     memcpy(pData + m_progIdSize, shader.m_inputData.data(), shader.m_inputData.size() * 8);
 
@@ -252,9 +241,7 @@ uint32_t ShaderBindingTableGenerator::GetEntrySize(const std::vector<SBTEntry>& 
 //--------------------------------------------------------------------------------------------------
 //
 //
-ShaderBindingTableGenerator::SBTEntry::SBTEntry(std::wstring entryPoint,
-                                                std::vector<void*> inputData)
-    : m_entryPoint(std::move(entryPoint)), m_inputData(std::move(inputData))
+ShaderBindingTableGenerator::SBTEntry::SBTEntry(void *id, std::vector<void*> inputData) : m_id(id), m_inputData(std::move(inputData))
 {
 }
 } // namespace nv_helpers_dx12

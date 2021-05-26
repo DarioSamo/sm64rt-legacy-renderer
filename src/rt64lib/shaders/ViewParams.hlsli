@@ -2,6 +2,9 @@
 // RT64
 //
 
+#ifdef SHADER_AS_STRING
+R"raw(
+#else
 cbuffer ViewParams : register(b0) {
 	float4x4 view;
 	float4x4 projection;
@@ -18,3 +21,5 @@ cbuffer ViewParams : register(b0) {
 	float ambGIMixWeight;
 	uint frameCount;
 }
+//)raw"
+#endif

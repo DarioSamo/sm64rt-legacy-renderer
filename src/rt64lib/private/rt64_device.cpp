@@ -13,6 +13,7 @@
 #ifndef RT64_MINIMAL
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
+#include "rt64_shader.h"
 #include "rt64_texture.h"
 
 #include "shaders/ComposePS.hlsl.h"
@@ -21,10 +22,6 @@
 #include "shaders/Im3DVS.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
 #include "shaders/Im3DGSLines.hlsl.h"
-#include "shaders/RasterPS.hlsl.h"
-#include "shaders/RasterVS.hlsl.h"
-#include "shaders/Shadow.hlsl.h"
-#include "shaders/Surface.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -42,17 +39,24 @@ RT64::Device::Device(HWND hwnd) {
 	this->hwnd = hwnd;
 	d3dAllocator = nullptr;
 	d3dCommandListOpen = true;
+	d3dRtStateObject = nullptr;
 	lastCommandQueueBarrierActive = false;
 	lastCopyQueueBarrierActive = false;
 	d3dRenderTargets[0] = nullptr;
 	d3dRenderTargets[1] = nullptr;
 	d3dRenderTargetReadbackRowWidth = 0;
+	d3dRtStateObjectDirty = false;
+	d3dTracerLibrary = nullptr;
+	traceRayGenID = nullptr;
+	surfaceMissID = nullptr;
+	shadowMissID = nullptr;
 	width = 0;
 	height = 0;
 
 	updateSize();
 	loadPipeline();
 	loadAssets();
+	createDxcCompiler();
 	createRaytracingPipeline();
 #endif
 }
@@ -256,14 +260,6 @@ CD3DX12_CPU_DESCRIPTOR_HANDLE RT64::Device::getD3D12RTV() {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
 }
 
-ID3D12RootSignature* RT64::Device::getD3D12RootSignature() {
-	return d3dRootSignature;
-}
-
-ID3D12PipelineState* RT64::Device::getD3D12PipelineState() {
-	return d3dPipelineState;
-}
-
 ID3D12RootSignature *RT64::Device::getComposeRootSignature() {
 	return d3dComposeRootSignature;
 }
@@ -286,6 +282,26 @@ ID3D12PipelineState *RT64::Device::getIm3dPipelineStateLine() {
 
 ID3D12PipelineState *RT64::Device::getIm3dPipelineStateTriangle() {
 	return im3dPipelineStateTriangle;
+}
+
+void *RT64::Device::getTraceRayGenID() const {
+	return traceRayGenID;
+}
+
+void *RT64::Device::getSurfaceMissID() const {
+	return surfaceMissID;
+}
+
+void *RT64::Device::getShadowMissID() const {
+	return shadowMissID;
+}
+
+IDxcCompiler *RT64::Device::getDxcCompiler() const {
+	return d3dDxcCompiler;
+}
+
+IDxcLibrary *RT64::Device::getDxcLibrary() const {
+	return d3dDxcLibrary;
 }
 
 CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() {
@@ -442,44 +458,6 @@ void RT64::Device::loadAssets() {
 		psoDesc.SampleDesc.Count = 1;
 	};
 
-	// Raster root signature.
-	{
-		nv_helpers_dx12::RootSignatureGenerator rsc;
-		rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS, 0);
-		rsc.AddHeapRangesParameter({
-			{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
-			{ SRV_INDEX(gTextures), 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) }
-		});
-
-		d3dRootSignature = rsc.Generate(d3dDevice, false, true, true);
-	}
-
-	// Create the pipeline state, which includes compiling and loading shaders.
-	{
-		// Define the vertex input layout.
-		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 64, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 80, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 96, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-		};
-
-		// Describe and create the graphics pipeline state object (PSO).
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		setPsoDefaults(psoDesc, alphaBlendDesc);
-		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
-		psoDesc.pRootSignature = d3dRootSignature;
-		psoDesc.VS = CD3DX12_SHADER_BYTECODE(RasterVSBlob, sizeof(RasterVSBlob));
-		psoDesc.PS = CD3DX12_SHADER_BYTECODE(RasterPSBlob, sizeof(RasterPSBlob));
-		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dPipelineState)));
-	}
-
 	// Im3d Root signature.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
@@ -487,12 +465,12 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
 			{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 			{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
-			{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 			{ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) },
+			{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 			{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 		});
 
-		im3dRootSignature = rsc.Generate(d3dDevice, false, true, false);
+		im3dRootSignature = rsc.Generate(d3dDevice, false, true, nullptr, 0);
 	}
 
 	// Im3d Pipeline state.
@@ -532,7 +510,22 @@ void RT64::Device::loadAssets() {
 			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 }
 		});
 
-		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, true);
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc;
+		desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		desc.MinLOD = 0;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+		desc.MipLODBias = 0.0f;
+		desc.MaxAnisotropy = 1;
+		desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		desc.ShaderRegister = 0;
+		desc.RegisterSpace = 0;
+		d3dComposeRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
 	}
 
 	{
@@ -548,7 +541,7 @@ void RT64::Device::loadAssets() {
 	}
 
 	// Create the command list.
-	D3D12_CHECK(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, d3dPipelineState, IID_PPV_ARGS(&d3dCommandList)));
+	D3D12_CHECK(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, nullptr, IID_PPV_ARGS(&d3dCommandList)));
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
 	D3D12_CHECK(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));
@@ -565,30 +558,48 @@ void RT64::Device::loadAssets() {
 }
 
 void RT64::Device::createRaytracingPipeline() {
+	if (d3dRtStateObject != nullptr) {
+		d3dRtStateObject->Release();
+		d3dRtStateObject = nullptr;
+	}
+
 	nv_helpers_dx12::RayTracingPipelineGenerator pipeline(d3dDevice);
 
 	// Shader libraries.
-	d3dTracerLibrary = new StaticBlob(TracerBlob, sizeof(TracerBlob));
-	d3dSurfaceLibrary = new StaticBlob(SurfaceBlob, sizeof(SurfaceBlob));
-	d3dShadowLibrary = new StaticBlob(ShadowBlob, sizeof(ShadowBlob));
+	if (d3dTracerLibrary == nullptr) {
+		d3dTracerLibrary = new StaticBlob(TracerBlob, sizeof(TracerBlob));
+	}
 
 	// Add shaders from library to the pipeline.
-	pipeline.AddLibrary(d3dTracerLibrary, { L"TraceRayGen" });
-	pipeline.AddLibrary(d3dSurfaceLibrary, { L"SurfaceClosestHit", L"SurfaceAnyHit", L"SurfaceMiss" });
-	pipeline.AddLibrary(d3dShadowLibrary, { L"ShadowClosestHit", L"ShadowAnyHit", L"ShadowMiss" });
+	pipeline.AddLibrary(d3dTracerLibrary, { L"TraceRayGen", L"SurfaceMiss", L"ShadowMiss" });
+
+	for (Shader *shader : shaders) {
+		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
+		const auto &shadowHitGroup = shader->getShadowHitGroup();
+		pipeline.AddLibrary(surfaceHitGroup.blob, { surfaceHitGroup.closestHitName, surfaceHitGroup.anyHitName });
+		pipeline.AddLibrary(shadowHitGroup.blob, { shadowHitGroup.closestHitName, shadowHitGroup.anyHitName });
+	}
 
 	// Create root signatures.
 	d3dTracerSignature = createTracerSignature();
-	d3dSurfaceShadowSignature = createSurfaceShadowSignature();
 
 	// Add the hit groups with the loaded shaders.
-	pipeline.AddHitGroup(L"SurfaceHitGroup", L"SurfaceClosestHit", L"SurfaceAnyHit");
-	pipeline.AddHitGroup(L"ShadowHitGroup", L"ShadowClosestHit", L"ShadowAnyHit");
+	for (Shader *shader : shaders) {
+		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
+		const auto &shadowHitGroup = shader->getShadowHitGroup();
+		pipeline.AddHitGroup(surfaceHitGroup.hitGroupName, surfaceHitGroup.closestHitName, surfaceHitGroup.anyHitName);
+		pipeline.AddHitGroup(shadowHitGroup.hitGroupName, shadowHitGroup.closestHitName, shadowHitGroup.anyHitName);
+	}
 
 	// Associate the root signatures to the hit groups.
 	pipeline.AddRootSignatureAssociation(d3dTracerSignature, { L"TraceRayGen" });
-	pipeline.AddRootSignatureAssociation(d3dSurfaceShadowSignature, { L"SurfaceHitGroup" });
-	pipeline.AddRootSignatureAssociation(d3dSurfaceShadowSignature, { L"ShadowHitGroup" });
+
+	for (Shader *shader : shaders) {
+		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
+		const auto &shadowHitGroup = shader->getShadowHitGroup();
+		pipeline.AddRootSignatureAssociation(surfaceHitGroup.rootSignature, { surfaceHitGroup.hitGroupName });
+		pipeline.AddRootSignatureAssociation(shadowHitGroup.rootSignature, { shadowHitGroup.hitGroupName });
+	}
 	
 	// Pipeline configuration. Path tracing only needs one recursion level at most.
 	pipeline.SetMaxPayloadSize(2 * sizeof(float));
@@ -601,10 +612,26 @@ void RT64::Device::createRaytracingPipeline() {
 	// Cast the state object into a properties object, allowing to later access the shader pointers by name.
 	D3D12_CHECK(d3dRtStateObject->QueryInterface(IID_PPV_ARGS(&d3dRtStateObjectProps)));
 
+	traceRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"TraceRayGen");
+	surfaceMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"SurfaceMiss");
+	shadowMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"ShadowMiss");
+	for (Shader *shader : shaders) {
+		auto &surfaceHitGroup = shader->getSurfaceHitGroup();
+		auto &shadowHitGroup = shader->getShadowHitGroup();
+		surfaceHitGroup.id = d3dRtStateObjectProps->GetShaderIdentifier(surfaceHitGroup.hitGroupName.c_str());
+		shadowHitGroup.id = d3dRtStateObjectProps->GetShaderIdentifier(shadowHitGroup.hitGroupName.c_str());
+	}
+}
+
+void RT64::Device::createDxcCompiler() {
+	D3D12_CHECK(DxcCreateInstance(CLSID_DxcCompiler, __uuidof(IDxcCompiler), (void **)&d3dDxcCompiler));
+	D3D12_CHECK(DxcCreateInstance(CLSID_DxcLibrary, __uuidof(IDxcLibrary), (void **)&d3dDxcLibrary));
 }
 
 ID3D12RootSignature *RT64::Device::createTracerSignature() {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
+
+	// Fill out the heap parameters.
 	rsc.AddHeapRangesParameter({
 		{ UAV_INDEX(gOutput), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gOutput) },
 		{ UAV_INDEX(gAlbedo), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gAlbedo) },
@@ -612,34 +639,33 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 		{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
-		{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 		{ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) },
+		{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 		{ SRV_INDEX(gBackground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBackground) },
 		{ SRV_INDEX(SceneBVH), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneBVH) },
 		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
-		{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
+		{ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) },
+		{ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) },
 		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 	});
 
-	return rsc.Generate(d3dDevice, true, false, true);
-}
+	// Fill out the samplers.
+	D3D12_STATIC_SAMPLER_DESC desc;
+	desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+	desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+	desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	desc.MinLOD = 0;
+	desc.MaxLOD = D3D12_FLOAT32_MAX;
+	desc.MipLODBias = 0.0f;
+	desc.MaxAnisotropy = 1;
+	desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	desc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	desc.ShaderRegister = 0;
+	desc.RegisterSpace = 0;
 
-ID3D12RootSignature *RT64::Device::createSurfaceShadowSignature() {
-	nv_helpers_dx12::RootSignatureGenerator rsc;
-	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, SRV_INDEX(vertexBuffer));
-	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, SRV_INDEX(indexBuffer));
-	rsc.AddHeapRangesParameter({
-		{ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) },
-		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
-		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
-		{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
-		{ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) },
-		{ SRV_INDEX(instanceProps), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceProps) },
-		{ SRV_INDEX(gTextures), 1024, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) },
-		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
-	});
-
-	return rsc.Generate(d3dDevice, true, false, true);
+	return rsc.Generate(d3dDevice, true, false, &desc, 1);
 }
 
 void RT64::Device::preRender() {
@@ -652,7 +678,6 @@ void RT64::Device::preRender() {
 	resetCommandList();
 
 	// Set necessary state.
-	d3dCommandList->SetGraphicsRootSignature(d3dRootSignature);
 	d3dCommandList->RSSetViewports(1, &d3dViewport);
 	d3dCommandList->RSSetScissorRects(1, &d3dScissorRect);
 
@@ -685,6 +710,11 @@ void RT64::Device::postRender(int vsyncInterval) {
 }
 
 void RT64::Device::draw(int vsyncInterval) {
+	if (d3dRtStateObjectDirty) {
+		createRaytracingPipeline();
+		d3dRtStateObjectDirty = false;
+	}
+
 	submitCommandQueueBarrier();
 	submitCopyQueueBarrier();
 	
@@ -742,6 +772,22 @@ void RT64::Device::removeScene(Scene *scene) {
 	scenes.erase(std::remove(scenes.begin(), scenes.end(), scene), scenes.end());
 }
 
+void RT64::Device::addShader(Shader *shader) {
+	assert(shader != nullptr);
+	if (shader->hasHitGroups()) {
+		shaders.push_back(shader);
+		d3dRtStateObjectDirty = true;
+	}
+}
+
+void RT64::Device::removeShader(Shader *shader) {
+	assert(shader != nullptr);
+	if (shader->hasHitGroups()) {
+		shaders.erase(std::remove(shaders.begin(), shaders.end(), shader), shaders.end());
+		d3dRtStateObjectDirty = true;
+	}
+}
+
 void RT64::Device::addInspector(Inspector* inspector) {
 	assert(inspector != nullptr);
 	inspectors.push_back(inspector);
@@ -757,7 +803,7 @@ void RT64::Device::resetCommandList() {
 	d3dCommandAllocator->Reset();
 
 	// Reset the command list.
-	d3dCommandList->Reset(d3dCommandAllocator, d3dPipelineState);
+	d3dCommandList->Reset(d3dCommandAllocator, nullptr);
 
 	d3dCommandListOpen = true;
 }

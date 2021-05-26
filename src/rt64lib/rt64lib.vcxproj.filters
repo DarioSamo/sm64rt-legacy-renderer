@@ -114,6 +114,12 @@
     <ClInclude Include="private\rt64_denoiser.h">
       <Filter>private</Filter>
     </ClInclude>
+    <ClInclude Include="private\rt64_shader.h">
+      <Filter>private</Filter>
+    </ClInclude>
+    <ClInclude Include="private\rt64_shader_hlsli.h">
+      <Filter>private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">
@@ -182,6 +188,9 @@
     <ClCompile Include="private\rt64_denoiser.cpp">
       <Filter>private</Filter>
     </ClCompile>
+    <ClCompile Include="private\rt64_shader.cpp">
+      <Filter>private</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\ViewParams.hlsli">
@@ -202,22 +211,7 @@
     <None Include="shaders\Materials.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
-    <None Include="shaders\Mesh.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\N64CC.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
     <None Include="shaders\Ray.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\Samplers.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\Textures.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
-    <None Include="shaders\PSInput.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Im3DCommon.hlsli">
@@ -229,18 +223,6 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Tracer.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\Surface.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\RasterPS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\Shadow.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\RasterVS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="shaders\Im3DPS.hlsl">

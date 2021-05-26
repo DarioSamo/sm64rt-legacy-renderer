@@ -2,20 +2,20 @@
 // RT64
 //
 
+#ifdef SHADER_AS_STRING
+R"raw(
+#else
 struct MaterialProperties {
-	int filterMode;
 	int diffuseTexIndex;
 	int normalTexIndex;
 	int specularTexIndex;
-	int hAddressMode;
-	int vAddressMode;
 	float ignoreNormalFactor;
 	float uvDetailScale;
 	float reflectionFactor;
 	float reflectionFresnelFactor;
 	float reflectionShineFactor;
 	float refractionFactor;
-	float specularIntensity;
+	float3 specularColor;
 	float specularExponent;
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
@@ -27,6 +27,8 @@ struct MaterialProperties {
 	float4 diffuseColorMix;
 	float fogMul;
 	float fogOffset;
-
-	uint _pad;
+	uint fogEnabled;
+	uint _reserved;
 };
+//)raw"
+#endif
