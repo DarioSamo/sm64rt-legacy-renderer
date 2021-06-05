@@ -43,10 +43,10 @@ namespace RT64 {
 			XMMATRIX prevViewProj;
 			float viewport[4];
 			float resolution[4];
+			int skyPlaneTexIndex;
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
-			unsigned int giEnvBounces;
 			unsigned int maxLightSamples;
 			float ambGIMixWeight;
 			unsigned int frameCount;
@@ -97,6 +97,7 @@ namespace RT64 {
 		std::vector<RenderInstance> rasterFgInstances;
 		std::vector<RenderInstance> rtInstances;
 		std::vector<Texture *> usedTextures;
+		Texture *skyPlaneTexture;
 		bool scissorApplied;
 		bool viewportApplied;
 
@@ -134,8 +135,6 @@ namespace RT64 {
 		int getSoftLightSamples() const;
 		void setGIBounces(int v);
 		int getGIBounces() const;
-		void setGIEnvBounces(int v);
-		int getGIEnvBounces() const;
 		void setMaxLightSamples(int v);
 		int getMaxLightSamples() const;
 		void setAmbGIMixWeight(float v);
@@ -144,6 +143,7 @@ namespace RT64 {
 		float getResolutionScale() const;
 		void setDenoiserEnabled(bool v);
 		bool getDenoiserEnabled() const;
+		void setSkyPlaneTexture(Texture *texture);
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
 		void resize();

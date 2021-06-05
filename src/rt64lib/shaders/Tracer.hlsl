@@ -2,6 +2,7 @@
 // RT64
 //
 
+#include "Constants.hlsli"
 #include "GlobalBuffers.hlsli"
 #include "GlobalHitBuffers.hlsli"
 #include "Materials.hlsli"
@@ -9,10 +10,9 @@
 #include "Lights.hlsli"
 #include "Ray.hlsli"
 #include "Random.hlsli"
+#include "Textures.hlsli"
 #include "ViewParams.hlsli"
 
-#define EPSILON								1e-6
-#define M_PI								3.14159265f
 #define RAY_MIN_DISTANCE					1.0f
 #define RAY_MAX_DISTANCE					100000.0f
 #define MAX_LIGHTS							32
@@ -224,6 +224,18 @@ float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
 	return gBackground.SampleLevel(gBackgroundSampler, bgPos, 0).rgb;
 }
 
+float4 SampleSkyPlane(float3 rayDirection) {
+	if (skyPlaneTexIndex >= 0) {
+		float skyYaw = atan2(rayDirection.x, -rayDirection.z);
+		float skyPitch = atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z));
+		float2 skyUV = float2((skyYaw + M_PI) / (M_PI * 2.0f), (skyPitch + M_PI) / (M_PI * 2.0f));
+		return gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, skyUV, 0);
+	}
+	else {
+		return float4(0.0f, 0.0f, 0.0f, 0.0f);
+	}
+}
+
 float3 MixAmbientAndGI(float3 ambientLight, float3 resultGiLight) {
 	float lumAmb = dot(ambientLight, float3(1.0f, 1.0f, 1.0f));
 	float lumGI = dot(resultGiLight, float3(1.0f, 1.0f, 1.0f));
@@ -237,7 +249,12 @@ float3 MixAmbientAndGI(float3 ambientLight, float3 resultGiLight) {
 }
 
 float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, uint seed) {
+	// Mix background and sky color together.
 	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
+	float4 skyColor = SampleSkyPlane(rayDirection);
+	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
+
+	// Process hits.
 	float4 resColor = float4(0, 0, 0, 1);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxSimpleLights = 1;
@@ -260,17 +277,6 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 				if (maxSimpleLights > 0) {
 					simpleLightsResult = ComputeLightsOrdered(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, checkShadows, seed + hit);
 					maxSimpleLights--;
-				}
-				
-				// Do fake GI bounces by sampling the background as an environment map.
-				uint giSamples = giEnvBounces;
-				uint seedCopy = seed;
-				while (giSamples > 0) {
-					float3 bounceDir = getCosHemisphereSample(seedCopy, vertexNormal);
-					float bounceStrength = min(1.0f + bounceDir.y, 1.0f);
-					float3 bounceColor = SampleBackgroundAsEnvMap(bounceDir) * bounceStrength;
-					resultGiLight += bounceColor / giEnvBounces;
-					giSamples--;
 				}
 
 				resultLight += simpleLightsResult;

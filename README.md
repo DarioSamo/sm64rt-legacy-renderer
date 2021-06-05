@@ -27,3 +27,6 @@ A sample is included to showcase how to use the renderer library.
 
 ## Screenshot
 ![Sample screenshot](/images/screen1.jpg?raw=true)
+
+## Credits
+Some of the textures used in the sample projects for this repository have been sourced from the [RENDER96-HD-TEXTURE-PACK](https://github.com/pokeheadroom/RENDER96-HD-TEXTURE-PACK) repository.

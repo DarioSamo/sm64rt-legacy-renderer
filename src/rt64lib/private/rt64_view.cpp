@@ -36,6 +36,7 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
+	viewParamsBufferData.skyPlaneTexIndex = -1;
 	viewParamsBufferData.randomSeed = 0;
 	viewParamsBufferData.softLightSamples = 0;
 	viewParamsBufferData.giBounces = 0;
@@ -53,6 +54,7 @@ RT64::View::View(Scene *scene) {
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
+	skyPlaneTexture = nullptr;
 	scissorApplied = false;
 	viewportApplied = false;
 
@@ -520,6 +522,25 @@ void RT64::View::update() {
 		createOutputBuffers();
 	}
 
+	auto getTextureIndex = [this](Texture *texture) {
+		if (texture == nullptr) {
+			return -1;
+		}
+
+		int currentIndex = texture->getCurrentIndex();
+		if (currentIndex < 0) {
+			currentIndex = (int)(usedTextures.size());
+			texture->setCurrentIndex(currentIndex);
+			usedTextures.push_back(texture);
+		}
+
+		return currentIndex;
+	};
+
+	usedTextures.clear();
+	usedTextures.reserve(512);
+	viewParamsBufferData.skyPlaneTexIndex = getTextureIndex(skyPlaneTexture);
+
 	if (!scene->getInstances().empty()) {
 		// Create the active instance vectors.
 		RenderInstance renderInstance;
@@ -531,27 +552,10 @@ void RT64::View::update() {
 		rtInstances.clear();
 		rasterBgInstances.clear();
 		rasterFgInstances.clear();
-		usedTextures.clear();
 
 		rtInstances.reserve(totalInstances);
 		rasterBgInstances.reserve(totalInstances);
 		rasterFgInstances.reserve(totalInstances);
-		usedTextures.reserve(512);
-
-		auto getTextureIndex = [this](Texture *texture) {
-			if (texture == nullptr) {
-				return -1;
-			}
-
-			int currentIndex = texture->getCurrentIndex();
-			if (currentIndex < 0) {
-				currentIndex = (int)(usedTextures.size());
-				texture->setCurrentIndex(currentIndex);
-				usedTextures.push_back(texture);
-			}
-
-			return currentIndex;
-		};
 
 		for (Instance *instance : scene->getInstances()) {
 			instFlags = instance->getFlags();
@@ -649,7 +653,7 @@ void RT64::View::render() {
 		d3dCommandList->RSSetScissorRects(1, &scissorRect);
 		scissorApplied = false;
 	};
-	
+
 	auto resetViewport = [this, d3dCommandList, &viewport]() {
 		d3dCommandList->RSSetViewports(1, &viewport);
 		viewportApplied = false;
@@ -664,7 +668,7 @@ void RT64::View::render() {
 			resetScissor();
 		}
 	};
-	
+
 	auto applyViewport = [this, d3dCommandList, resetViewport](const CD3DX12_VIEWPORT &viewport) {
 		if ((viewport.Width > 0) && (viewport.Height > 0)) {
 			d3dCommandList->RSSetViewports(1, &viewport);
@@ -709,6 +713,19 @@ void RT64::View::render() {
 	resetScissor();
 	resetViewport();
 	drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
+
+	// Draw the sky plane if it's set.
+	if (skyPlaneTexture != nullptr) {
+		resetScissor();
+		resetViewport();
+		d3dCommandList->SetPipelineState(scene->getDevice()->getSkyPlanePipelineState());
+		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getSkyPlaneRootSignature());
+		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+		d3dCommandList->SetGraphicsRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		d3dCommandList->IASetVertexBuffers(0, 0, nullptr);
+		d3dCommandList->DrawInstanced(3, 1, 0, 0);
+	}
 	
 	// Draw the background instances to a buffer that can be used by the tracer as an environment map.
 	{
@@ -1002,14 +1019,6 @@ int RT64::View::getGIBounces() const {
 	return viewParamsBufferData.giBounces;
 }
 
-void RT64::View::setGIEnvBounces(int v) {
-	viewParamsBufferData.giEnvBounces = v;
-}
-
-int RT64::View::getGIEnvBounces() const {
-	return viewParamsBufferData.giEnvBounces;
-}
-
 void RT64::View::setMaxLightSamples(int v) {
 	viewParamsBufferData.maxLightSamples = v;
 }
@@ -1050,6 +1059,10 @@ void RT64::View::setDenoiserEnabled(bool v) {
 
 bool RT64::View::getDenoiserEnabled() const {
 	return denoiserEnabled;
+}
+
+void RT64::View::setSkyPlaneTexture(Texture *texture) {
+	skyPlaneTexture = texture;
 }
 
 RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {
@@ -1137,6 +1150,13 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setGIBounces(viewDesc.giBounces);
 	view->setAmbGIMixWeight(viewDesc.ambGiMixWeight);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
+}
+
+DLLEXPORT void RT64_SetViewSkyPlane(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	RT64::Texture *texture = (RT64::Texture *)(texturePtr);
+	view->setSkyPlaneTexture(texture);
 }
 
 DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int x, int y) {

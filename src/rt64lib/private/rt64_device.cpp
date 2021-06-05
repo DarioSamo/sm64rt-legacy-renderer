@@ -22,6 +22,8 @@
 #include "shaders/Im3DVS.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
 #include "shaders/Im3DGSLines.hlsl.h"
+#include "shaders/SkyPlanePS.hlsl.h"
+#include "shaders/SkyPlaneVS.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -266,6 +268,14 @@ ID3D12RootSignature *RT64::Device::getComposeRootSignature() {
 
 ID3D12PipelineState *RT64::Device::getComposePipelineState() {
 	return d3dComposePipelineState;
+}
+
+ID3D12RootSignature *RT64::Device::getSkyPlaneRootSignature() {
+	return d3dSkyPlaneRootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getSkyPlanePipelineState() {
+	return d3dSkyPlanePipelineState;
 }
 
 ID3D12RootSignature *RT64::Device::getIm3dRootSignature() {
@@ -540,6 +550,44 @@ void RT64::Device::loadAssets() {
 		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dComposePipelineState)));
 	}
 
+	// Sky plane shader.
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ SRV_INDEX(gTextures), 512, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) },
+			{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
+		});
+
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc;
+		desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		desc.MinLOD = 0;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+		desc.MipLODBias = 0.0f;
+		desc.MaxAnisotropy = 1;
+		desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		desc.ShaderRegister = 0;
+		desc.RegisterSpace = 0;
+		d3dSkyPlaneRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
+	}
+
+	{
+		// Describe and create the graphics pipeline state object (PSO).
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+		setPsoDefaults(psoDesc, alphaBlendDesc);
+		psoDesc.InputLayout = { nullptr, 0 };
+		psoDesc.pRootSignature = d3dSkyPlaneRootSignature;
+		psoDesc.VS = CD3DX12_SHADER_BYTECODE(SkyPlaneVSBlob, sizeof(SkyPlaneVSBlob));
+		psoDesc.PS = CD3DX12_SHADER_BYTECODE(SkyPlanePSBlob, sizeof(SkyPlanePSBlob));
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dSkyPlanePipelineState)));
+	}
+
 	// Create the command list.
 	D3D12_CHECK(d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3dCommandAllocator, nullptr, IID_PPV_ARGS(&d3dCommandList)));
 
@@ -646,6 +694,7 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
 		{ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) },
 		{ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) },
+		{ SRV_INDEX(gTextures), 512, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) },
 		{ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) }
 	});
 

@@ -26,6 +26,10 @@ const char RayHLSLI[] =
 #include "shaders/Ray.hlsli"
 ;
 
+const char TexturesHLSLI[] =
+#include "shaders/Textures.hlsli"
+;
+
 const char ViewParamsHLSLI[] =
 #include "shaders/ViewParams.hlsli"
 ;

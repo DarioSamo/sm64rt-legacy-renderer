@@ -57,6 +57,8 @@ namespace RT64 {
 		ID3D12DescriptorHeap *d3dDsvHeap;
 		ID3D12RootSignature *d3dComposeRootSignature;
 		ID3D12PipelineState *d3dComposePipelineState;
+		ID3D12RootSignature *d3dSkyPlaneRootSignature;
+		ID3D12PipelineState *d3dSkyPlanePipelineState;
 		UINT d3dRtvDescriptorSize;
 		IDxcCompiler *d3dDxcCompiler;
 		IDxcLibrary *d3dDxcLibrary;
@@ -109,6 +111,8 @@ namespace RT64 {
 		CD3DX12_CPU_DESCRIPTOR_HANDLE getD3D12RTV();
 		ID3D12RootSignature *getComposeRootSignature();
 		ID3D12PipelineState *getComposePipelineState();
+		ID3D12RootSignature *getSkyPlaneRootSignature();
+		ID3D12PipelineState *getSkyPlanePipelineState();
 		ID3D12RootSignature *getIm3dRootSignature();
 		ID3D12PipelineState *getIm3dPipelineStatePoint();
 		ID3D12PipelineState *getIm3dPipelineStateLine();

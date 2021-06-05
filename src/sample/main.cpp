@@ -184,6 +184,11 @@ void setupRT64Scene() {
 	RT64.textureSpc = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
 	stbi_image_free(texBytes);
 
+	texBytes = stbi_load("res/sky.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	RT64_TEXTURE *textureSky = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
+	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
+	stbi_image_free(texBytes);
+
 	// Make initial transform with a 0.1f scale.
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
 	RT64.transform.m[0][0] = 1.0f;

@@ -223,10 +223,6 @@ void transformVertexNormal(std::stringstream &ss) {
 	SS("if (isBackFacing) { vertexNormal = -vertexNormal; }");
 }
 
-void incTextures(std::stringstream &ss) {
-	SS("Texture2D<float4> gTextures[512] : register(t7);");
-}
-
 std::string colorInput(int item, bool with_alpha, bool inputs_have_alpha, bool hint_single_element) {
 	switch (item) {
 	default:
@@ -346,7 +342,7 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
 		SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
-		incTextures(ss);
+		SS(INCLUDE_HLSLI(TexturesHLSLI));
 	}
 
 	// Vertex shader.
@@ -482,7 +478,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
 		SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
-		incTextures(ss);
+		SS(INCLUDE_HLSLI(TexturesHLSLI));
 	}
 
 	SS("[shader(\"anyhit\")]");
@@ -607,7 +603,7 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
 		SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
-		incTextures(ss);
+		SS(INCLUDE_HLSLI(TexturesHLSLI));
 	}
 	
 	SS("[shader(\"anyhit\")]");

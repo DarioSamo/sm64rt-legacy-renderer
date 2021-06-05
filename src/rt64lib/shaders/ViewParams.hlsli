@@ -13,10 +13,10 @@ cbuffer ViewParams : register(b0) {
 	float4x4 prevViewProj;
 	float4 viewport;
 	float4 resolution;
+	int skyPlaneTexIndex;
 	uint randomSeed;
 	uint softLightSamples;
 	uint giBounces;
-	uint giEnvBounces;
 	uint maxLightSamples;
 	float ambGIMixWeight;
 	uint frameCount;
