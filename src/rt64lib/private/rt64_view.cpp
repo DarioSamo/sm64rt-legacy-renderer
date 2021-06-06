@@ -709,6 +709,28 @@ void RT64::View::render() {
 		}
 	};
 
+	// Determine whether to use the viewport and scissor from the first RT Instance or not.
+	// TODO: Some less hackish way to determine what viewport to use for the raytraced content perhaps.
+	CD3DX12_RECT rtScissorRect = scissorRect;
+	CD3DX12_VIEWPORT rtViewport = viewport;
+	if (!rtInstances.empty()) {
+		rtScissorRect = rtInstances[0].scissorRect;
+		rtViewport = rtInstances[0].viewport;
+		if ((rtScissorRect.right <= rtScissorRect.left)) {
+			rtScissorRect = scissorRect;
+		}
+
+		if ((rtViewport.Width == 0) || (rtViewport.Height == 0)) {
+			rtViewport = viewport;
+		}
+
+		viewParamsBufferData.viewport[0] = rtViewport.TopLeftX;
+		viewParamsBufferData.viewport[1] = rtViewport.TopLeftY;
+		viewParamsBufferData.viewport[2] = rtViewport.Width;
+		viewParamsBufferData.viewport[3] = rtViewport.Height;
+		updateViewParamsBuffer();
+	}
+
 	// Draw the background instances to the screen.
 	resetScissor();
 	resetViewport();
@@ -716,8 +738,8 @@ void RT64::View::render() {
 
 	// Draw the sky plane if it's set.
 	if (skyPlaneTexture != nullptr) {
-		resetScissor();
-		resetViewport();
+		applyScissor(rtScissorRect);
+		applyViewport(rtViewport);
 		d3dCommandList->SetPipelineState(scene->getDevice()->getSkyPlanePipelineState());
 		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getSkyPlaneRootSignature());
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
@@ -753,24 +775,6 @@ void RT64::View::render() {
 	if (!rtInstances.empty()) {
 		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
-
-		// Determine whether to use the viewport and scissor from the first RT Instance or not.
-		// TODO: Some less hackish way to determine what viewport to use for the raytraced content perhaps.
-		CD3DX12_RECT rtScissorRect = rtInstances[0].scissorRect;
-		CD3DX12_VIEWPORT rtViewport = rtInstances[0].viewport;
-		if ((rtScissorRect.right <= rtScissorRect.left)) {
-			rtScissorRect = scissorRect;
-		}
-
-		if ((rtViewport.Width == 0) || (rtViewport.Height == 0)) {
-			rtViewport = viewport;
-		}
-
-		viewParamsBufferData.viewport[0] = rtViewport.TopLeftX;
-		viewParamsBufferData.viewport[1] = rtViewport.TopLeftY;
-		viewParamsBufferData.viewport[2] = rtViewport.Width;
-		viewParamsBufferData.viewport[3] = rtViewport.Height;
-		updateViewParamsBuffer();
 
 		// Ray generation.
 		D3D12_DISPATCH_RAYS_DESC desc = {};
