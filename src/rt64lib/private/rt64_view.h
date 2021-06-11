@@ -41,14 +41,18 @@ namespace RT64 {
 			XMMATRIX viewI;
 			XMMATRIX projectionI;
 			XMMATRIX prevViewProj;
-			float viewport[4];
-			float resolution[4];
+			RT64_VECTOR4 viewport;
+			RT64_VECTOR4 resolution;
 			int skyPlaneTexIndex;
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
 			unsigned int maxLightSamples;
 			float ambGIMixWeight;
+			float diffuseGIIntensity;
+			float skyGIIntensity;
+			RT64_VECTOR3 skyHSLModifier;
+			unsigned int visualizationMode;
 			unsigned int frameCount;
 		};
 
@@ -139,6 +143,14 @@ namespace RT64 {
 		int getMaxLightSamples() const;
 		void setAmbGIMixWeight(float v);
 		float getAmbGIMixWeight() const;
+		void setDiffuseGIIntensity(float v);
+		float getDiffuseGIIntensity() const;
+		void setSkyGIIntensity(float v);
+		float getSkyGIIntensity() const;
+		void setSkyHSLModifier(RT64_VECTOR3 v);
+		RT64_VECTOR3 getSkyHSLModifier() const;
+		void setVisualizationMode(int v);
+		int getVisualizationMode() const;
 		void setResolutionScale(float v);
 		float getResolutionScale() const;
 		void setDenoiserEnabled(bool v);

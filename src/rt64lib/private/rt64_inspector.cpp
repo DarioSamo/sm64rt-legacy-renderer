@@ -36,8 +36,10 @@ RT64::Inspector::Inspector(Device* device) {
     cameraPanX = 0.0f;
     cameraPanY = 0.0f;
     dumpFrameCount = 0;
-
-    reset();
+    material = nullptr;
+    lights = nullptr;
+    lightCount = 0;
+    maxLightCount = 0;
 
     // Im3D
     Im3d::AppData &appData = Im3d::GetAppData();
@@ -67,14 +69,6 @@ RT64::Inspector::~Inspector() {
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
     d3dSrvDescHeap->Release();
-}
-
-void RT64::Inspector::reset() {
-    material = nullptr;
-    lights = nullptr;
-    lightCount = 0;
-    maxLightCount = 0;
-    toPrint.clear();
 }
 
 void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
@@ -123,12 +117,21 @@ void RT64::Inspector::renderViewParams(View *view) {
     int giBounces = view->getGIBounces();
     int maxLightSamples = view->getMaxLightSamples();
 	float ambGIMix = view->getAmbGIMixWeight();
+    float diffuseGIIntensity = view->getDiffuseGIIntensity();
+    float skyGIIntensity = view->getSkyGIIntensity();
+    RT64_VECTOR3 skyHSLModifier = view->getSkyHSLModifier();
+    int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
     bool denoiser = view->getDenoiserEnabled();
+
     ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI Bounces", &giBounces, 0.1f, 0, 32);
     ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
 	ImGui::DragFloat("Ambient GI Mix", &ambGIMix, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Diffuse GI Intensity", &diffuseGIIntensity, 0.01f, 0.0f, 5.0f);
+    ImGui::DragFloat("Sky GI Intensity", &skyGIIntensity, 0.01f, 0.0f, 5.0f);
+    ImGui::DragFloat3("Sky HSL Modifier", &skyHSLModifier.x, 0.01f, -1.0f, 1.0f);
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Normal\0Light only\0");
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
 
@@ -150,6 +153,10 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
 	view->setAmbGIMixWeight(ambGIMix);
+    view->setDiffuseGIIntensity(diffuseGIIntensity);
+    view->setSkyGIIntensity(skyGIIntensity);
+    view->setSkyHSLModifier(skyHSLModifier);
+    view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
     view->setDenoiserEnabled(denoiser);
 
@@ -347,10 +354,10 @@ void RT64::Inspector::renderCameraControl(View *view, int cursorX, int cursorY) 
 }
 
 void RT64::Inspector::renderPrint() {
-    if (!toPrint.empty()) {
+    if (!printMessages.empty()) {
         ImGui::Begin("Print");
-        for (size_t i = 0; i < toPrint.size(); i++) {
-            ImGui::Text("%s", toPrint[i].c_str());
+        for (size_t i = 0; i < printMessages.size(); i++) {
+            ImGui::Text("%s", printMessages[i].c_str());
         }
         ImGui::End();
     }
@@ -388,8 +395,12 @@ void RT64::Inspector::setLights(RT64_LIGHT* lights, int *lightCount, int maxLigh
     this->maxLightCount = maxLightCount;
 }
 
-void RT64::Inspector::print(const std::string& message) {
-    toPrint.push_back(message);
+void RT64::Inspector::printClear() {
+    printMessages.clear();
+}
+
+void RT64::Inspector::printMessage(const std::string& message) {
+    printMessages.push_back(message);
 }
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -425,11 +436,17 @@ DLLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT 
     inspector->setLights(lights, lightCount, maxLightCount);
 }
 
-DLLEXPORT void RT64_PrintToInspector(RT64_INSPECTOR* inspectorPtr, const char* message) {
+DLLEXPORT void RT64_PrintClearInspector(RT64_INSPECTOR *inspectorPtr) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector *inspector = (RT64::Inspector *)(inspectorPtr);
+    inspector->printClear();
+}
+
+DLLEXPORT void RT64_PrintMessageInspector(RT64_INSPECTOR* inspectorPtr, const char* message) {
     assert(inspectorPtr != nullptr);
     RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
     std::string messageStr(message);
-    inspector->print(messageStr);
+    inspector->printMessage(messageStr);
 }
 
 DLLEXPORT void RT64_DestroyInspector(RT64_INSPECTOR* inspectorPtr) {

@@ -184,7 +184,7 @@ void setupRT64Scene() {
 	RT64.textureSpc = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
 	stbi_image_free(texBytes);
 
-	texBytes = stbi_load("res/sky.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	texBytes = stbi_load("res/clouds.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	RT64_TEXTURE *textureSky = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 	stbi_image_free(texBytes);

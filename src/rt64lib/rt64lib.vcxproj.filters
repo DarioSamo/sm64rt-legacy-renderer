@@ -226,6 +226,9 @@
     <None Include="shaders\Constants.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
+    <None Include="shaders\Color.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Tracer.hlsl">

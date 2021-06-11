@@ -19,6 +19,10 @@ cbuffer ViewParams : register(b0) {
 	uint giBounces;
 	uint maxLightSamples;
 	float ambGIMixWeight;
+	float diffuseGIIntensity;
+	float skyGIIntensity;
+	float3 skyHSLModifier;
+	uint visualizationMode;
 	uint frameCount;
 }
 //)raw"

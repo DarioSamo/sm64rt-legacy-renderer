@@ -804,7 +804,6 @@ void RT64::Device::draw(int vsyncInterval) {
 	if (activeView != nullptr) {
 		for (Inspector *inspector : inspectors) {
 			inspector->render(activeView, cursorPos.x, cursorPos.y);
-			inspector->reset();
 		}
 	}
 

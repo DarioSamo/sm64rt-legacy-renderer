@@ -248,7 +248,8 @@ typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
 typedef bool(*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
 typedef void (*SetMaterialInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char *materialName);
 typedef void(*SetLightsInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
-typedef void(*PrintToInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
+typedef void(*PrintClearInspectorPtr)(RT64_INSPECTOR *inspectorPtr);
+typedef void(*PrintMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
 typedef void(*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
 
 // Stores all the function pointers used in the RT64 library.
@@ -280,7 +281,8 @@ typedef struct {
 	DestroyTexturePtr DestroyTexture;
 	CreateInspectorPtr CreateInspector;
 	HandleMessageInspectorPtr HandleMessageInspector;
-	PrintToInspectorPtr PrintToInspector;
+	PrintClearInspectorPtr PrintClearInspector;
+	PrintMessageInspectorPtr PrintMessageInspector;
 	SetMaterialInspectorPtr SetMaterialInspector;
 	SetLightsInspectorPtr SetLightsInspector;
 	DestroyInspectorPtr DestroyInspector;
@@ -330,7 +332,8 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
 		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
 		lib.SetLightsInspector = (SetLightsInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetLightsInspector"));
-		lib.PrintToInspector = (PrintToInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintToInspector"));
+		lib.PrintClearInspector = (PrintClearInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintClearInspector"));
+		lib.PrintMessageInspector = (PrintMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintMessageInspector"));
 		lib.DestroyInspector = (DestroyInspectorPtr)(GetProcAddress(lib.handle, "RT64_DestroyInspector"));
 #endif
 	}

@@ -42,6 +42,10 @@ RT64::View::View(Scene *scene) {
 	viewParamsBufferData.giBounces = 0;
 	viewParamsBufferData.maxLightSamples = 12;
 	viewParamsBufferData.ambGIMixWeight = 0.8f;
+	viewParamsBufferData.diffuseGIIntensity = 1.0f;
+	viewParamsBufferData.skyGIIntensity = 1.0f;
+	viewParamsBufferData.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
+	viewParamsBufferData.visualizationMode = 0;
 	viewParamsBufferData.frameCount = 0;
 	viewParamsBufferSize = 0;
 	viewParamsBufferUpdatedThisFrame = false;
@@ -80,10 +84,10 @@ void RT64::View::createOutputBuffers() {
 	int screenHeight = scene->getDevice()->getHeight();
 	rtWidth = lround(screenWidth * rtScale);
 	rtHeight = lround(screenHeight * rtScale);
-	viewParamsBufferData.resolution[0] = (float)(rtWidth);
-	viewParamsBufferData.resolution[1] = (float)(rtHeight);
-	viewParamsBufferData.resolution[2] = (float)(screenWidth);
-	viewParamsBufferData.resolution[3] = (float)(screenHeight);
+	viewParamsBufferData.resolution.x = (float)(rtWidth);
+	viewParamsBufferData.resolution.y = (float)(rtHeight);
+	viewParamsBufferData.resolution.z = (float)(screenWidth);
+	viewParamsBufferData.resolution.w = (float)(screenHeight);
 
 	D3D12_CLEAR_VALUE clearValue = { };
 	clearValue.Color[0] = 0.0f;
@@ -724,10 +728,10 @@ void RT64::View::render() {
 			rtViewport = viewport;
 		}
 
-		viewParamsBufferData.viewport[0] = rtViewport.TopLeftX;
-		viewParamsBufferData.viewport[1] = rtViewport.TopLeftY;
-		viewParamsBufferData.viewport[2] = rtViewport.Width;
-		viewParamsBufferData.viewport[3] = rtViewport.Height;
+		viewParamsBufferData.viewport.x = rtViewport.TopLeftX;
+		viewParamsBufferData.viewport.y = rtViewport.TopLeftY;
+		viewParamsBufferData.viewport.z = rtViewport.Width;
+		viewParamsBufferData.viewport.w = rtViewport.Height;
 		updateViewParamsBuffer();
 	}
 
@@ -1037,6 +1041,38 @@ void RT64::View::setAmbGIMixWeight(float v) {
 
 float RT64::View::getAmbGIMixWeight() const {
 	return viewParamsBufferData.ambGIMixWeight;
+}
+
+void RT64::View::setDiffuseGIIntensity(float v) {
+	viewParamsBufferData.diffuseGIIntensity = v;
+}
+
+float RT64::View::getDiffuseGIIntensity() const {
+	return viewParamsBufferData.diffuseGIIntensity;
+}
+
+void RT64::View::setSkyGIIntensity(float v) {
+	viewParamsBufferData.skyGIIntensity = v;
+}
+
+float RT64::View::getSkyGIIntensity() const {
+	return viewParamsBufferData.skyGIIntensity;
+}
+
+void RT64::View::setSkyHSLModifier(RT64_VECTOR3 v) {
+	viewParamsBufferData.skyHSLModifier = v;
+}
+
+RT64_VECTOR3 RT64::View::getSkyHSLModifier() const {
+	return viewParamsBufferData.skyHSLModifier;
+}
+
+void RT64::View::setVisualizationMode(int v) {
+	viewParamsBufferData.visualizationMode = v;
+}
+
+int RT64::View::getVisualizationMode() const {
+	return viewParamsBufferData.visualizationMode;
 }
 
 void RT64::View::setResolutionScale(float v) {
