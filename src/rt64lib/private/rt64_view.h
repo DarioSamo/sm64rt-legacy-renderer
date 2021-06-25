@@ -43,6 +43,7 @@ namespace RT64 {
 			XMMATRIX prevViewProj;
 			RT64_VECTOR4 viewport;
 			RT64_VECTOR4 resolution;
+			RT64_VECTOR4 ambientLightColor;
 			RT64_VECTOR4 eyeLightDiffuseColor;
 			RT64_VECTOR4 eyeLightSpecularColor;
 			RT64_VECTOR4 skyHSLModifier;

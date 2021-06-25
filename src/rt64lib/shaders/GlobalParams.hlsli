@@ -13,6 +13,7 @@ cbuffer gParams : register(b0) {
 	float4x4 prevViewProj;
 	float4 viewport;
 	float4 resolution;
+	float4 ambientLightColor;
 	float4 eyeLightDiffuseColor;
 	float4 eyeLightSpecularColor;
 	float4 skyHSLModifier;

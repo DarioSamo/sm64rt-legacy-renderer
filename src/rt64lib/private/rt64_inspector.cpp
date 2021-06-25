@@ -156,11 +156,13 @@ void RT64::Inspector::renderViewParams(View *view) {
 void RT64::Inspector::renderSceneInspector() {
     if (sceneDesc != nullptr) {
         ImGui::Begin("Scene Inspector");
-        ImGui::DragFloat3("Eye Light Diffuse Color", &sceneDesc->eyeLightDiffuseColor.x, 0.01f, -1.0f, 1.0f);
-        ImGui::DragFloat3("Eye Light Specular Color", &sceneDesc->eyeLightSpecularColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat3("Ambient Base Color", &sceneDesc->ambientBaseColor.x, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Ambient No GI Color", &sceneDesc->ambientNoGIColor.x, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Eye Light Diffuse Color", &sceneDesc->eyeLightDiffuseColor.x, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Eye Light Specular Color", &sceneDesc->eyeLightSpecularColor.x, 0.01f, 0.0f, 100.0f);
         ImGui::DragFloat3("Sky HSL Modifier", &sceneDesc->skyHSLModifier.x, 0.01f, -1.0f, 1.0f);
-        ImGui::DragFloat("GI Diffuse Strength", &sceneDesc->giDiffuseStrength, 0.01f, 0.0f, 5.0f);
-        ImGui::DragFloat("GI Sky Strength", &sceneDesc->giSkyStrength, 0.01f, 0.0f, 5.0f);
+        ImGui::DragFloat("GI Diffuse Strength", &sceneDesc->giDiffuseStrength, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat("GI Sky Strength", &sceneDesc->giSkyStrength, 0.01f, 0.0f, 100.0f);
         ImGui::End();
     }
 }
@@ -260,39 +262,30 @@ void RT64::Inspector::renderLightInspector() {
             ImGui::PushID(i);
             Im3d::PushId(i);
 
-            // Rest of the lights.
-            if (i > 0) {
-                if (ImGui::CollapsingHeader("Point light")) {
-                    const int SphereDetail = 64;
-                    ImGui::DragFloat3("Position", &lights[i].position.x);
-                    Im3d::GizmoTranslation("GizmoPosition", &lights[i].position.x);
-                    ImGui::DragFloat3("Diffuse color", &lights[i].diffuseColor.x, 0.01f);
-                    ImGui::DragFloat("Attenuation radius", &lights[i].attenuationRadius);
-                    Im3d::SetColor(lights[i].diffuseColor.x, lights[i].diffuseColor.y, lights[i].diffuseColor.z);
-                    Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].attenuationRadius, SphereDetail);
-                    ImGui::DragFloat("Point radius", &lights[i].pointRadius);
-                    Im3d::SetColor(lights[i].diffuseColor.x * 0.5f, lights[i].diffuseColor.y * 0.5f, lights[i].diffuseColor.z * 0.5f);
-                    Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].pointRadius, SphereDetail);
-                    ImGui::DragFloat3("Specular color", &lights[i].specularColor.x, 0.01f);
-                    ImGui::DragFloat("Shadow offset", &lights[i].shadowOffset);
-                    Im3d::SetColor(Im3d::Color_Black);
-                    Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].shadowOffset, SphereDetail);
-                    ImGui::DragFloat("Attenuation exponent", &lights[i].attenuationExponent);
-                    ImGui::DragFloat("Flicker intensity", &lights[i].flickerIntensity);
-                    ImGui::InputInt("Group bits", (int *)(&lights[i].groupBits));
+            if (ImGui::CollapsingHeader("Point light")) {
+                const int SphereDetail = 64;
+                ImGui::DragFloat3("Position", &lights[i].position.x);
+                Im3d::GizmoTranslation("GizmoPosition", &lights[i].position.x);
+                ImGui::DragFloat3("Diffuse color", &lights[i].diffuseColor.x, 0.01f);
+                ImGui::DragFloat("Attenuation radius", &lights[i].attenuationRadius);
+                Im3d::SetColor(lights[i].diffuseColor.x, lights[i].diffuseColor.y, lights[i].diffuseColor.z);
+                Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].attenuationRadius, SphereDetail);
+                ImGui::DragFloat("Point radius", &lights[i].pointRadius);
+                Im3d::SetColor(lights[i].diffuseColor.x * 0.5f, lights[i].diffuseColor.y * 0.5f, lights[i].diffuseColor.z * 0.5f);
+                Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].pointRadius, SphereDetail);
+                ImGui::DragFloat3("Specular color", &lights[i].specularColor.x, 0.01f);
+                ImGui::DragFloat("Shadow offset", &lights[i].shadowOffset);
+                Im3d::SetColor(Im3d::Color_Black);
+                Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].shadowOffset, SphereDetail);
+                ImGui::DragFloat("Attenuation exponent", &lights[i].attenuationExponent);
+                ImGui::DragFloat("Flicker intensity", &lights[i].flickerIntensity);
+                ImGui::InputInt("Group bits", (int *)(&lights[i].groupBits));
 
-                    if ((*lightCount) < maxLightCount) {
-                        if (ImGui::Button("Duplicate")) {
-                            lights[*lightCount] = lights[i];
-                            *lightCount = *lightCount + 1;
-                        }
+                if ((*lightCount) < maxLightCount) {
+                    if (ImGui::Button("Duplicate")) {
+                        lights[*lightCount] = lights[i];
+                        *lightCount = *lightCount + 1;
                     }
-                }
-            }
-            // Ambient light.
-            else {
-                if (ImGui::CollapsingHeader("Ambient light")) {
-                    ImGui::DragFloat3("Diffuse color", &lights[i].diffuseColor.x, 0.01f);
                 }
             }
 

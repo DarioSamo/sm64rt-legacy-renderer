@@ -210,6 +210,10 @@ namespace RT64 {
 		a.z += b.z;
 	}
 
+	inline RT64_VECTOR3 operator+(RT64_VECTOR3& a, const RT64_VECTOR3& b) {
+		return { a.x + b.x, a.y + b.y, a.z + b.z };
+	}
+
 	inline RT64_VECTOR3 operator/(const RT64_VECTOR3 &a, const float v) {
 		return { a.x / v, a.y / v, a.z / v };
 	}
@@ -218,6 +222,10 @@ namespace RT64 {
 		RT64_VECTOR3 dir = { b.x - a.x,  b.y - a.y, b.z - a.z };
 		float length = Length(dir);
 		return dir / length;
+	}
+
+	inline RT64_VECTOR4 ToVector4(const RT64_VECTOR3& a, float w) {
+		return { a.x, a.y, a.z, w };
 	}
 
 	inline void CalculateTextureRowWidthPadding(int width, int stride, UINT &rowWidth, UINT &rowPadding) {

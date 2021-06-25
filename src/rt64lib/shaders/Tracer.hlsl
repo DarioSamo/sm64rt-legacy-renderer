@@ -25,9 +25,6 @@
 #define VISUALIZATION_MODE_NORMAL			0
 #define VISUALIZATION_MODE_LIGHTS			1
 
-// Toggle whether to mix the ambient and GI or to just add them together.
-#define MIX_AMBIENT_AND_GI					0
-
 // Has better results for avoiding shadow terminator glitches, but has unintended side effects on
 // terrain with really bad normals or geometry that had backfaces removed to be optimized and
 // therefore can't cast shadows.
@@ -128,7 +125,7 @@ float3 ComputeLightsOrdered(float3 rayDirection, uint instanceId, float3 positio
 		uint sLightCount = 0;
 		uint gLightCount, gLightStride;
 		SceneLights.GetDimensions(gLightCount, gLightStride);
-		for (uint l = 1; l < gLightCount; l++) {
+		for (uint l = 0; l < gLightCount; l++) {
 			if (lightGroupMaskBits & SceneLights[l].groupBits) {
 				float lightIntensityFactor = CalculateLightIntensitySimple(l, position, normal, ignoreNormalFactor);
 				if (lightIntensityFactor > EPSILON) {
@@ -169,7 +166,7 @@ float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position
 		float sLightIntensities[MAX_LIGHTS + 1];
 		float totalLightIntensity = 0.0f;
 		SceneLights.GetDimensions(gLightCount, gLightStride);
-		for (uint l = 1; (l < gLightCount) && (sLightCount < MAX_LIGHTS); l++) {
+		for (uint l = 0; (l < gLightCount) && (sLightCount < MAX_LIGHTS); l++) {
 			if (lightGroupMaskBits & SceneLights[l].groupBits) {
 				float lightIntensity = CalculateLightIntensitySimple(l, position, normal, ignoreNormalFactor);
 				if (lightIntensity > EPSILON) {
@@ -251,22 +248,6 @@ float4 SampleSkyPlane(float3 rayDirection) {
 	}
 }
 
-float3 MixAmbientAndGI(float3 ambientLight, float3 resultGiLight) {
-#if MIX_AMBIENT_AND_GI == 1
-	float lumAmb = dot(ambientLight, float3(1.0f, 1.0f, 1.0f));
-	float lumGI = dot(resultGiLight, float3(1.0f, 1.0f, 1.0f));
-
-	// Assign intensity based on weight configuration.
-	lumAmb = lumAmb * (1.0f - ambGIMixWeight);
-	lumGI = lumGI * ambGIMixWeight;
-
-	float invSum = 1.0f / max(lumAmb + lumGI, EPSILON);
-	return ambientLight * lumAmb * invSum + resultGiLight * lumGI * invSum;
-#else
-	return ambientLight + resultGiLight;
-#endif
-}
-
 float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, const bool checkShadows, const bool giBounce, uint seed) {
 	// Mix background and sky color together.
 	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
@@ -301,7 +282,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 				resultLight += simpleLightsResult;
 			}
 
-			resultLight += MixAmbientAndGI(SceneLights[0].diffuseColor, resultGiLight);
+			resultLight += ambientLightColor.rgb + resultGiLight;
 			hitColor.rgb *= resultLight;
 
 			// Backwards alpha blending.
@@ -431,7 +412,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				resultLight += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 			}
 			
-			resultLight += MixAmbientAndGI(SceneLights[0].diffuseColor, resultGiLight);
+			resultLight += ambientLightColor.rgb + resultGiLight;
 			hitColor.rgb *= resultLight;
 
 			// Add reflections.

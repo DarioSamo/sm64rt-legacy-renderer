@@ -149,6 +149,8 @@ bool createRT64(HWND hwnd) {
 void setupRT64Scene() {
 	// Setup scene.
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
+	RT64.sceneDesc.ambientBaseColor = { 0.1f, 0.1f, 0.1f };
+	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
 	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
 	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
 	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f,0.0f };
@@ -161,16 +163,14 @@ void setupRT64Scene() {
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
-	// Light 0 only needs the diffuse color because it is always the ambient light.
-	RT64.lights[0].diffuseColor = { 0.3f, 0.35f, 0.45f };
-	RT64.lights[1].position = { 15000.0f, 30000.0f, 15000.0f };
-	RT64.lights[1].attenuationRadius = 1e9;
-	RT64.lights[1].pointRadius = 5000.0f;
-	RT64.lights[1].diffuseColor = { 0.8f, 0.75f, 0.65f };
-	RT64.lights[1].specularColor = { 0.8f, 0.75f, 0.65f };
-	RT64.lights[1].shadowOffset = 0.0f;
-	RT64.lights[1].attenuationExponent = 1.0f;
-	RT64.lightCount = 2;
+	RT64.lights[0].position = { 15000.0f, 30000.0f, 15000.0f };
+	RT64.lights[0].attenuationRadius = 1e9;
+	RT64.lights[0].pointRadius = 5000.0f;
+	RT64.lights[0].diffuseColor = { 0.8f, 0.75f, 0.65f };
+	RT64.lights[0].specularColor = { 0.8f, 0.75f, 0.65f };
+	RT64.lights[0].shadowOffset = 0.0f;
+	RT64.lights[0].attenuationExponent = 1.0f;
+	RT64.lightCount = 1;
 
 	for (int i = 0; i < _countof(RT64.lights); i++) {
 		RT64.lights[i].groupBits = RT64_LIGHT_GROUP_DEFAULT;

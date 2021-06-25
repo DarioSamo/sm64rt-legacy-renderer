@@ -137,6 +137,8 @@ typedef struct {
 } RT64_LIGHT;
 
 typedef struct {
+	RT64_VECTOR3 ambientBaseColor;
+	RT64_VECTOR3 ambientNoGIColor;
 	RT64_VECTOR3 eyeLightDiffuseColor;
 	RT64_VECTOR3 eyeLightSpecularColor;
 	RT64_VECTOR3 skyHSLModifier;

@@ -490,14 +490,19 @@ void RT64::View::updateGlobalParamsBuffer() {
 	assert(fovRadians > 0.0f);
 
 	// Update with the latest scene description.
-	const auto& edc = scene->getDescription().eyeLightDiffuseColor;
-	const auto& esc = scene->getDescription().eyeLightSpecularColor;
-	const auto& hsl = scene->getDescription().skyHSLModifier;
-	globalParamsBufferData.eyeLightDiffuseColor = { edc.x, edc.y, edc.z, 0.0f };
-	globalParamsBufferData.eyeLightSpecularColor = { esc.x, esc.y, esc.z, 0.0f };
-	globalParamsBufferData.skyHSLModifier = { hsl.x, hsl.y, hsl.z, 0.0f };
-	globalParamsBufferData.giDiffuseStrength = scene->getDescription().giDiffuseStrength;
-	globalParamsBufferData.giSkyStrength = scene->getDescription().giSkyStrength;
+	RT64_SCENE_DESC desc = scene->getDescription();
+	if (globalParamsBufferData.giBounces > 0) {
+		globalParamsBufferData.ambientLightColor = ToVector4(desc.ambientBaseColor, 0.0f);
+	}
+	else {
+		globalParamsBufferData.ambientLightColor = ToVector4(desc.ambientBaseColor + desc.ambientNoGIColor, 0.0f);
+	}
+
+	globalParamsBufferData.eyeLightDiffuseColor = ToVector4(desc.eyeLightDiffuseColor, 0.0f);
+	globalParamsBufferData.eyeLightSpecularColor = ToVector4(desc.eyeLightSpecularColor, 0.0f);
+	globalParamsBufferData.skyHSLModifier = ToVector4(desc.skyHSLModifier, 0.0f);
+	globalParamsBufferData.giDiffuseStrength = desc.giDiffuseStrength;
+	globalParamsBufferData.giSkyStrength = desc.giSkyStrength;
 
 	// Previous view and projection matrices.
 	globalParamsBufferData.prevViewProj = XMMatrixMultiply(globalParamsBufferData.view, globalParamsBufferData.projection);
