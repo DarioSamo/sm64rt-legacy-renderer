@@ -473,7 +473,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS(INCLUDE_HLSLI(GlobalHitBuffersHLSLI));
 	SS(INCLUDE_HLSLI(RayHLSLI));
 	SS(INCLUDE_HLSLI(RandomHLSLI));
-	SS(INCLUDE_HLSLI(ViewParamsHLSLI));
+	SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
@@ -598,7 +598,7 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 	SS(INCLUDE_HLSLI(InstancesHLSLI));
 	SS(INCLUDE_HLSLI(RayHLSLI));
 	SS(INCLUDE_HLSLI(RandomHLSLI));
-	SS(INCLUDE_HLSLI(ViewParamsHLSLI));
+	SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
@@ -707,7 +707,7 @@ ID3D12RootSignature *RT64::Shader::generateHitRootSignature(Filter filter, Addre
 	heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
 	heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
 	heapRanges.push_back({ SRV_INDEX(gTextures), 512, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
-	heapRanges.push_back({ CBV_INDEX(ViewParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(ViewParams) });
+	heapRanges.push_back({ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) });
 	rsc.AddHeapRangesParameter(heapRanges);
 
 	D3D12_STATIC_SAMPLER_DESC samplerDesc;

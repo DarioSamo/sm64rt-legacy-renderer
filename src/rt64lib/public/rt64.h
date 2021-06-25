@@ -137,11 +137,18 @@ typedef struct {
 } RT64_LIGHT;
 
 typedef struct {
+	RT64_VECTOR3 eyeLightDiffuseColor;
+	RT64_VECTOR3 eyeLightSpecularColor;
+	RT64_VECTOR3 skyHSLModifier;
+	float giDiffuseStrength;
+	float giSkyStrength;
+} RT64_SCENE_DESC;
+
+typedef struct {
 	float resolutionScale;
 	unsigned int maxLightSamples;
 	unsigned int softLightSamples;
 	unsigned int giBounces;
-	float ambGiMixWeight;
 	bool denoiserEnabled;
 } RT64_VIEW_DESC;
 
@@ -232,6 +239,7 @@ typedef void(*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);
 typedef void(*DestroyViewPtr)(RT64_VIEW* viewPtr);
 typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
+typedef void(*SetSceneDescriptionPtr)(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc);
 typedef void (*SetSceneLightsPtr)(RT64_SCENE* scenePtr, RT64_LIGHT* lightArray, int lightCount);
 typedef void(*DestroyScenePtr)(RT64_SCENE* scenePtr);
 typedef RT64_MESH* (*CreateMeshPtr)(RT64_DEVICE* devicePtr, int flags);
@@ -246,6 +254,7 @@ typedef RT64_TEXTURE* (*CreateTextureFromRGBA8Ptr)(RT64_DEVICE* devicePtr, const
 typedef void(*DestroyTexturePtr)(RT64_TEXTURE* texture);
 typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
 typedef bool(*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
+typedef void (*SetSceneInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc);
 typedef void (*SetMaterialInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char *materialName);
 typedef void(*SetLightsInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
 typedef void(*PrintClearInspectorPtr)(RT64_INSPECTOR *inspectorPtr);
@@ -267,6 +276,7 @@ typedef struct {
 	GetViewRaytracedInstanceAtPtr GetViewRaytracedInstanceAt;
 	DestroyViewPtr DestroyView;
 	CreateScenePtr CreateScene;
+	SetSceneDescriptionPtr SetSceneDescription;
 	SetSceneLightsPtr SetSceneLights;
 	DestroyScenePtr DestroyScene;
 	CreateMeshPtr CreateMesh;
@@ -283,6 +293,7 @@ typedef struct {
 	HandleMessageInspectorPtr HandleMessageInspector;
 	PrintClearInspectorPtr PrintClearInspector;
 	PrintMessageInspectorPtr PrintMessageInspector;
+	SetSceneInspectorPtr SetSceneInspector;
 	SetMaterialInspectorPtr SetMaterialInspector;
 	SetLightsInspectorPtr SetLightsInspector;
 	DestroyInspectorPtr DestroyInspector;
@@ -316,6 +327,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
 		lib.DestroyView = (DestroyViewPtr)(GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(GetProcAddress(lib.handle, "RT64_CreateScene"));
+		lib.SetSceneDescription = (SetSceneDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetSceneDescription"));
 		lib.SetSceneLights = (SetSceneLightsPtr)(GetProcAddress(lib.handle, "RT64_SetSceneLights"));
 		lib.DestroyScene = (DestroyScenePtr)(GetProcAddress(lib.handle, "RT64_DestroyScene"));
 		lib.CreateMesh = (CreateMeshPtr)(GetProcAddress(lib.handle, "RT64_CreateMesh"));
@@ -330,6 +342,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.DestroyTexture = (DestroyTexturePtr)(GetProcAddress(lib.handle, "RT64_DestroyTexture"));
 		lib.CreateInspector = (CreateInspectorPtr)(GetProcAddress(lib.handle, "RT64_CreateInspector"));
 		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
+		lib.SetSceneInspector = (SetSceneInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
 		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
 		lib.SetLightsInspector = (SetLightsInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetLightsInspector"));
 		lib.PrintClearInspector = (PrintClearInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintClearInspector"));

@@ -35,7 +35,7 @@ namespace RT64 {
 			UINT flags;
 		};
 
-		struct ViewParamsBuffer {
+		struct GlobalParamsBuffer {
 			XMMATRIX view;
 			XMMATRIX projection;
 			XMMATRIX viewI;
@@ -43,15 +43,16 @@ namespace RT64 {
 			XMMATRIX prevViewProj;
 			RT64_VECTOR4 viewport;
 			RT64_VECTOR4 resolution;
+			RT64_VECTOR4 eyeLightDiffuseColor;
+			RT64_VECTOR4 eyeLightSpecularColor;
+			RT64_VECTOR4 skyHSLModifier;
+			float giDiffuseStrength;
+			float giSkyStrength;
 			int skyPlaneTexIndex;
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
 			unsigned int maxLightSamples;
-			float ambGIMixWeight;
-			float diffuseGIIntensity;
-			float skyGIIntensity;
-			RT64_VECTOR3 skyHSLModifier;
 			unsigned int visualizationMode;
 			unsigned int frameCount;
 		};
@@ -89,10 +90,9 @@ namespace RT64 {
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;
-		AllocatedResource viewParamBufferResource;
-		ViewParamsBuffer viewParamsBufferData;
-		uint32_t viewParamsBufferSize;
-		bool viewParamsBufferUpdatedThisFrame;
+		AllocatedResource globalParamBufferResource;
+		GlobalParamsBuffer globalParamsBufferData;
+		uint32_t globalParamsBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -118,8 +118,8 @@ namespace RT64 {
 		void createTopLevelAS(const std::vector<RenderInstance> &rtInstances);
 		void createShaderResourceHeap();
 		void createShaderBindingTable();
-		void createViewParamsBuffer();
-		void updateViewParamsBuffer();
+		void createGlobalParamsBuffer();
+		void updateGlobalParamsBuffer();
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -141,14 +141,6 @@ namespace RT64 {
 		int getGIBounces() const;
 		void setMaxLightSamples(int v);
 		int getMaxLightSamples() const;
-		void setAmbGIMixWeight(float v);
-		float getAmbGIMixWeight() const;
-		void setDiffuseGIIntensity(float v);
-		float getDiffuseGIIntensity() const;
-		void setSkyGIIntensity(float v);
-		float getSkyGIIntensity() const;
-		void setSkyHSLModifier(RT64_VECTOR3 v);
-		RT64_VECTOR3 getSkyHSLModifier() const;
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;
 		void setResolutionScale(float v);

@@ -3,7 +3,7 @@
 //
 
 #include "Constants.hlsli"
-#include "ViewParams.hlsli"
+#include "GlobalParams.hlsli"
 
 // TODO: This code was recreated from the decompilation.
 // It can probably be simplified with a proper rewrite.

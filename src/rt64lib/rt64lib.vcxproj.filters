@@ -193,7 +193,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\ViewParams.hlsli">
+    <None Include="shaders\GlobalParams.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\GlobalBuffers.hlsli">

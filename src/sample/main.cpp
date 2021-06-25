@@ -47,6 +47,7 @@ struct {
 	RT64_DEVICE *device = nullptr;
 	RT64_INSPECTOR* inspector = nullptr;
 	RT64_SCENE *scene = nullptr;
+	RT64_SCENE_DESC sceneDesc;
 	RT64_VIEW *view = nullptr;
 	RT64_MATRIX4 viewMatrix;
 	RT64_MESH *mesh = nullptr;
@@ -91,6 +92,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 			if (RT64.inspector != nullptr) {
 				RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+				RT64.lib.SetSceneInspector(RT64.inspector, &RT64.sceneDesc);
+				RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 			}
 
 			RT64.frameMaterial = RT64.baseMaterial;
@@ -146,6 +149,12 @@ bool createRT64(HWND hwnd) {
 void setupRT64Scene() {
 	// Setup scene.
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
+	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
+	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
+	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f,0.0f };
+	RT64.sceneDesc.giDiffuseStrength = 0.7f;
+	RT64.sceneDesc.giSkyStrength = 0.35f;
+	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
 	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;

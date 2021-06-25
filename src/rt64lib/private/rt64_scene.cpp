@@ -21,8 +21,15 @@
 RT64::Scene::Scene(Device *device) {
 	assert(device != nullptr);
 	this->device = device;
+
+	description.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
+	description.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
+	description.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
+	description.giDiffuseStrength = 0.7f;
+	description.giSkyStrength = 0.35f;
 	lightsBufferSize = 0;
 	lightsCount = 0;
+
 	device->addScene(this);
 }
 
@@ -56,6 +63,14 @@ void RT64::Scene::resize() {
 	for (View *view : views) {
 		view->resize();
 	}
+}
+
+void RT64::Scene::setDescription(RT64_SCENE_DESC v) {
+	description = v;
+}
+
+RT64_SCENE_DESC RT64::Scene::getDescription() const {
+	return description;
 }
 
 void RT64::Scene::addInstance(Instance *instance) {
@@ -143,6 +158,11 @@ RT64::Device *RT64::Scene::getDevice() const {
 DLLEXPORT RT64_SCENE *RT64_CreateScene(RT64_DEVICE *devicePtr) {
 	RT64::Device *device = (RT64::Device *)(devicePtr);
 	return (RT64_SCENE *)(new RT64::Scene(device));
+}
+
+DLLEXPORT void RT64_SetSceneDescription(RT64_SCENE *scenePtr, RT64_SCENE_DESC sceneDesc) {
+	RT64::Scene *scene = (RT64::Scene *)(scenePtr);
+	scene->setDescription(sceneDesc);
 }
 
 DLLEXPORT void RT64_SetSceneLights(RT64_SCENE *scenePtr, RT64_LIGHT *lightArray, int lightCount) {

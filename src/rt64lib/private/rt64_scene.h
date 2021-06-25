@@ -20,12 +20,15 @@ namespace RT64 {
 		AllocatedResource lightsBuffer;
 		size_t lightsBufferSize;
 		int lightsCount;
+		RT64_SCENE_DESC description;
 	public:
 		Scene(Device *device);
 		virtual ~Scene();
 		void update();
 		void render();
 		void resize();
+		void setDescription(RT64_SCENE_DESC v);
+		RT64_SCENE_DESC getDescription() const;
 		void setLights(RT64_LIGHT *lightArray, int lightCount);
 		int getLightsCount() const;
 		ID3D12Resource *getLightsBuffer() const;

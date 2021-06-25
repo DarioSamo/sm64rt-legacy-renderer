@@ -12,7 +12,7 @@
 #include "Ray.hlsli"
 #include "Random.hlsli"
 #include "Textures.hlsli"
-#include "ViewParams.hlsli"
+#include "GlobalParams.hlsli"
 
 #define RAY_MIN_DISTANCE					0.1f
 #define RAY_MAX_DISTANCE					100000.0f
@@ -241,7 +241,7 @@ float4 SampleSkyPlane(float3 rayDirection) {
 		float2 skyUV = float2((skyYaw + M_PI) / (M_PI * 2.0f), (skyPitch + M_PI) / (M_PI * 2.0f));
 		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, skyUV, 0);
 		if (any(skyHSLModifier)) {
-			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier);
+			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.xyz);
 		}
 
 		return skyColor;
@@ -314,8 +314,8 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 		}
 	}
 
-	float bgMult = giBounce ? skyGIIntensity : 1.0f;
-	float resMult = giBounce ? diffuseGIIntensity : 1.0f;
+	float bgMult = giBounce ? giSkyStrength : 1.0f;
+	float resMult = giBounce ? giDiffuseStrength : 1.0f;
 	return lerp(bgColor.rgb * bgMult, resColor.rgb * resMult, (1.0 - resColor.a));
 }
 
@@ -423,19 +423,12 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 					maxGI--;
 				}
 
-				/* TODO REENABLE
 				// Eye light.
-				// Specular is applied here. Might need to adjust the intensity of scaling for actual use cases.
 				float specularExponent = instanceMaterials[instanceId].specularExponent;
 				float eyeLightLambertFactor = max(dot(vertexNormal, -rayDirection), 0.0f);
 				float3 eyeLightReflected = reflect(rayDirection, vertexNormal);
 				float3 eyeLightSpecularFactor = specular * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
-
-				// TODO: Make these modifiable.
-				float3 eyeLightDiffuseColor = float3(0.15f, 0.15f, 0.15f);
-				float3 eyeLightSpecularColor = float3(0.05f, 0.05f, 0.05f);
-				resultLight += (eyeLightDiffuseColor * eyeLightLambertFactor + eyeLightSpecularColor * eyeLightSpecularFactor);
-				*/
+				resultLight += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 			}
 			
 			resultLight += MixAmbientAndGI(SceneLights[0].diffuseColor, resultGiLight);

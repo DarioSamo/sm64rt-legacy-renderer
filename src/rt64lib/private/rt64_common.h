@@ -44,8 +44,8 @@ namespace RT64 {
 		gHitSpecular,
 		gHitInstanceId,
 		gBackground,
+		gParams,
 		SceneBVH,
-		ViewParams,
 		SceneLights,
 		instanceTransforms,
 		instanceMaterials,
@@ -76,7 +76,7 @@ namespace RT64 {
 	};
 
 	enum class CBVIndices : int {
-		ViewParams
+		gParams
 	};
 
 	// Error string for last error or exception that was caught.

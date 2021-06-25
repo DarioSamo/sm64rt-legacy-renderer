@@ -36,6 +36,7 @@ RT64::Inspector::Inspector(Device* device) {
     cameraPanX = 0.0f;
     cameraPanY = 0.0f;
     dumpFrameCount = 0;
+    sceneDesc = nullptr;
     material = nullptr;
     lights = nullptr;
     lightCount = 0;
@@ -81,6 +82,7 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
     Im3d::NewFrame();
 
     renderViewParams(activeView);
+    renderSceneInspector();
     renderMaterialInspector();
     renderLightInspector();
     renderCameraControl(activeView, cursorX, cursorY);
@@ -116,10 +118,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     int softLightSamples = view->getSoftLightSamples();
     int giBounces = view->getGIBounces();
     int maxLightSamples = view->getMaxLightSamples();
-	float ambGIMix = view->getAmbGIMixWeight();
-    float diffuseGIIntensity = view->getDiffuseGIIntensity();
-    float skyGIIntensity = view->getSkyGIIntensity();
-    RT64_VECTOR3 skyHSLModifier = view->getSkyHSLModifier();
     int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
     bool denoiser = view->getDenoiserEnabled();
@@ -127,10 +125,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI Bounces", &giBounces, 0.1f, 0, 32);
     ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
-	ImGui::DragFloat("Ambient GI Mix", &ambGIMix, 0.01f, 0.0f, 1.0f);
-    ImGui::DragFloat("Diffuse GI Intensity", &diffuseGIIntensity, 0.01f, 0.0f, 5.0f);
-    ImGui::DragFloat("Sky GI Intensity", &skyGIIntensity, 0.01f, 0.0f, 5.0f);
-    ImGui::DragFloat3("Sky HSL Modifier", &skyHSLModifier.x, 0.01f, -1.0f, 1.0f);
     ImGui::Combo("Visualization Mode", &visualizationMode, "Normal\0Light only\0");
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
@@ -152,15 +146,23 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setSoftLightSamples(softLightSamples);
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
-	view->setAmbGIMixWeight(ambGIMix);
-    view->setDiffuseGIIntensity(diffuseGIIntensity);
-    view->setSkyGIIntensity(skyGIIntensity);
-    view->setSkyHSLModifier(skyHSLModifier);
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
     view->setDenoiserEnabled(denoiser);
 
     ImGui::End();
+}
+
+void RT64::Inspector::renderSceneInspector() {
+    if (sceneDesc != nullptr) {
+        ImGui::Begin("Scene Inspector");
+        ImGui::DragFloat3("Eye Light Diffuse Color", &sceneDesc->eyeLightDiffuseColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat3("Eye Light Specular Color", &sceneDesc->eyeLightSpecularColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat3("Sky HSL Modifier", &sceneDesc->skyHSLModifier.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat("GI Diffuse Strength", &sceneDesc->giDiffuseStrength, 0.01f, 0.0f, 5.0f);
+        ImGui::DragFloat("GI Sky Strength", &sceneDesc->giSkyStrength, 0.01f, 0.0f, 5.0f);
+        ImGui::End();
+    }
 }
 
 void RT64::Inspector::renderMaterialInspector() {
@@ -384,6 +386,10 @@ void RT64::Inspector::setupWithView(View *view, int cursorX, int cursorY) {
     appData.m_keyDown[Im3d::Mouse_Left] = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 }
 
+void RT64::Inspector::setSceneDescription(RT64_SCENE_DESC* sceneDesc) {
+    this->sceneDesc = sceneDesc;
+}
+
 void RT64::Inspector::setMaterial(RT64_MATERIAL* material, const std::string &materialName) {
     this->material = material;
     this->materialName = materialName;
@@ -424,21 +430,27 @@ DLLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT ms
     return inspector->handleMessage(msg, wParam, lParam);
 }
 
-DLLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char *materialName) {
+DLLEXPORT void RT64_SetSceneInspector(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    inspector->setSceneDescription(sceneDesc);
+}
+
+DLLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char* materialName) {
     assert(inspectorPtr != nullptr);
     RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
     inspector->setMaterial(material, std::string(materialName));
 }
 
-DLLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT *lights, int *lightCount, int maxLightCount) {
+DLLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
     assert(inspectorPtr != nullptr);
     RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
     inspector->setLights(lights, lightCount, maxLightCount);
 }
 
-DLLEXPORT void RT64_PrintClearInspector(RT64_INSPECTOR *inspectorPtr) {
+DLLEXPORT void RT64_PrintClearInspector(RT64_INSPECTOR* inspectorPtr) {
     assert(inspectorPtr != nullptr);
-    RT64::Inspector *inspector = (RT64::Inspector *)(inspectorPtr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
     inspector->printClear();
 }
 

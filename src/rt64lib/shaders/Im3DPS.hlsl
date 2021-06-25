@@ -4,7 +4,7 @@
 
 #include "Im3DCommon.hlsli"
 #include "GlobalHitBuffers.hlsli"
-#include "ViewParams.hlsli"
+#include "GlobalParams.hlsli"
 
 float4 PSMain(VS_OUTPUT _in) : SV_Target {
 	uint2 pixelDims = round(resolution.xy);

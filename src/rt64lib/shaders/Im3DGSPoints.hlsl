@@ -3,7 +3,7 @@
 //
 
 #include "Im3DCommon.hlsli"
-#include "ViewParams.hlsli"
+#include "GlobalParams.hlsli"
 
 // expand point -> triangle strip (quad)
 [maxvertexcount(4)]

@@ -36,19 +36,14 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
-	viewParamsBufferData.skyPlaneTexIndex = -1;
-	viewParamsBufferData.randomSeed = 0;
-	viewParamsBufferData.softLightSamples = 0;
-	viewParamsBufferData.giBounces = 0;
-	viewParamsBufferData.maxLightSamples = 12;
-	viewParamsBufferData.ambGIMixWeight = 0.8f;
-	viewParamsBufferData.diffuseGIIntensity = 1.0f;
-	viewParamsBufferData.skyGIIntensity = 1.0f;
-	viewParamsBufferData.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
-	viewParamsBufferData.visualizationMode = 0;
-	viewParamsBufferData.frameCount = 0;
-	viewParamsBufferSize = 0;
-	viewParamsBufferUpdatedThisFrame = false;
+	globalParamsBufferData.skyPlaneTexIndex = -1;
+	globalParamsBufferData.randomSeed = 0;
+	globalParamsBufferData.softLightSamples = 0;
+	globalParamsBufferData.giBounces = 0;
+	globalParamsBufferData.maxLightSamples = 12;
+	globalParamsBufferData.visualizationMode = 0;
+	globalParamsBufferData.frameCount = 0;
+	globalParamsBufferSize = 0;
 	rtWidth = 0;
 	rtHeight = 0;
 	rtScale = 1.0f;
@@ -63,7 +58,7 @@ RT64::View::View(Scene *scene) {
 	viewportApplied = false;
 
 	createOutputBuffers();
-	createViewParamsBuffer();
+	createGlobalParamsBuffer();
 
 	scene->addView(this);
 }
@@ -84,10 +79,10 @@ void RT64::View::createOutputBuffers() {
 	int screenHeight = scene->getDevice()->getHeight();
 	rtWidth = lround(screenWidth * rtScale);
 	rtHeight = lround(screenHeight * rtScale);
-	viewParamsBufferData.resolution.x = (float)(rtWidth);
-	viewParamsBufferData.resolution.y = (float)(rtHeight);
-	viewParamsBufferData.resolution.z = (float)(screenWidth);
-	viewParamsBufferData.resolution.w = (float)(screenHeight);
+	globalParamsBufferData.resolution.x = (float)(rtWidth);
+	globalParamsBufferData.resolution.y = (float)(rtHeight);
+	globalParamsBufferData.resolution.z = (float)(screenWidth);
+	globalParamsBufferData.resolution.w = (float)(screenHeight);
 
 	D3D12_CLEAR_VALUE clearValue = { };
 	clearValue.Color[0] = 0.0f;
@@ -345,8 +340,15 @@ void RT64::View::createShaderResourceHeap() {
 	textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rasterBg.Get(), &textureSRVDesc, handle);
 	handle.ptr += handleIncrement;
+	
+	// Describe and create a constant buffer view for the global parameters.
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = globalParamBufferResource.Get()->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = globalParamsBufferSize;
+	scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+	handle.ptr += handleIncrement;
 
-	// Add the Top Level AS SRV right after the raytracing output buffer
+	// Add the Top Level AS SRV.
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
 	if (!topLevelASBuffers.result.IsNull()) {
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -358,14 +360,7 @@ void RT64::View::createShaderResourceHeap() {
 
 	handle.ptr += handleIncrement;
 
-	// Describe and create a constant buffer view for the camera
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = viewParamBufferResource.Get()->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = viewParamsBufferSize;
-	scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
-	handle.ptr += handleIncrement;
-
-	// Describe and create a constant buffer view for the lights
+	// Describe and create a constant buffer view for the lights.
 	if (scene->getLightsCount() > 0) {
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -486,37 +481,44 @@ void RT64::View::createShaderBindingTable() {
 	sbtHelper.Generate(sbtStorage.Get(), scene->getDevice()->getD3D12RtStateObjectProperties());
 }
 
-void RT64::View::createViewParamsBuffer() {
-	viewParamsBufferSize = ROUND_UP(4 * sizeof(XMMATRIX) + 8, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-	viewParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, viewParamsBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+void RT64::View::createGlobalParamsBuffer() {
+	globalParamsBufferSize = ROUND_UP(sizeof(GlobalParamsBuffer), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	globalParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, globalParamsBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
-void RT64::View::updateViewParamsBuffer() {
+void RT64::View::updateGlobalParamsBuffer() {
 	assert(fovRadians > 0.0f);
 
+	// Update with the latest scene description.
+	const auto& edc = scene->getDescription().eyeLightDiffuseColor;
+	const auto& esc = scene->getDescription().eyeLightSpecularColor;
+	const auto& hsl = scene->getDescription().skyHSLModifier;
+	globalParamsBufferData.eyeLightDiffuseColor = { edc.x, edc.y, edc.z, 0.0f };
+	globalParamsBufferData.eyeLightSpecularColor = { esc.x, esc.y, esc.z, 0.0f };
+	globalParamsBufferData.skyHSLModifier = { hsl.x, hsl.y, hsl.z, 0.0f };
+	globalParamsBufferData.giDiffuseStrength = scene->getDescription().giDiffuseStrength;
+	globalParamsBufferData.giSkyStrength = scene->getDescription().giSkyStrength;
+
 	// Previous view and projection matrices.
-	if (!viewParamsBufferUpdatedThisFrame) {
-		viewParamsBufferData.prevViewProj = XMMatrixMultiply(viewParamsBufferData.view, viewParamsBufferData.projection);
-		viewParamsBufferUpdatedThisFrame = true;
-	}
+	globalParamsBufferData.prevViewProj = XMMatrixMultiply(globalParamsBufferData.view, globalParamsBufferData.projection);
 
 	// Compute the hash of the view and projection matrices and use it as the random seed.
 	// This is to prevent the denoiser from showing movement when the game is paused.
 	XXHash32 viewProjHash(0);
-	viewProjHash.add(&viewParamsBufferData.view, sizeof(XMMATRIX));
-	viewProjHash.add(&viewParamsBufferData.projection, sizeof(XMMATRIX));
-	viewParamsBufferData.randomSeed = viewProjHash.hash();
+	viewProjHash.add(&globalParamsBufferData.view, sizeof(XMMATRIX));
+	viewProjHash.add(&globalParamsBufferData.projection, sizeof(XMMATRIX));
+	globalParamsBufferData.randomSeed = viewProjHash.hash();
 
 	// Inverse matrices required for raytracing.
 	XMVECTOR det;
-	viewParamsBufferData.viewI = XMMatrixInverse(&det, viewParamsBufferData.view);
-	viewParamsBufferData.projectionI = XMMatrixInverse(&det, viewParamsBufferData.projection);
+	globalParamsBufferData.viewI = XMMatrixInverse(&det, globalParamsBufferData.view);
+	globalParamsBufferData.projectionI = XMMatrixInverse(&det, globalParamsBufferData.projection);
 	
 	// Copy the camera buffer data to the resource.
 	uint8_t *pData;
-	D3D12_CHECK(viewParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
-	memcpy(pData, &viewParamsBufferData, sizeof(ViewParamsBuffer));
-	viewParamBufferResource.Get()->Unmap(0, nullptr);
+	D3D12_CHECK(globalParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &globalParamsBufferData, sizeof(GlobalParamsBuffer));
+	globalParamBufferResource.Get()->Unmap(0, nullptr);
 }
 
 void RT64::View::update() {
@@ -543,7 +545,7 @@ void RT64::View::update() {
 
 	usedTextures.clear();
 	usedTextures.reserve(512);
-	viewParamsBufferData.skyPlaneTexIndex = getTextureIndex(skyPlaneTexture);
+	globalParamsBufferData.skyPlaneTexIndex = getTextureIndex(skyPlaneTexture);
 
 	if (!scene->getInstances().empty()) {
 		// Create the active instance vectors.
@@ -728,11 +730,11 @@ void RT64::View::render() {
 			rtViewport = viewport;
 		}
 
-		viewParamsBufferData.viewport.x = rtViewport.TopLeftX;
-		viewParamsBufferData.viewport.y = rtViewport.TopLeftY;
-		viewParamsBufferData.viewport.z = rtViewport.Width;
-		viewParamsBufferData.viewport.w = rtViewport.Height;
-		updateViewParamsBuffer();
+		globalParamsBufferData.viewport.x = rtViewport.TopLeftX;
+		globalParamsBufferData.viewport.y = rtViewport.TopLeftY;
+		globalParamsBufferData.viewport.z = rtViewport.Width;
+		globalParamsBufferData.viewport.w = rtViewport.Height;
+		updateGlobalParamsBuffer();
 	}
 
 	// Draw the background instances to the screen.
@@ -863,8 +865,7 @@ void RT64::View::render() {
 
 	// Clear flags.
 	rtHitInstanceIdReadbackUpdated = false;
-	viewParamsBufferUpdatedThisFrame = false;
-	viewParamsBufferData.frameCount++;
+	globalParamsBufferData.frameCount++;
 }
 
 void RT64::View::renderInspector(Inspector *inspector) {
@@ -954,29 +955,29 @@ void RT64::View::setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float
 	this->nearDist = nearDist;
 	this->farDist = farDist;
 
-	viewParamsBufferData.view = XMMatrixSet(
+	globalParamsBufferData.view = XMMatrixSet(
 		viewMatrix.m[0][0], viewMatrix.m[0][1], viewMatrix.m[0][2], viewMatrix.m[0][3],
 		viewMatrix.m[1][0], viewMatrix.m[1][1], viewMatrix.m[1][2], viewMatrix.m[1][3],
 		viewMatrix.m[2][0], viewMatrix.m[2][1], viewMatrix.m[2][2], viewMatrix.m[2][3],
 		viewMatrix.m[3][0], viewMatrix.m[3][1], viewMatrix.m[3][2], viewMatrix.m[3][3]
 	);
 
-	viewParamsBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
+	globalParamsBufferData.projection = XMMatrixPerspectiveFovRH(fovRadians, scene->getDevice()->getAspectRatio(), nearDist, farDist);
 }
 
 void RT64::View::movePerspective(RT64_VECTOR3 localMovement) {
-	XMVECTOR offset = XMVector4Transform(XMVectorSet(localMovement.x, localMovement.y, localMovement.z, 0.0f), viewParamsBufferData.viewI);
+	XMVECTOR offset = XMVector4Transform(XMVectorSet(localMovement.x, localMovement.y, localMovement.z, 0.0f), globalParamsBufferData.viewI);
 	XMVECTOR det;
-	viewParamsBufferData.view = XMMatrixMultiply(XMMatrixInverse(&det, XMMatrixTranslationFromVector(offset)), viewParamsBufferData.view);
+	globalParamsBufferData.view = XMMatrixMultiply(XMMatrixInverse(&det, XMMatrixTranslationFromVector(offset)), globalParamsBufferData.view);
 }
 
 void RT64::View::rotatePerspective(float localYaw, float localPitch, float localRoll) {
-	XMVECTOR viewPos = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), viewParamsBufferData.viewI);
+	XMVECTOR viewPos = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), globalParamsBufferData.viewI);
 	XMVECTOR viewFocus = XMVectorSet(0.0f, 0.0f, -farDist, 1.0f);
 	XMVECTOR viewUp = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
 	viewFocus = XMVector4Transform(viewFocus, XMMatrixRotationRollPitchYaw(localRoll, localPitch, localYaw));
-	viewFocus = XMVector4Transform(viewFocus, viewParamsBufferData.viewI);
-	viewParamsBufferData.view = XMMatrixLookAtRH(viewPos, viewFocus, viewUp);
+	viewFocus = XMVector4Transform(viewFocus, globalParamsBufferData.viewI);
+	globalParamsBufferData.view = XMMatrixLookAtRH(viewPos, viewFocus, viewUp);
 }
 
 void RT64::View::setPerspectiveControlActive(bool v) {
@@ -984,12 +985,12 @@ void RT64::View::setPerspectiveControlActive(bool v) {
 }
 
 RT64_VECTOR3 RT64::View::getViewPosition() {
-	XMVECTOR pos = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), viewParamsBufferData.viewI);
+	XMVECTOR pos = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), globalParamsBufferData.viewI);
 	return { XMVectorGetX(pos), XMVectorGetY(pos), XMVectorGetZ(pos) };
 }
 
 RT64_VECTOR3 RT64::View::getViewDirection() {
-	XMVECTOR xdir = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), viewParamsBufferData.viewI);
+	XMVECTOR xdir = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), globalParamsBufferData.viewI);
 	RT64_VECTOR3 dir = { XMVectorGetX(xdir), XMVectorGetY(xdir), XMVectorGetZ(xdir) };
 	float length = Length(dir);
 	return dir / length;
@@ -1008,71 +1009,39 @@ float RT64::View::getFarDistance() const {
 }
 
 void RT64::View::setSoftLightSamples(int v) {
-	if (viewParamsBufferData.softLightSamples != v) {
-		viewParamsBufferData.softLightSamples = v;
+	if (globalParamsBufferData.softLightSamples != v) {
+		globalParamsBufferData.softLightSamples = v;
 	}
 }
 
 int RT64::View::getSoftLightSamples() const {
-	return viewParamsBufferData.softLightSamples;
+	return globalParamsBufferData.softLightSamples;
 }
 
 void RT64::View::setGIBounces(int v) {
-	if (viewParamsBufferData.giBounces != v) {
-		viewParamsBufferData.giBounces = v;
+	if (globalParamsBufferData.giBounces != v) {
+		globalParamsBufferData.giBounces = v;
 	}
 }
 
 int RT64::View::getGIBounces() const {
-	return viewParamsBufferData.giBounces;
+	return globalParamsBufferData.giBounces;
 }
 
 void RT64::View::setMaxLightSamples(int v) {
-	viewParamsBufferData.maxLightSamples = v;
+	globalParamsBufferData.maxLightSamples = v;
 }
 
 int RT64::View::getMaxLightSamples() const {
-	return viewParamsBufferData.maxLightSamples;
-}
-
-void RT64::View::setAmbGIMixWeight(float v) {
-	viewParamsBufferData.ambGIMixWeight = v;
-}
-
-float RT64::View::getAmbGIMixWeight() const {
-	return viewParamsBufferData.ambGIMixWeight;
-}
-
-void RT64::View::setDiffuseGIIntensity(float v) {
-	viewParamsBufferData.diffuseGIIntensity = v;
-}
-
-float RT64::View::getDiffuseGIIntensity() const {
-	return viewParamsBufferData.diffuseGIIntensity;
-}
-
-void RT64::View::setSkyGIIntensity(float v) {
-	viewParamsBufferData.skyGIIntensity = v;
-}
-
-float RT64::View::getSkyGIIntensity() const {
-	return viewParamsBufferData.skyGIIntensity;
-}
-
-void RT64::View::setSkyHSLModifier(RT64_VECTOR3 v) {
-	viewParamsBufferData.skyHSLModifier = v;
-}
-
-RT64_VECTOR3 RT64::View::getSkyHSLModifier() const {
-	return viewParamsBufferData.skyHSLModifier;
+	return globalParamsBufferData.maxLightSamples;
 }
 
 void RT64::View::setVisualizationMode(int v) {
-	viewParamsBufferData.visualizationMode = v;
+	globalParamsBufferData.visualizationMode = v;
 }
 
 int RT64::View::getVisualizationMode() const {
-	return viewParamsBufferData.visualizationMode;
+	return globalParamsBufferData.visualizationMode;
 }
 
 void RT64::View::setResolutionScale(float v) {
@@ -1108,8 +1077,8 @@ void RT64::View::setSkyPlaneTexture(Texture *texture) {
 RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {
 	float x = ((px + 0.5f) / getWidth()) * 2.0f - 1.0f;
 	float y = ((py + 0.5f) / getHeight()) * 2.0f - 1.0f;
-	XMVECTOR target = XMVector4Transform(XMVectorSet(x, -y, 1.0f, 1.0f), viewParamsBufferData.projectionI);
-	XMVECTOR rayDirection = XMVector4Transform(XMVectorSetW(target, 0.0f), viewParamsBufferData.viewI);
+	XMVECTOR target = XMVector4Transform(XMVectorSet(x, -y, 1.0f, 1.0f), globalParamsBufferData.projectionI);
+	XMVECTOR rayDirection = XMVector4Transform(XMVectorSetW(target, 0.0f), globalParamsBufferData.viewI);
 	rayDirection = XMVector4Normalize(rayDirection);
 	return { XMVectorGetX(rayDirection), XMVectorGetY(rayDirection), XMVectorGetZ(rayDirection) };
 }
@@ -1188,7 +1157,6 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setMaxLightSamples(viewDesc.maxLightSamples);
 	view->setSoftLightSamples(viewDesc.softLightSamples);
 	view->setGIBounces(viewDesc.giBounces);
-	view->setAmbGIMixWeight(viewDesc.ambGiMixWeight);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
 }
 
