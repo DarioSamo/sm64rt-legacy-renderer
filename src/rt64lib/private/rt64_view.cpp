@@ -812,6 +812,7 @@ void RT64::View::render() {
 
 		// Bind pipeline and dispatch rays.
 		d3dCommandList->SetPipelineState1(scene->getDevice()->getD3D12RtStateObject());
+		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
 		d3dCommandList->DispatchRays(&desc);
 
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
