@@ -28,6 +28,7 @@ namespace RT64 {
 			int indexCount;
 			ID3D12Resource* bottomLevelAS;
 			DirectX::XMMATRIX transform;
+			DirectX::XMMATRIX transformPrevious;
 			RT64_MATERIAL material;
 			Shader *shader;
 			CD3DX12_RECT scissorRect;
@@ -37,9 +38,10 @@ namespace RT64 {
 
 		struct GlobalParamsBuffer {
 			XMMATRIX view;
-			XMMATRIX projection;
 			XMMATRIX viewI;
+			XMMATRIX projection;
 			XMMATRIX projectionI;
+			XMMATRIX viewProj;
 			XMMATRIX prevViewProj;
 			RT64_VECTOR4 viewport;
 			RT64_VECTOR4 resolution;
@@ -70,7 +72,8 @@ namespace RT64 {
 		AllocatedResource rtOutput;
 		AllocatedResource rtAlbedo;
 		AllocatedResource rtNormal;
-		AllocatedResource rtHitDistance;
+		AllocatedResource rtFlow;
+		AllocatedResource rtHitDistAndFlow;
 		AllocatedResource rtHitColor;
 		AllocatedResource rtHitNormal;
 		AllocatedResource rtHitSpecular;
@@ -81,6 +84,7 @@ namespace RT64 {
 		float rtScale;
 		float resolutionScale;
 		bool denoiserEnabled;
+		bool denoiserTemporal;
 		Denoiser *denoiser;
 
 		bool rtHitInstanceIdReadbackUpdated;
@@ -121,6 +125,7 @@ namespace RT64 {
 		void createShaderBindingTable();
 		void createGlobalParamsBuffer();
 		void updateGlobalParamsBuffer();
+		void checkDenoiser();
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -148,6 +153,8 @@ namespace RT64 {
 		float getResolutionScale() const;
 		void setDenoiserEnabled(bool v);
 		bool getDenoiserEnabled() const;
+		void setDenoiserTemporalMode(bool v);
+		bool getDenoiserTemporalMode() const;
 		void setSkyPlaneTexture(Texture *texture);
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);

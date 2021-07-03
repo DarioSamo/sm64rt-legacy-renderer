@@ -24,6 +24,7 @@
 
 #define VISUALIZATION_MODE_NORMAL			0
 #define VISUALIZATION_MODE_LIGHTS			1
+#define VISUALIZATION_MODE_FLOW				2
 
 // Has better results for avoiding shadow terminator glitches, but has unintended side effects on
 // terrain with really bad normals or geometry that had backfaces removed to be optimized and
@@ -265,7 +266,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 		if (alphaContrib >= EPSILON) {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
 			uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
-			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
+			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
@@ -341,10 +342,17 @@ float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, fl
 	return reflectionColor;
 }
 
+float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
+	float4 clipSpace = mul(viewProj, float4(worldPos, 1.0f));
+	float3 NDC = clipSpace.xyz / clipSpace.w;
+	return (0.5f + NDC.xy / 2.0f) * resolution.xy;
+}
+
 void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	float4 resColor = float4(0, 0, 0, 1);
 	float4 finalAlbedo = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	float4 finalNormal = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float4 finalFlow = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
 	uint maxSimpleLights = 1;
@@ -354,16 +362,20 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 	for (uint hit = 0; hit < hitCount; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, pixelDims);
 		uint instanceId = gHitInstanceId[hitBufferIndex];
-		float hitDistance = WithoutDistanceBias(gHitDistance[hitBufferIndex], instanceId);
+		float hitDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
 		seed += asuint(hitDistance);
 
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float3 vertexPosition = rayOrigin + rayDirection * hitDistance;
 		float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
-		float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 		float refractionFactor = instanceMaterials[instanceId].refractionFactor;
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
+			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+			float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
+			float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
+			float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
+			float2 resultFlow = curPos - prevPos;
 			uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 			float3 resultLight = instanceMaterials[instanceId].selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
@@ -376,6 +388,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
 					finalAlbedo = hitColor;
 					finalNormal = float4(vertexNormal, 0.0f);
+					finalFlow = float4(resultFlow, 0.0f, 0.0f);
 					resultLight += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxLightSamples, true, seed);
 					maxFullLights--;
 				}
@@ -430,8 +443,13 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				hitColor.rgb = lerp(hitColor.rgb, fogColor.rgb, fogColor.a);
 			}
 
+			// Special visualization modes for debugging.
 			if (visualizationMode == VISUALIZATION_MODE_LIGHTS) {
 				hitColor.rgb = resultLight;
+			}
+			else if (visualizationMode == VISUALIZATION_MODE_FLOW) {
+				hitColor.rg = abs(resultFlow.xy) / resolution.xy;
+				hitColor.b = 0.0f;
 			}
 
 			// Backwards alpha blending.
@@ -455,13 +473,14 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		}
 	}
 
-	if (visualizationMode == VISUALIZATION_MODE_LIGHTS) {
+	if (visualizationMode != VISUALIZATION_MODE_NORMAL) {
 		finalAlbedo = float4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
 	gOutput[launchIndex] = float4(resColor.rgb, (1.0f - resColor.a));
 	gAlbedo[launchIndex] = finalAlbedo;
 	gNormal[launchIndex] = finalNormal;
+	gFlow[launchIndex] = finalFlow;
 
 #if DEBUG_HIT_COUNT == 1
 	float4 colors[MAX_HIT_QUERIES + 1] =

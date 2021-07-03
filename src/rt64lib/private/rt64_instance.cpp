@@ -21,6 +21,7 @@ RT64::Instance::Instance(Scene *scene) {
 	normalTexture = nullptr;
 	specularTexture = nullptr;
 	transform = XMMatrixIdentity();
+	previousTransform = XMMatrixIdentity();
 	material = DefaultMaterial;
 	shader = nullptr;
 	scissorRect = { 0, 0, 0, 0 };
@@ -82,8 +83,8 @@ RT64::Texture* RT64::Instance::getSpecularTexture() const {
 	return specularTexture;
 }
 
-void RT64::Instance::setTransform(float m[4][4]) {
-	transform = XMMATRIX(
+inline XMMATRIX matrixFromFloats(float m[4][4]) {
+	return XMMATRIX(
 		m[0][0], m[0][1], m[0][2], m[0][3],
 		m[1][0], m[1][1], m[1][2], m[1][3],
 		m[2][0], m[2][1], m[2][2], m[2][3],
@@ -91,8 +92,20 @@ void RT64::Instance::setTransform(float m[4][4]) {
 	);
 }
 
+void RT64::Instance::setTransform(float m[4][4]) {
+	transform = matrixFromFloats(m);
+}
+
 XMMATRIX RT64::Instance::getTransform() const {
 	return transform;
+}
+
+void RT64::Instance::setPreviousTransform(float m[4][4]) {
+	previousTransform = matrixFromFloats(m);
+}
+
+XMMATRIX RT64::Instance::getPreviousTransform() const {
+	return previousTransform;
 }
 
 void RT64::Instance::setScissorRect(const RT64_RECT &rect) {
@@ -144,6 +157,7 @@ DLLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INST
 	RT64::Instance *instance = (RT64::Instance *)(instancePtr);
 	instance->setMesh((RT64::Mesh *)(instanceDesc.mesh));
 	instance->setTransform(instanceDesc.transform.m);
+	instance->setPreviousTransform(instanceDesc.previousTransform.m);
 	instance->setMaterial(instanceDesc.material);
 	instance->setShader((RT64::Shader *)(instanceDesc.shader));
 	instance->setDiffuseTexture((RT64::Texture *)(instanceDesc.diffuseTexture));

@@ -49,6 +49,7 @@ RT64::View::View(Scene *scene) {
 	rtScale = 1.0f;
 	resolutionScale = 1.0f;
 	denoiserEnabled = false;
+	denoiserTemporal = false;
 	denoiser = nullptr;
 	perspectiveControlActive = false;
 	im3dVertexCount = 0;
@@ -113,11 +114,12 @@ void RT64::View::createOutputBuffers() {
 	rtOutput = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
 	rtAlbedo = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
+	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	
 	// Create hit result buffers.
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
 	UINT64 hitCountBufferSizeAll = hitCountBufferSizeOne * MaxQueries;
-	rtHitDistance = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitDistAndFlow = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 16, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitColor = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitNormal = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -136,7 +138,7 @@ void RT64::View::createOutputBuffers() {
 	rtvBgHandle.Offset(1, outputRtvDescriptorSize);
 
 	if (denoiserEnabled) {
-		denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
+		denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
 	}
 }
 
@@ -145,7 +147,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtOutput.Release();
 	rtAlbedo.Release();
 	rtNormal.Release();
-	rtHitDistance.Release();
+	rtFlow.Release();
+	rtHitDistAndFlow.Release();
 	rtHitColor.Release();
 	rtHitNormal.Release();
 	rtHitSpecular.Release();
@@ -171,6 +174,7 @@ void RT64::View::updateInstanceTransformsBuffer() {
 	for (const RenderInstance &inst : rtInstances) {
 		// Store world transform.
 		current->objectToWorld = inst.transform;
+		current->objectToWorldPrevious = inst.transformPrevious;
 
 		// Store matrix to transform normal.
 		XMMATRIX upper3x3 = current->objectToWorld;
@@ -303,12 +307,16 @@ void RT64::View::createShaderResourceHeap() {
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtNormal.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
-	// UAV for hit distance buffer.
+	// UAV for motion vector output buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFlow.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for hit distance and world flow buffer.
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 	uavDesc.Buffer.FirstElement = 0;
 	uavDesc.Buffer.NumElements = rtWidth * rtHeight * MaxQueries;
-	uavDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitDistance.Get(), nullptr, &uavDesc, handle);
+	uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitDistAndFlow.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for hit color buffer.
@@ -505,14 +513,19 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.giSkyStrength = desc.giSkyStrength;
 
 	// Previous view and projection matrices.
-	globalParamsBufferData.prevViewProj = XMMatrixMultiply(globalParamsBufferData.view, globalParamsBufferData.projection);
+	globalParamsBufferData.prevViewProj = globalParamsBufferData.viewProj;
+	globalParamsBufferData.viewProj = XMMatrixMultiply(globalParamsBufferData.view, globalParamsBufferData.projection);
 
+#ifdef USE_VIEWPROJ_AS_HASH
 	// Compute the hash of the view and projection matrices and use it as the random seed.
 	// This is to prevent the denoiser from showing movement when the game is paused.
 	XXHash32 viewProjHash(0);
 	viewProjHash.add(&globalParamsBufferData.view, sizeof(XMMATRIX));
 	viewProjHash.add(&globalParamsBufferData.projection, sizeof(XMMATRIX));
 	globalParamsBufferData.randomSeed = viewProjHash.hash();
+#else
+	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
+#endif
 
 	// Inverse matrices required for raytracing.
 	XMVECTOR det;
@@ -574,6 +587,7 @@ void RT64::View::update() {
 			renderInstance.instance = instance;
 			renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
 			renderInstance.transform = instance->getTransform();
+			renderInstance.transformPrevious = instance->getPreviousTransform();
 			renderInstance.material = instance->getMaterial();
 			renderInstance.shader = instance->getShader();
 			renderInstance.indexCount = usedMesh->getIndexCount();
@@ -822,7 +836,8 @@ void RT64::View::render() {
 		if (denoiserEnabled && (denoiser != nullptr)) {
 			CD3DX12_RESOURCE_BARRIER barriers[] = {
 				CD3DX12_RESOURCE_BARRIER::UAV(rtAlbedo.Get()),
-				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal.Get())
+				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtFlow.Get())
 			};
 
 			d3dCommandList->ResourceBarrier(_countof(barriers), barriers);
@@ -1058,15 +1073,19 @@ float RT64::View::getResolutionScale() const {
 	return resolutionScale;
 }
 
+void RT64::View::checkDenoiser() {
+	// Create the denoiser if it wasn't created yet.
+	if (denoiser == nullptr) {
+		denoiser = new RT64::Denoiser(scene->getDevice(), denoiserTemporal);
+	}
+
+	// Update the buffer sizes since they might've changed since the last time the denoiser was enabled.
+	denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
+}
+
 void RT64::View::setDenoiserEnabled(bool v) {
 	if (!denoiserEnabled && v) {
-		// Create the denoiser if it wasn't created yet.
-		if (denoiser == nullptr) {
-			denoiser = new RT64::Denoiser(scene->getDevice());
-		}
-
-		// Update the buffer sizes since they might've changed since the last time the denoiser was enabled.
-		denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get());
+		checkDenoiser();
 	}
 
 	denoiserEnabled = v;
@@ -1074,6 +1093,23 @@ void RT64::View::setDenoiserEnabled(bool v) {
 
 bool RT64::View::getDenoiserEnabled() const {
 	return denoiserEnabled;
+}
+
+void RT64::View::setDenoiserTemporalMode(bool v) {
+	if (denoiserTemporal != v) {
+		denoiserTemporal = v;
+
+		// Recreate the denoiser.
+		if (denoiser != nullptr) {
+			delete denoiser;
+			denoiser = nullptr;
+			checkDenoiser();
+		}
+	}
+}
+
+bool RT64::View::getDenoiserTemporalMode() const {
+	return denoiserTemporal;
 }
 
 void RT64::View::setSkyPlaneTexture(Texture *texture) {

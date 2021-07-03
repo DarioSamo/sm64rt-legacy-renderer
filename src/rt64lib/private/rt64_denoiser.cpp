@@ -92,8 +92,11 @@ private:
     Image color;
     Image albedo;
     Image normal;
+    Image flow;
     Image output;
+    Image previousOutput;
 	Device *device = nullptr;
+    bool temporal;
 	OptixDeviceContext optixContext = 0;
     unsigned int width = 0;
     unsigned int height = 0;
@@ -110,8 +113,9 @@ private:
     OptixDenoiserParams optixParams;
     bool initialized;
 public:
-	Context(Device *device) {
+	Context(Device *device, bool temporal) {
 		this->device = device;
+        this->temporal = temporal;
 
         try {
             CUDA_CHECK(cudaFree(nullptr));
@@ -124,7 +128,7 @@ public:
             denOptions.guideAlbedo = 1;
             denOptions.guideNormal = 1;
 
-            OptixDenoiserModelKind modelKind = OPTIX_DENOISER_MODEL_KIND_LDR;
+            OptixDenoiserModelKind modelKind = temporal ? OPTIX_DENOISER_MODEL_KIND_TEMPORAL : OPTIX_DENOISER_MODEL_KIND_LDR;
             OPTIX_CHECK(optixDenoiserCreate(optixContext, modelKind, &denOptions, &optixDenoiser));
 
             // Find node mask for this device.
@@ -151,7 +155,7 @@ public:
         optixDeviceContextDestroy(optixContext);
 	}
 
-    Image createFromResource(unsigned int width, unsigned int height, ID3D12Resource *resource) {
+    Image createImageFromResource(unsigned int width, unsigned int height, ID3D12Resource *resource) {
         Image image;
         image.resource = resource;
 
@@ -193,6 +197,21 @@ public:
         return image;
     }
 
+    Image createImage(unsigned int width, unsigned int height) {
+        Image image;
+        image.optixImage.width = width;
+        image.optixImage.height = height;
+        image.optixImage.rowStrideInBytes = width * sizeof(float4);
+        image.optixImage.pixelStrideInBytes = sizeof(float4);
+        image.optixImage.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&image.optixImage.data), width * height * sizeof(float4)));
+        return image;
+    }
+
+    void copyImageCuda(Image& src, Image& dst) {
+        cudaMemcpy(reinterpret_cast<void*>(dst.optixImage.data), reinterpret_cast<void*>(src.optixImage.data), dst.optixImage.width * dst.optixImage.height * sizeof(float4), cudaMemcpyDeviceToDevice);
+    }
+
     void copyImageResToCuda(Image &image) {
         CUDA_CHECK(cudaMemcpy2DFromArray(reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.extArray, 0, 0, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice));
     }
@@ -224,7 +243,9 @@ public:
         releaseImage(color);
         releaseImage(albedo);
         releaseImage(normal);
+        releaseImage(flow);
         releaseImage(output);
+        releaseImage(previousOutput);
     }
     
     void denoise() {
@@ -232,14 +253,24 @@ public:
             copyImageResToCuda(color);
             copyImageResToCuda(albedo);
             copyImageResToCuda(normal);
+
+            if (temporal) {
+                copyImageResToCuda(flow);
+            }
+
             OPTIX_CHECK(optixDenoiserComputeIntensity(optixDenoiser, nullptr, &color.optixImage, optixIntensity, optixScratch, optixScratchSize));
             OPTIX_CHECK(optixDenoiserInvoke(optixDenoiser, nullptr, &optixParams, optixState, optixStateSize, &optixGuideLayer, &optixDenoiserLayer, 1, 0, 0, optixScratch, optixScratchSize));
+
+            if (temporal) {
+                copyImageCuda(output, previousOutput);
+            }
+
             copyImageCudaToRes(output);
             CUDA_CHECK(cudaDeviceSynchronize());
         }
     }
 
-    void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
+    void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource* inNormal, ID3D12Resource *inFlow) {
         if (initialized) {
             releaseResources();
 
@@ -249,10 +280,15 @@ public:
             // Create the Optix images with references to the resources.
             // Since Optix allocates its own CUDA memory, it is safe to create more
             // than one reference to the same resource.
-            color = createFromResource(width, height, inOutColor);
-            albedo = createFromResource(width, height, inAlbedo);
-            normal = createFromResource(width, height, inNormal);
-            output = createFromResource(width, height, inOutColor);
+            color = createImageFromResource(width, height, inOutColor);
+            albedo = createImageFromResource(width, height, inAlbedo);
+            normal = createImageFromResource(width, height, inNormal);
+            output = createImageFromResource(width, height, inOutColor);
+
+            if (temporal) {
+                flow = createImageFromResource(width, height, inFlow);
+                previousOutput = createImage(width, height);
+            }
 
             // Setup Optix denoiser.
             OptixDenoiserSizes denoiserSizes;
@@ -266,12 +302,22 @@ public:
             optixDenoiserLayer.output = output.optixImage;
             optixGuideLayer.albedo = albedo.optixImage;
             optixGuideLayer.normal = normal.optixImage;
+
+            if (temporal) {
+                optixGuideLayer.flow = flow.optixImage;
+                optixDenoiserLayer.previousOutput = previousOutput.optixImage;
+            }
+
             OPTIX_CHECK(optixDenoiserSetup(optixDenoiser, nullptr, width, height, optixState, optixStateSize, optixScratch, optixScratchSize));
             optixParams.denoiseAlpha = 0;
             optixParams.hdrIntensity = optixIntensity;
             optixParams.hdrAverageColor = 0;
             optixParams.blendFactor = 0.0f;
         }
+    }
+
+    bool isTemporal() const {
+        return temporal;
     }
 };
 
@@ -292,10 +338,12 @@ public:
         ID3D12Resource *inOutColor;
         ID3D12Resource *inAlbedo;
         ID3D12Resource *inNormal;
+        ID3D12Resource* inFlow;
     };
 
     Context *ctx;
     Device *device;
+    bool temporal;
     std::thread *thread;
     std::mutex queueMutex;
     std::mutex finishedMutex;
@@ -303,8 +351,9 @@ public:
     std::condition_variable finishedCondition;
     std::queue<Task> tasks;
 
-    WorkerThread(Device *device) {
+    WorkerThread(Device *device, bool temporal) {
         this->device = device;
+        this->temporal = temporal;
         ctx = nullptr;
         thread = new std::thread(&WorkerThread::run, this);
     }
@@ -315,18 +364,17 @@ public:
     }
 
     void run() {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        ctx = new Context(device);
-
-        bool running = true;
-        while (running) {
-            if (!tasks.empty()) {
+        std::unique_lock<std::mutex> queueLock(queueMutex);
+        ctx = new Context(device, temporal);
+        while (ctx != nullptr) {
+            // Do all pending tasks.
+            while (!tasks.empty()) {
                 Task t = tasks.front();
                 tasks.pop();
 
                 switch (t.a) {
                 case Task::Set: {
-                    ctx->set(t.width, t.height, t.inOutColor, t.inAlbedo, t.inNormal);
+                    ctx->set(t.width, t.height, t.inOutColor, t.inAlbedo, t.inNormal, t.inFlow);
                     break;
                 }
                 case Task::Denoise: {
@@ -334,21 +382,24 @@ public:
                     break;
                 }
                 case Task::Destroy:
-                    running = false;
+                    tasks = { };
+                    delete ctx;
+                    ctx = nullptr;
                     break;
                 }
             }
-            else {
-                {
-                    std::unique_lock<std::mutex> lock(finishedMutex);
-                    finishedCondition.notify_all();
-                }
 
-                queueCondition.wait(lock);
+            // Notify all that no tasks are left.
+            {
+                std::unique_lock<std::mutex> finishedLock(finishedMutex);
+                finishedCondition.notify_all();
+            }
+
+            // Only wait on the queue condition if the context still exists.
+            if (ctx != nullptr) {
+                queueCondition.wait(queueLock);
             }
         }
-
-        delete ctx;
     }
 
     void doTaskBlocking(const Task &t) {
@@ -363,8 +414,8 @@ public:
     }
 };
 
-RT64::Denoiser::Denoiser(Device *device) {
-    thread = new WorkerThread(device);
+RT64::Denoiser::Denoiser(Device *device, bool temporal) {
+    thread = new WorkerThread(device, temporal);
 }
 
 RT64::Denoiser::~Denoiser() {
@@ -380,7 +431,7 @@ void RT64::Denoiser::denoise() {
     thread->doTaskBlocking(t);
 }
 
-void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
+void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal, ID3D12Resource *inFlow) {
     WorkerThread::Task t;
     t.a = WorkerThread::Task::Set;
     t.width = width;
@@ -388,7 +439,12 @@ void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource
     t.inOutColor = inOutColor;
     t.inAlbedo = inAlbedo;
     t.inNormal = inNormal;
+    t.inFlow = inFlow;
     thread->doTaskBlocking(t);
+}
+
+bool RT64::Denoiser::isTemporal() const {
+    return thread->ctx->isTemporal();
 }
 
 #else

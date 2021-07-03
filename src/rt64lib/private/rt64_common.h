@@ -38,7 +38,8 @@ namespace RT64 {
 		gOutput,
 		gAlbedo,
 		gNormal,
-		gHitDistance,
+		gFlow,
+		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
 		gHitSpecular,
@@ -57,7 +58,8 @@ namespace RT64 {
 		gOutput,
 		gAlbedo,
 		gNormal,
-		gHitDistance,
+		gFlow,
+		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
 		gHitSpecular,
@@ -123,6 +125,7 @@ namespace RT64 {
 	struct InstanceTransforms {
 		XMMATRIX objectToWorld;
 		XMMATRIX objectToWorldNormal;
+		XMMATRIX objectToWorldPrevious;
 	};
 
 	struct AccelerationStructureBuffers {

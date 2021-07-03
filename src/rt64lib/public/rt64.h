@@ -157,6 +157,7 @@ typedef struct {
 typedef struct {
 	RT64_MESH *mesh;
 	RT64_MATRIX4 transform;
+	RT64_MATRIX4 previousTransform;
 	RT64_TEXTURE *diffuseTexture;
 	RT64_TEXTURE *normalTexture;
 	RT64_TEXTURE *specularTexture;

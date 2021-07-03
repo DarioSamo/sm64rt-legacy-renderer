@@ -108,6 +108,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			instDesc.viewportRect = { 0, 0, 0, 0 };
 			instDesc.mesh = RT64.mesh;
 			instDesc.transform = RT64.transform;
+			instDesc.previousTransform = RT64.transform;
 			instDesc.diffuseTexture = RT64.textureDif;
 			instDesc.normalTexture = RT64.textureNrm;
 			instDesc.specularTexture = RT64.textureSpc;
@@ -311,6 +312,7 @@ void setupRT64Scene() {
 	instDesc.viewportRect = { 0, 0, 0, 0 };
 	instDesc.mesh = altMesh;
 	instDesc.transform = RT64.transform;
+	instDesc.previousTransform = RT64.transform;
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
@@ -367,6 +369,7 @@ void setupRT64Scene() {
 	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = floorMesh;
 	instDesc.transform = floorTransform;
+	instDesc.previousTransform = floorTransform;
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;

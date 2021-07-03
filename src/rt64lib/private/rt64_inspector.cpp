@@ -121,13 +121,17 @@ void RT64::Inspector::renderViewParams(View *view) {
     int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
     bool denoiser = view->getDenoiserEnabled();
+    bool temporal = view->getDenoiserTemporalMode();
 
     ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI Bounces", &giBounces, 0.1f, 0, 32);
     ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Normal\0Light only\0");
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Normal\0Light only\0Motion vectors\0");
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
+    if (denoiser) {
+        ImGui::Checkbox("Temporal Mode", &temporal);
+    }
 
     // Dumping toggle.
     bool isDumping = !dumpPath.empty();
@@ -149,6 +153,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
     view->setDenoiserEnabled(denoiser);
+    view->setDenoiserTemporalMode(temporal);
 
     ImGui::End();
 }

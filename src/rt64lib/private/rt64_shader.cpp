@@ -531,6 +531,10 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("    }");
 	}
 
+	SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f));");
+	SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f));");
+	SS("	float3 vertexFlow = curWorldPos - prevWorldPos;");
+
 	transformVertexNormal(ss);
 
 	SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
@@ -552,8 +556,8 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("    uint hi = getHitBufferIndex(min(payload.nhits, MAX_HIT_QUERIES), pixelIdx, pixelDims);");
 	SS("    uint minHi = getHitBufferIndex(payload.ohits, pixelIdx, pixelDims);");
 	SS("    uint lo = hi - hitStride;");
-	SS("    while ((hi > minHi) && (tval < gHitDistance[lo])) {");
-	SS("        gHitDistance[hi] = gHitDistance[lo];");
+	SS("    while ((hi > minHi) && (tval < gHitDistAndFlow[lo].x)) {");
+	SS("        gHitDistAndFlow[hi] = gHitDistAndFlow[lo];");
 	SS("        gHitColor[hi] = gHitColor[lo];");
 	SS("        gHitNormal[hi] = gHitNormal[lo];");
 	SS("        gHitSpecular[hi] = gHitSpecular[lo];");
@@ -563,7 +567,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("    }");
 	SS("    uint hitPos = hi / hitStride;");
 	SS("    if (hitPos < MAX_HIT_QUERIES) {");
-	SS("        gHitDistance[hi] = tval;");
+	SS("        gHitDistAndFlow[hi] = float4(tval, vertexFlow);");
 	SS("        gHitColor[hi] = resultColor;");
 	SS("        gHitNormal[hi] = float4(vertexNormal, 1.0f);");
 	SS("        gHitSpecular[hi] = float4(vertexSpecular, 1.0f);");
@@ -697,7 +701,7 @@ ID3D12RootSignature *RT64::Shader::generateHitRootSignature(Filter filter, Addre
 	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, SRV_INDEX(indexBuffer));
 
 	if (hitBuffers) {
-		heapRanges.push_back({ UAV_INDEX(gHitDistance), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistance) });
+		heapRanges.push_back({ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) });
 		heapRanges.push_back({ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) });
 		heapRanges.push_back({ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) });
 		heapRanges.push_back({ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) });
