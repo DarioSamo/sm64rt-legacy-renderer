@@ -81,6 +81,11 @@ namespace RT64 {
 		gParams
 	};
 
+	// Some shared shader constants.
+	static const unsigned int VisualizationModeNormal = 0;
+	static const unsigned int VisualizationModeLights = 1;
+	static const unsigned int VisualizationModeMotionVectors = 2;
+
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
 

@@ -28,5 +28,9 @@ cbuffer gParams : register(b0) {
 	uint visualizationMode;
 	uint frameCount;
 }
+
+#define VISUALIZATION_MODE_NORMAL			0
+#define VISUALIZATION_MODE_LIGHTS			1
+#define VISUALIZATION_MODE_FLOW				2
 //)raw"
 #endif

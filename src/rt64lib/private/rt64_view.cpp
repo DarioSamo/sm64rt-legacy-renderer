@@ -116,7 +116,7 @@ void RT64::View::createOutputBuffers() {
 	rtOutput[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
 	rtAlbedo = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
-	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
+	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
 	
 	// Create hit result buffers.
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
@@ -418,22 +418,30 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
-			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+			uint32_t handleCount = 3;
+			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
 		D3D12_CPU_DESCRIPTOR_HANDLE handle = composeHeap->GetCPUDescriptorHandleForHeapStart();
 
+		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		textureSRVDesc.Texture2D.MipLevels = 1;
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
 		// SRV for denoised texture.
-		{
-			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
-			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			textureSRVDesc.Texture2D.MipLevels = 1;
-			textureSRVDesc.Texture2D.MostDetailedMip = 0;
-			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
-			handle.ptr += handleIncrement;
-		}
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for motion vector texture.
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFlow.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for global parameters.
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
 	}
 }
 
@@ -792,6 +800,10 @@ void RT64::View::render() {
 		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
 
+		// Transition the motion vector to a shader resource.
+		CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		d3dCommandList->ResourceBarrier(1, &flowBarrier);
+
 		// Ray generation.
 		D3D12_DISPATCH_RAYS_DESC desc = {};
 		uint32_t rayGenerationSectionSizeInBytes = sbtHelper.GetRayGenSectionSize();
@@ -856,6 +868,10 @@ void RT64::View::render() {
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = scene->getDevice()->getD3D12RTV();
 		d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
+		// Transition the motion vector to a shader resource.
+		flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		d3dCommandList->ResourceBarrier(1, &flowBarrier);
+
 		// Draw the raytracing output.
 		d3dCommandList->SetPipelineState(scene->getDevice()->getComposePipelineState());
 		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getComposeRootSignature());
@@ -865,6 +881,17 @@ void RT64::View::render() {
 		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		d3dCommandList->IASetVertexBuffers(0, 0, nullptr);
 		d3dCommandList->DrawInstanced(3, 1, 0, 0);
+
+		// Draw the motion vector output.
+		if (globalParamsBufferData.visualizationMode == VisualizationModeMotionVectors) {
+			d3dCommandList->SetPipelineState(scene->getDevice()->getDebugMotionVectorsPipelineState());
+			d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getDebugMotionVectorsRootSignature());
+			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+			d3dCommandList->SetGraphicsRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			d3dCommandList->IASetVertexBuffers(0, 0, nullptr);
+			d3dCommandList->DrawInstanced(3, 1, 0, 0);
+		}
 	}
 	else {
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = scene->getDevice()->getD3D12RTV();

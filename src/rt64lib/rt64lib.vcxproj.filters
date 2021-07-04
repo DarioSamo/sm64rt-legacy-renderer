@@ -252,7 +252,10 @@
     <CustomBuild Include="shaders\ComposePS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\ComposeVS.hlsl">
+    <CustomBuild Include="shaders\FullScreenVS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\DebugMotionVectorsPS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>

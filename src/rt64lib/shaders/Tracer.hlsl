@@ -23,10 +23,6 @@
 
 #define DEBUG_HIT_COUNT						0
 
-#define VISUALIZATION_MODE_NORMAL			0
-#define VISUALIZATION_MODE_LIGHTS			1
-#define VISUALIZATION_MODE_FLOW				2
-
 // Has better results for avoiding shadow terminator glitches, but has unintended side effects on
 // terrain with really bad normals or geometry that had backfaces removed to be optimized and
 // therefore can't cast shadows.
@@ -401,11 +397,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
 			float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
 			float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
-			float2 resultFlow = float2(0.0f, 0.0f);
-			if ((prevPos.x >= 0.0f) && (prevPos.x < 1.0f) && (prevPos.y >= 0.0f) && (prevPos.y < 1.0f)) {
-				resultFlow = curPos - prevPos;
-			}
-
+			float2 resultFlow = curPos - prevPos;
 			uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 			float3 resultLight = instanceMaterials[instanceId].selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
@@ -476,10 +468,6 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			// Special visualization modes for debugging.
 			if (visualizationMode == VISUALIZATION_MODE_LIGHTS) {
 				hitColor.rgb = resultLight;
-			}
-			else if (visualizationMode == VISUALIZATION_MODE_FLOW) {
-				hitColor.rg = abs(resultFlow.xy);
-				hitColor.b = 0.0f;
 			}
 
 			// Backwards alpha blending.

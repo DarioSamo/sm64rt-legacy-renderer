@@ -17,7 +17,8 @@
 #include "rt64_texture.h"
 
 #include "shaders/ComposePS.hlsl.h"
-#include "shaders/ComposeVS.hlsl.h"
+#include "shaders/DebugMotionVectorsPS.hlsl.h"
+#include "shaders/FullScreenVS.hlsl.h"
 #include "shaders/Im3DPS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
@@ -236,51 +237,59 @@ HWND RT64::Device::getHwnd() const {
 	return hwnd;
 }
 
-ID3D12Device8 *RT64::Device::getD3D12Device() {
+ID3D12Device8 *RT64::Device::getD3D12Device() const {
 	return d3dDevice;
 }
 
-ID3D12GraphicsCommandList4 *RT64::Device::getD3D12CommandList() {
+ID3D12GraphicsCommandList4 *RT64::Device::getD3D12CommandList() const {
 	return d3dCommandList;
 }
 
-ID3D12StateObject *RT64::Device::getD3D12RtStateObject() {
+ID3D12StateObject *RT64::Device::getD3D12RtStateObject() const {
 	return d3dRtStateObject;
 }
 
-ID3D12StateObjectProperties *RT64::Device::getD3D12RtStateObjectProperties() {
+ID3D12StateObjectProperties *RT64::Device::getD3D12RtStateObjectProperties() const {
 	return d3dRtStateObjectProps;
 }
 
-ID3D12Resource *RT64::Device::getD3D12RenderTarget() {
+ID3D12Resource *RT64::Device::getD3D12RenderTarget() const {
 	return d3dRenderTargets[d3dFrameIndex];
 }
 
-CD3DX12_CPU_DESCRIPTOR_HANDLE RT64::Device::getD3D12RTV() {
+CD3DX12_CPU_DESCRIPTOR_HANDLE RT64::Device::getD3D12RTV() const {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(d3dRtvHeap->GetCPUDescriptorHandleForHeapStart(), d3dFrameIndex, d3dRtvDescriptorSize);
 }
 
-ID3D12RootSignature *RT64::Device::getComposeRootSignature() {
+ID3D12RootSignature *RT64::Device::getComposeRootSignature() const {
 	return d3dComposeRootSignature;
 }
 
-ID3D12PipelineState *RT64::Device::getComposePipelineState() {
+ID3D12PipelineState *RT64::Device::getComposePipelineState() const {
 	return d3dComposePipelineState;
 }
 
-ID3D12RootSignature *RT64::Device::getIm3dRootSignature() {
+ID3D12RootSignature *RT64::Device::getDebugMotionVectorsRootSignature() const {
+	return d3dDebugMotionVectorsRootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getDebugMotionVectorsPipelineState() const {
+	return d3dDebugMotionVectorsPipelineState;
+}
+
+ID3D12RootSignature *RT64::Device::getIm3dRootSignature() const {
 	return im3dRootSignature;
 }
 
-ID3D12PipelineState *RT64::Device::getIm3dPipelineStatePoint() {
+ID3D12PipelineState *RT64::Device::getIm3dPipelineStatePoint() const {
 	return im3dPipelineStatePoint;
 }
 
-ID3D12PipelineState *RT64::Device::getIm3dPipelineStateLine() {
+ID3D12PipelineState *RT64::Device::getIm3dPipelineStateLine() const {
 	return im3dPipelineStateLine;
 }
 
-ID3D12PipelineState *RT64::Device::getIm3dPipelineStateTriangle() {
+ID3D12PipelineState *RT64::Device::getIm3dPipelineStateTriangle() const {
 	return im3dPipelineStateTriangle;
 }
 
@@ -304,11 +313,11 @@ IDxcLibrary *RT64::Device::getDxcLibrary() const {
 	return d3dDxcLibrary;
 }
 
-CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() {
+CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() const {
 	return d3dViewport;
 }
 
-CD3DX12_RECT RT64::Device::getD3D12ScissorRect() {
+CD3DX12_RECT RT64::Device::getD3D12ScissorRect() const {
 	return d3dScissorRect;
 }
 
@@ -509,7 +518,9 @@ void RT64::Device::loadAssets() {
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 }
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
+			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 },
+			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
 		});
 
 		// Fill out the sampler.
@@ -536,10 +547,33 @@ void RT64::Device::loadAssets() {
 		setPsoDefaults(psoDesc, composeBlendDesc);
 		psoDesc.InputLayout = { nullptr, 0 };
 		psoDesc.pRootSignature = d3dComposeRootSignature;
-		psoDesc.VS = CD3DX12_SHADER_BYTECODE(ComposeVSBlob, sizeof(ComposeVSBlob));
+		psoDesc.VS = CD3DX12_SHADER_BYTECODE(FullScreenVSBlob, sizeof(FullScreenVSBlob));
 		psoDesc.PS = CD3DX12_SHADER_BYTECODE(ComposePSBlob, sizeof(ComposePSBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dComposePipelineState)));
+	}
+
+	// Debug motion vectors shader.
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
+			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) }
+		});
+
+		d3dDebugMotionVectorsRootSignature = rsc.Generate(d3dDevice, false, true, nullptr, 0);
+	}
+
+	{
+		// Describe and create the graphics pipeline state object (PSO).
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+		setPsoDefaults(psoDesc, alphaBlendDesc);
+		psoDesc.InputLayout = { nullptr, 0 };
+		psoDesc.pRootSignature = d3dDebugMotionVectorsRootSignature;
+		psoDesc.VS = CD3DX12_SHADER_BYTECODE(FullScreenVSBlob, sizeof(FullScreenVSBlob));
+		psoDesc.PS = CD3DX12_SHADER_BYTECODE(DebugMotionVectorsPSBlob, sizeof(DebugMotionVectorsPSBlob));
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dDebugMotionVectorsPipelineState)));
 	}
 
 	// Create the command list.
