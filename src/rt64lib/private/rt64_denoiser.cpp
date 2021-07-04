@@ -89,12 +89,11 @@ private:
         OptixImage2D optixImage = { 0, 0, 0, 0, 0, OPTIX_PIXEL_FORMAT_FLOAT4 };
     };
 
-    Image color;
+    Image color[2];
     Image albedo;
     Image normal;
     Image flow;
-    Image output;
-    Image previousOutput;
+    Image output[2];
 	Device *device = nullptr;
     bool temporal;
 	OptixDeviceContext optixContext = 0;
@@ -208,10 +207,6 @@ public:
         return image;
     }
 
-    void copyImageCuda(Image& src, Image& dst) {
-        cudaMemcpy(reinterpret_cast<void*>(dst.optixImage.data), reinterpret_cast<void*>(src.optixImage.data), dst.optixImage.width * dst.optixImage.height * sizeof(float4), cudaMemcpyDeviceToDevice);
-    }
-
     void copyImageResToCuda(Image &image) {
         CUDA_CHECK(cudaMemcpy2DFromArray(reinterpret_cast<void *>(image.optixImage.data), image.optixImage.rowStrideInBytes, image.extArray, 0, 0, image.optixImage.rowStrideInBytes, image.optixImage.height, cudaMemcpyDeviceToDevice));
     }
@@ -240,37 +235,42 @@ public:
         CUDA_CHECK(cudaFree(reinterpret_cast<void *>(optixIntensity)));
         CUDA_CHECK(cudaFree(reinterpret_cast<void *>(optixScratch)));
         CUDA_CHECK(cudaFree(reinterpret_cast<void *>(optixState)));
-        releaseImage(color);
+        releaseImage(color[0]);
+        releaseImage(color[1]);
         releaseImage(albedo);
         releaseImage(normal);
         releaseImage(flow);
-        releaseImage(output);
-        releaseImage(previousOutput);
+        releaseImage(output[0]);
+        releaseImage(output[1]);
     }
     
-    void denoise() {
+    void denoise(bool swapImages) {
         if (initialized) {
-            copyImageResToCuda(color);
+            int curIndex = swapImages ? 1 : 0;
+            int prevIndex = swapImages ? 0 : 1;
+            copyImageResToCuda(color[curIndex]);
             copyImageResToCuda(albedo);
             copyImageResToCuda(normal);
+            optixDenoiserLayer.input = color[curIndex].optixImage;
+            optixDenoiserLayer.output = output[curIndex].optixImage;
+            optixGuideLayer.albedo = albedo.optixImage;
+            optixGuideLayer.normal = normal.optixImage;
 
             if (temporal) {
                 copyImageResToCuda(flow);
+                optixGuideLayer.flow = flow.optixImage;
+                optixDenoiserLayer.previousOutput = output[prevIndex].optixImage;
             }
 
-            OPTIX_CHECK(optixDenoiserComputeIntensity(optixDenoiser, nullptr, &color.optixImage, optixIntensity, optixScratch, optixScratchSize));
+            OPTIX_CHECK(optixDenoiserComputeIntensity(optixDenoiser, nullptr, &color[curIndex].optixImage, optixIntensity, optixScratch, optixScratchSize));
             OPTIX_CHECK(optixDenoiserInvoke(optixDenoiser, nullptr, &optixParams, optixState, optixStateSize, &optixGuideLayer, &optixDenoiserLayer, 1, 0, 0, optixScratch, optixScratchSize));
 
-            if (temporal) {
-                copyImageCuda(output, previousOutput);
-            }
-
-            copyImageCudaToRes(output);
+            copyImageCudaToRes(output[curIndex]);
             CUDA_CHECK(cudaDeviceSynchronize());
         }
     }
 
-    void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource* inNormal, ID3D12Resource *inFlow) {
+    void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor[2], ID3D12Resource *inAlbedo, ID3D12Resource* inNormal, ID3D12Resource *inFlow) {
         if (initialized) {
             releaseResources();
 
@@ -280,14 +280,15 @@ public:
             // Create the Optix images with references to the resources.
             // Since Optix allocates its own CUDA memory, it is safe to create more
             // than one reference to the same resource.
-            color = createImageFromResource(width, height, inOutColor);
+            color[0] = createImageFromResource(width, height, inOutColor[0]);
+            color[1] = createImageFromResource(width, height, inOutColor[1]);
             albedo = createImageFromResource(width, height, inAlbedo);
             normal = createImageFromResource(width, height, inNormal);
-            output = createImageFromResource(width, height, inOutColor);
+            output[0] = createImageFromResource(width, height, inOutColor[0]);
+            output[1] = createImageFromResource(width, height, inOutColor[1]);
 
             if (temporal) {
                 flow = createImageFromResource(width, height, inFlow);
-                previousOutput = createImage(width, height);
             }
 
             // Setup Optix denoiser.
@@ -298,16 +299,6 @@ public:
             CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&optixIntensity), sizeof(float)));
             CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&optixScratch), optixScratchSize));
             CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&optixState), optixStateSize));
-            optixDenoiserLayer.input = color.optixImage;
-            optixDenoiserLayer.output = output.optixImage;
-            optixGuideLayer.albedo = albedo.optixImage;
-            optixGuideLayer.normal = normal.optixImage;
-
-            if (temporal) {
-                optixGuideLayer.flow = flow.optixImage;
-                optixDenoiserLayer.previousOutput = previousOutput.optixImage;
-            }
-
             OPTIX_CHECK(optixDenoiserSetup(optixDenoiser, nullptr, width, height, optixState, optixStateSize, optixScratch, optixScratchSize));
             optixParams.denoiseAlpha = 0;
             optixParams.hdrIntensity = optixIntensity;
@@ -335,10 +326,11 @@ public:
         Action a;
         unsigned int width;
         unsigned int height;
-        ID3D12Resource *inOutColor;
+        ID3D12Resource *inOutColor[2];
         ID3D12Resource *inAlbedo;
         ID3D12Resource *inNormal;
         ID3D12Resource* inFlow;
+        bool swapImages;
     };
 
     Context *ctx;
@@ -378,7 +370,7 @@ public:
                     break;
                 }
                 case Task::Denoise: {
-                    ctx->denoise();
+                    ctx->denoise(t.swapImages);
                     break;
                 }
                 case Task::Destroy:
@@ -425,18 +417,20 @@ RT64::Denoiser::~Denoiser() {
     delete thread;
 }
 
-void RT64::Denoiser::denoise() {
+void RT64::Denoiser::denoise(bool swapImages) {
     WorkerThread::Task t;
     t.a = WorkerThread::Task::Denoise;
+    t.swapImages = swapImages;
     thread->doTaskBlocking(t);
 }
 
-void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal, ID3D12Resource *inFlow) {
+void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor[2], ID3D12Resource *inAlbedo, ID3D12Resource *inNormal, ID3D12Resource *inFlow) {
     WorkerThread::Task t;
     t.a = WorkerThread::Task::Set;
     t.width = width;
     t.height = height;
-    t.inOutColor = inOutColor;
+    t.inOutColor[0] = inOutColor[0];
+    t.inOutColor[1] = inOutColor[1];
     t.inAlbedo = inAlbedo;
     t.inNormal = inNormal;
     t.inFlow = inFlow;
@@ -457,11 +451,11 @@ RT64::Denoiser::~Denoiser() {
     delete ctx;
 }
 
-void RT64::Denoiser::denoise() {
-    ctx->denoise();
+void RT64::Denoiser::denoise(bool swapImages) {
+    ctx->denoise(swapImages);
 }
 
-void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
+void RT64::Denoiser::set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor[2], ID3D12Resource *inAlbedo, ID3D12Resource *inNormal) {
     ctx->set(width, height, inOutColor, inAlbedo, inNormal);
 }
 

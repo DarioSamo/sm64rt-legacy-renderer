@@ -69,7 +69,7 @@ namespace RT64 {
 		nv_helpers_dx12::TopLevelASGenerator topLevelASGenerator;
 		AllocatedResource rasterBg;
 		ID3D12DescriptorHeap *rasterBgHeap;
-		AllocatedResource rtOutput;
+		AllocatedResource rtOutput[2];
 		AllocatedResource rtAlbedo;
 		AllocatedResource rtNormal;
 		AllocatedResource rtFlow;
@@ -79,6 +79,7 @@ namespace RT64 {
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtHitInstanceIdReadback;
+		bool rtSwap;
 		int rtWidth;
 		int rtHeight;
 		float rtScale;

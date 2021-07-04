@@ -29,8 +29,8 @@ namespace RT64 {
 		virtual ~Denoiser();
 
 		// Requires R32G32B32A32 textures.
-		void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor, ID3D12Resource *inAlbedo, ID3D12Resource *inNormal, ID3D12Resource *inFlow);
-		void denoise();
+		void set(unsigned int width, unsigned int height, ID3D12Resource *inOutColor[2], ID3D12Resource *inAlbedo, ID3D12Resource *inNormal, ID3D12Resource *inFlow);
+		void denoise(bool swapImages);
 		bool isTemporal() const;
 	};
 };

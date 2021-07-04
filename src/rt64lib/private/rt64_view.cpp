@@ -44,6 +44,7 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
 	globalParamsBufferSize = 0;
+	rtSwap = false;
 	rtWidth = 0;
 	rtHeight = 0;
 	rtScale = 1.0f;
@@ -111,7 +112,8 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Height = rtHeight;
 	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-	rtOutput = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
+	rtOutput[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
+	rtOutput[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
 	rtAlbedo = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
@@ -138,13 +140,15 @@ void RT64::View::createOutputBuffers() {
 	rtvBgHandle.Offset(1, outputRtvDescriptorSize);
 
 	if (denoiserEnabled) {
-		denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
+		ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
+		denoiser->set(rtWidth, rtHeight, rtOutputArray, rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
 	}
 }
 
 void RT64::View::releaseOutputBuffers() {
 	rasterBg.Release();
-	rtOutput.Release();
+	rtOutput[0].Release();
+	rtOutput[1].Release();
 	rtAlbedo.Release();
 	rtNormal.Release();
 	rtFlow.Release();
@@ -296,7 +300,7 @@ void RT64::View::createShaderResourceHeap() {
 	// UAV for output buffer.
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutput.Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutput[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
 	// UAV for albedo output buffer.
@@ -427,7 +431,7 @@ void RT64::View::createShaderResourceHeap() {
 			textureSRVDesc.Texture2D.MostDetailedMip = 0;
 			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput.Get(), &textureSRVDesc, handle);
+			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
 			handle.ptr += handleIncrement;
 		}
 	}
@@ -785,7 +789,7 @@ void RT64::View::render() {
 
 	// Raytracing.
 	if (!rtInstances.empty()) {
-		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
 
 		// Ray generation.
@@ -816,7 +820,7 @@ void RT64::View::render() {
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
 		d3dCommandList->DispatchRays(&desc);
 
-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		d3dCommandList->ResourceBarrier(1, &barrier);
 
 		// Denoiser.
@@ -836,7 +840,8 @@ void RT64::View::render() {
 			scene->getDevice()->resetCommandList();
 
 			// Execute the denoiser.
-			denoiser->denoise();
+			denoiser->denoise(rtSwap);
+			rtSwap = !rtSwap;
 			
 			// Reset the scissor and the viewport since the command list was reset.
 			resetScissor();
@@ -1067,7 +1072,8 @@ void RT64::View::checkDenoiser() {
 	}
 
 	// Update the buffer sizes since they might've changed since the last time the denoiser was enabled.
-	denoiser->set(rtWidth, rtHeight, rtOutput.Get(), rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
+	ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
+	denoiser->set(rtWidth, rtHeight, rtOutputArray, rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
 }
 
 void RT64::View::setDenoiserEnabled(bool v) {

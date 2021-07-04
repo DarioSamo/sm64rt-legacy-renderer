@@ -370,7 +370,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 	float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 	float4 finalAlbedo = skyColor;
 	float4 finalNormal = float4(-rayDirection, 0.0f);
-	float4 finalFlow = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float4 finalFlow = float4(0.0f, 0.0f, 0.0f, 0.0f); // TODO: Motion vector for the sky plane.
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
 	uint maxSimpleLights = 1;
