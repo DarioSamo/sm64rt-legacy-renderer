@@ -227,10 +227,18 @@ float4 ComputeFog(uint instanceId, float3 position) {
 	return fogColor;
 }
 
+float2 FakeEnvMapUV(float3 rayDirection) {
+	float yaw = atan2(rayDirection.x, -rayDirection.z);
+	float pitch = atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z));
+	return float2((yaw + M_PI) / (M_PI * 2.0f), (pitch + M_PI) / (M_PI * 2.0f));
+}
+
+float3 SampleBackground2D(float2 screenUV) {
+	return gBackground.SampleLevel(gBackgroundSampler, screenUV, 0).rgb;
+}
 
 float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
-	float2 bgPos = float2(rayDirection.z / sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z), rayDirection.y);
-	return gBackground.SampleLevel(gBackgroundSampler, bgPos, 0).rgb;
+	return gBackground.SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection), 0).rgb;
 }
 
 float4 SampleSky2D(float2 screenUV) {
@@ -250,10 +258,7 @@ float4 SampleSky2D(float2 screenUV) {
 
 float4 SampleSkyPlane(float3 rayDirection) {
 	if (skyPlaneTexIndex >= 0) {
-		float skyYaw = atan2(rayDirection.x, -rayDirection.z);
-		float skyPitch = atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z));
-		float2 skyUV = float2((skyYaw + M_PI) / (M_PI * 2.0f), (skyPitch + M_PI) / (M_PI * 2.0f));
-		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, skyUV, 0);
+		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection), 0);
 		if (any(skyHSLModifier)) {
 			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.xyz);
 		}
@@ -366,9 +371,12 @@ float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
 
 void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
 	float2 screenUV = float2(launchIndex.x, launchIndex.y) / float2(pixelDims.x, pixelDims.y);
+	float3 bgColor = SampleBackground2D(screenUV);
 	float4 skyColor = SampleSky2D(screenUV);
+	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
+
 	float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
-	float4 finalAlbedo = skyColor;
+	float4 finalAlbedo = float4(bgColor, 1.0f);
 	float4 finalNormal = float4(-rayDirection, 0.0f);
 	float4 finalFlow = float4(0.0f, 0.0f, 0.0f, 0.0f); // TODO: Motion vector for the sky plane.
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
@@ -408,7 +416,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 
 				// Full light sampling.
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
-					finalAlbedo = hitColor;
+					finalAlbedo = float4(lerp(bgColor, hitColor.rgb, hitColor.a), 1.0f);
 					finalNormal = float4(vertexNormal, 0.0f);
 					finalFlow = float4(resultFlow * resolution.xy, 0.0f, 0.0f);
 					resultLight += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxLightSamples, true, seed);
@@ -495,15 +503,14 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		}
 	}
 
-	// Finally, blend with the sky.
-	resColor.rgb += skyColor.rgb * (resColor.a * skyColor.a);
-	resColor.a *= (1.0f - skyColor.a);
+	// Blend with the background.
+	resColor.rgb += bgColor * resColor.a;
 
 	if (visualizationMode != VISUALIZATION_MODE_NORMAL) {
 		finalAlbedo = float4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
-	gOutput[launchIndex] = float4(resColor.rgb, (1.0f - resColor.a));
+	gOutput[launchIndex] = float4(resColor.rgb, 1.0f);
 	gAlbedo[launchIndex] = finalAlbedo;
 	gNormal[launchIndex] = finalNormal;
 	gFlow[launchIndex] = finalFlow;
