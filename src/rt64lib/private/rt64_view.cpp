@@ -761,19 +761,6 @@ void RT64::View::render() {
 	resetViewport();
 	drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
 
-	// Draw the sky plane if it's set.
-	if (skyPlaneTexture != nullptr) {
-		applyScissor(rtScissorRect);
-		applyViewport(rtViewport);
-		d3dCommandList->SetPipelineState(scene->getDevice()->getSkyPlanePipelineState());
-		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getSkyPlaneRootSignature());
-		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
-		d3dCommandList->SetGraphicsRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		d3dCommandList->IASetVertexBuffers(0, 0, nullptr);
-		d3dCommandList->DrawInstanced(3, 1, 0, 0);
-	}
-	
 	// Draw the background instances to a buffer that can be used by the tracer as an environment map.
 	{
 		// Transition the background texture render target.

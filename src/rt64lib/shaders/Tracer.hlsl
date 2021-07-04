@@ -13,6 +13,7 @@
 #include "Random.hlsli"
 #include "Textures.hlsli"
 #include "GlobalParams.hlsli"
+#include "SkyPlaneUV.hlsli"
 
 #define RAY_MIN_DISTANCE					0.1f
 #define RAY_MAX_DISTANCE					100000.0f
@@ -232,6 +233,21 @@ float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
 	return gBackground.SampleLevel(gBackgroundSampler, bgPos, 0).rgb;
 }
 
+float4 SampleSky2D(float2 screenUV) {
+	if (skyPlaneTexIndex >= 0) {
+		float2 skyUV = ComputeSkyPlaneUV(screenUV, viewI, viewport.zw);
+		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, skyUV, 0);
+		if (any(skyHSLModifier)) {
+			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.xyz);
+		}
+
+		return skyColor;
+	}
+	else {
+		return float4(0.0f, 0.0f, 0.0f, 0.0f);
+	}
+}
+
 float4 SampleSkyPlane(float3 rayDirection) {
 	if (skyPlaneTexIndex >= 0) {
 		float skyYaw = atan2(rayDirection.x, -rayDirection.z);
@@ -345,13 +361,15 @@ float4 ComputeReflection(float reflectionFactor, float reflectionShineFactor, fl
 float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
 	float4 clipSpace = mul(viewProj, float4(worldPos, 1.0f));
 	float3 NDC = clipSpace.xyz / clipSpace.w;
-	return (0.5f + NDC.xy / 2.0f) * resolution.xy;
+	return (0.5f + NDC.xy / 2.0f);
 }
 
 void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection, uint2 launchIndex, uint2 pixelDims, uint seed) {
-	float4 resColor = float4(0, 0, 0, 1);
-	float4 finalAlbedo = float4(0.0f, 0.0f, 0.0f, 0.0f);
-	float4 finalNormal = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float2 screenUV = float2(launchIndex.x, launchIndex.y) / float2(pixelDims.x, pixelDims.y);
+	float4 skyColor = SampleSky2D(screenUV);
+	float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	float4 finalAlbedo = skyColor;
+	float4 finalNormal = float4(-rayDirection, 0.0f);
 	float4 finalFlow = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
@@ -375,7 +393,11 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
 			float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
 			float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
-			float2 resultFlow = curPos - prevPos;
+			float2 resultFlow = float2(0.0f, 0.0f);
+			if ((prevPos.x >= 0.0f) && (prevPos.x < 1.0f) && (prevPos.y >= 0.0f) && (prevPos.y < 1.0f)) {
+				resultFlow = curPos - prevPos;
+			}
+
 			uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 			float3 resultLight = instanceMaterials[instanceId].selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
@@ -388,7 +410,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
 					finalAlbedo = hitColor;
 					finalNormal = float4(vertexNormal, 0.0f);
-					finalFlow = float4(resultFlow, 0.0f, 0.0f);
+					finalFlow = float4(resultFlow * resolution.xy, 0.0f, 0.0f);
 					resultLight += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxLightSamples, true, seed);
 					maxFullLights--;
 				}
@@ -448,7 +470,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				hitColor.rgb = resultLight;
 			}
 			else if (visualizationMode == VISUALIZATION_MODE_FLOW) {
-				hitColor.rg = abs(resultFlow.xy) / resolution.xy;
+				hitColor.rg = abs(resultFlow.xy);
 				hitColor.b = 0.0f;
 			}
 
@@ -472,6 +494,10 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			maxRefractions--;
 		}
 	}
+
+	// Finally, blend with the sky.
+	resColor.rgb += skyColor.rgb * (resColor.a * skyColor.a);
+	resColor.a *= (1.0f - skyColor.a);
 
 	if (visualizationMode != VISUALIZATION_MODE_NORMAL) {
 		finalAlbedo = float4(1.0f, 1.0f, 1.0f, 1.0f);

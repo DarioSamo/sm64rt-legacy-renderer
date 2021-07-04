@@ -229,6 +229,9 @@
     <None Include="shaders\Color.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
+    <None Include="shaders\SkyPlaneUV.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Tracer.hlsl">
@@ -250,12 +253,6 @@
       <Filter>shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="shaders\ComposeVS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\SkyPlanePS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\SkyPlaneVS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>
