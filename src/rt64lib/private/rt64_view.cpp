@@ -36,11 +36,13 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
+	globalParamsBufferData.motionBlurStrength = 1.0f;
 	globalParamsBufferData.skyPlaneTexIndex = -1;
 	globalParamsBufferData.randomSeed = 0;
 	globalParamsBufferData.softLightSamples = 0;
 	globalParamsBufferData.giBounces = 0;
 	globalParamsBufferData.maxLightSamples = 12;
+	globalParamsBufferData.motionBlurSamples = 0;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
 	globalParamsBufferSize = 0;
@@ -1074,6 +1076,22 @@ void RT64::View::setMaxLightSamples(int v) {
 
 int RT64::View::getMaxLightSamples() const {
 	return globalParamsBufferData.maxLightSamples;
+}
+
+void RT64::View::setMotionBlurStrength(float v) {
+	globalParamsBufferData.motionBlurStrength = v;
+}
+
+float RT64::View::getMotionBlurStrength() const {
+	return globalParamsBufferData.motionBlurStrength;
+}
+
+void RT64::View::setMotionBlurSamples(int v) {
+	globalParamsBufferData.motionBlurSamples = v;
+}
+
+int RT64::View::getMotionBlurSamples() const {
+	return globalParamsBufferData.motionBlurSamples;
 }
 
 void RT64::View::setVisualizationMode(int v) {

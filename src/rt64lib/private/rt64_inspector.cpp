@@ -118,14 +118,18 @@ void RT64::Inspector::renderViewParams(View *view) {
     int softLightSamples = view->getSoftLightSamples();
     int giBounces = view->getGIBounces();
     int maxLightSamples = view->getMaxLightSamples();
+    float motionBlurStrength = view->getMotionBlurStrength();
+    int motionBlurSamples = view->getMotionBlurSamples();
     int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
     bool denoiser = view->getDenoiserEnabled();
     bool temporal = view->getDenoiserTemporalMode();
 
     ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
-    ImGui::DragInt("GI Bounces", &giBounces, 0.1f, 0, 32);
+    ImGui::DragInt("GI bounces", &giBounces, 0.1f, 0, 32);
     ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
+    ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
+    ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
     ImGui::Combo("Visualization Mode", &visualizationMode, "Normal\0Light only\0Motion vectors\0");
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
@@ -150,6 +154,8 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setSoftLightSamples(softLightSamples);
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
+    view->setMotionBlurStrength(motionBlurStrength);
+    view->setMotionBlurSamples(motionBlurSamples);
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
     view->setDenoiserEnabled(denoiser);

@@ -51,11 +51,13 @@ namespace RT64 {
 			RT64_VECTOR4 skyHSLModifier;
 			float giDiffuseStrength;
 			float giSkyStrength;
+			float motionBlurStrength;
 			int skyPlaneTexIndex;
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
 			unsigned int maxLightSamples;
+			unsigned int motionBlurSamples;
 			unsigned int visualizationMode;
 			unsigned int frameCount;
 		};
@@ -148,6 +150,10 @@ namespace RT64 {
 		int getGIBounces() const;
 		void setMaxLightSamples(int v);
 		int getMaxLightSamples() const;
+		void setMotionBlurStrength(float v);
+		float getMotionBlurStrength() const;
+		void setMotionBlurSamples(int v);
+		int getMotionBlurSamples() const;
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;
 		void setResolutionScale(float v);

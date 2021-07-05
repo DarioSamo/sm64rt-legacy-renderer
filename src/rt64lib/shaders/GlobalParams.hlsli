@@ -20,11 +20,13 @@ cbuffer gParams : register(b0) {
 	float4 skyHSLModifier;
 	float giDiffuseStrength;
 	float giSkyStrength;
+	float motionBlurStrength;
 	int skyPlaneTexIndex;
 	uint randomSeed;
 	uint softLightSamples;
 	uint giBounces;
 	uint maxLightSamples;
+	unsigned int motionBlurSamples;
 	uint visualizationMode;
 	uint frameCount;
 }
