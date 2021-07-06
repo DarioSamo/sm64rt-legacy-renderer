@@ -542,7 +542,6 @@ void RT64::Device::loadAssets() {
 	}
 
 	{
-		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 		setPsoDefaults(psoDesc, composeBlendDesc);
 		psoDesc.InputLayout = { nullptr, 0 };
@@ -565,7 +564,6 @@ void RT64::Device::loadAssets() {
 	}
 
 	{
-		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 		setPsoDefaults(psoDesc, alphaBlendDesc);
 		psoDesc.InputLayout = { nullptr, 0 };

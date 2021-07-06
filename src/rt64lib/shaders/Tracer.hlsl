@@ -370,11 +370,14 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 	float3 bgColor = SampleBackground2D(screenUV);
 	float4 skyColor = SampleSky2D(screenUV);
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
-
+	
+	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
+	float2 prevBgPos = WorldToScreenPos(prevViewProj, bgPosition);
+	float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);
 	float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 	float4 finalAlbedo = float4(bgColor, 1.0f);
 	float4 finalNormal = float4(-rayDirection, 0.0f);
-	float4 finalFlow = float4(0.0f, 0.0f, 0.0f, 0.0f); // TODO: Motion vector for the sky plane.
+	float4 finalFlow = float4((curBgPos - prevBgPos) * resolution.xy, 0.0f, 0.0f);
 	float3 simpleLightsResult = float3(0.0f, 0.0f, 0.0f);
 	uint maxRefractions = 1;
 	uint maxSimpleLights = 1;
@@ -393,24 +396,31 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 		float refractionFactor = instanceMaterials[instanceId].refractionFactor;
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
-			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+			// Calculate motion vector in screen space.
 			float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
 			float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
 			float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
 			float2 resultFlow = curPos - prevPos;
+			
+			// Store values for global buffers.
+			bool solidColor = (hitColor.a >= FULL_QUALITY_ALPHA);
+			bool lastHit = (((hit + 1) >= hitCount) && (refractionFactor <= EPSILON));
+			if (solidColor || lastHit) {
+				finalAlbedo = float4(lerp(bgColor, hitColor.rgb, hitColor.a), 1.0f);
+				finalNormal = float4(vertexNormal, 0.0f);
+				finalFlow = float4(resultFlow * resolution.xy, 0.0f, 0.0f);
+			}
+
+			// Lighting.
 			uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 			float3 resultLight = instanceMaterials[instanceId].selfLight;
 			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
 			if (lightGroupMaskBits > 0) {
+				float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 				float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular;
-				bool solidColor = (hitColor.a >= FULL_QUALITY_ALPHA);
-				bool lastHit = (((hit + 1) >= hitCount) && (refractionFactor <= EPSILON));
 
 				// Full light sampling.
 				if ((maxFullLights > 0) && (solidColor || lastHit)) {
-					finalAlbedo = float4(lerp(bgColor, hitColor.rgb, hitColor.a), 1.0f);
-					finalNormal = float4(vertexNormal, 0.0f);
-					finalFlow = float4(resultFlow * resolution.xy, 0.0f, 0.0f);
 					resultLight += ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, maxLightSamples, true, seed);
 					maxFullLights--;
 				}
@@ -447,6 +457,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 				resultLight += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 			}
 			
+			// Apply lighting.
 			resultLight += ambientLightColor.rgb + resultGiLight;
 			hitColor.rgb *= resultLight;
 

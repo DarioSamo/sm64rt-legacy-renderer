@@ -36,7 +36,7 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
-	globalParamsBufferData.motionBlurStrength = 1.0f;
+	globalParamsBufferData.motionBlurStrength = 0.25f;
 	globalParamsBufferData.skyPlaneTexIndex = -1;
 	globalParamsBufferData.randomSeed = 0;
 	globalParamsBufferData.softLightSamples = 0;
@@ -139,7 +139,6 @@ void RT64::View::createOutputBuffers() {
 	D3D12_CHECK(scene->getDevice()->getD3D12Device()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rasterBgHeap)));
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvBgHandle(rasterBgHeap->GetCPUDescriptorHandleForHeapStart());
 	scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rasterBg.Get(), nullptr, rtvBgHandle);
-	rtvBgHandle.Offset(1, outputRtvDescriptorSize);
 
 	if (denoiserEnabled) {
 		ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
@@ -470,7 +469,7 @@ void RT64::View::createShaderBindingTable() {
 	sbtHelper.AddMissProgram(scene->getDevice()->getShadowMissID(), {});
 
 	// Add the vertex buffers from all the meshes used by the instances to the hit group.
-	for (const RenderInstance &rtInstance :rtInstances) {
+	for (const RenderInstance &rtInstance : rtInstances) {
 		const auto &surfaceHitGroup = rtInstance.shader->getSurfaceHitGroup();
 		sbtHelper.AddHitGroup(surfaceHitGroup.id, {
 			(void *)(rtInstance.vertexBufferView->BufferLocation),
@@ -543,6 +542,7 @@ void RT64::View::updateGlobalParamsBuffer() {
 
 	// Inverse matrices required for raytracing.
 	XMVECTOR det;
+	globalParamsBufferData.prevViewI = globalParamsBufferData.viewI;
 	globalParamsBufferData.viewI = XMMatrixInverse(&det, globalParamsBufferData.view);
 	globalParamsBufferData.projectionI = XMMatrixInverse(&det, globalParamsBufferData.projection);
 	
@@ -802,7 +802,6 @@ void RT64::View::render() {
 		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &rtBarrier);
 
-		// Transition the motion vector to a shader resource.
 		CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &flowBarrier);
 
@@ -866,22 +865,22 @@ void RT64::View::render() {
 		applyScissor(rtScissorRect);
 		applyViewport(rtViewport);
 
-		// Set the render target.
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = scene->getDevice()->getD3D12RTV();
-		d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-
 		// Transition the motion vector to a shader resource.
 		flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		d3dCommandList->ResourceBarrier(1, &flowBarrier);
 
+		// Set the final render target view.
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = scene->getDevice()->getD3D12RTV();
+		d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
 		// Draw the raytracing output.
-		d3dCommandList->SetPipelineState(scene->getDevice()->getComposePipelineState());
-		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getComposeRootSignature());
 		std::vector<ID3D12DescriptorHeap *> composeHeaps = { composeHeap };
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(composeHeaps.size()), composeHeaps.data());
-		d3dCommandList->SetGraphicsRootDescriptorTable(0, composeHeap->GetGPUDescriptorHandleForHeapStart());
 		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		d3dCommandList->IASetVertexBuffers(0, 0, nullptr);
+		d3dCommandList->SetPipelineState(scene->getDevice()->getComposePipelineState());
+		d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getComposeRootSignature());
+		d3dCommandList->SetGraphicsRootDescriptorTable(0, composeHeap->GetGPUDescriptorHandleForHeapStart());
 		d3dCommandList->DrawInstanced(3, 1, 0, 0);
 
 		// Draw the motion vector output.

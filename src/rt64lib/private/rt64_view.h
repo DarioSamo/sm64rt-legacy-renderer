@@ -39,6 +39,7 @@ namespace RT64 {
 		struct GlobalParamsBuffer {
 			XMMATRIX view;
 			XMMATRIX viewI;
+			XMMATRIX prevViewI;
 			XMMATRIX projection;
 			XMMATRIX projectionI;
 			XMMATRIX viewProj;
