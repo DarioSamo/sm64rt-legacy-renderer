@@ -36,13 +36,13 @@ RT64::View::View(Scene *scene) {
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
-	globalParamsBufferData.motionBlurStrength = 0.25f;
+	globalParamsBufferData.motionBlurStrength = 0.0f;
 	globalParamsBufferData.skyPlaneTexIndex = -1;
 	globalParamsBufferData.randomSeed = 0;
 	globalParamsBufferData.softLightSamples = 0;
 	globalParamsBufferData.giBounces = 0;
 	globalParamsBufferData.maxLightSamples = 12;
-	globalParamsBufferData.motionBlurSamples = 0;
+	globalParamsBufferData.motionBlurSamples = 32;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
 	globalParamsBufferSize = 0;
@@ -1233,6 +1233,7 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setResolutionScale(viewDesc.resolutionScale);
+	view->setMotionBlurStrength(viewDesc.motionBlurStrength);
 	view->setMaxLightSamples(viewDesc.maxLightSamples);
 	view->setSoftLightSamples(viewDesc.softLightSamples);
 	view->setGIBounces(viewDesc.giBounces);
