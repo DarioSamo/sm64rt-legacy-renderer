@@ -9,7 +9,7 @@ Texture2D<float4> gFlow : register(t1);
 SamplerState gSampler : register(s0);
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
-    if (motionBlurSamples > 0) {
+    if ((motionBlurStrength > 0.0f) && (motionBlurSamples > 0)) {
         float2 flow = gFlow.SampleLevel(gSampler, uv, 0).xy / resolution.xy;
         float flowLength = length(flow);
         if (flowLength > 1e-6f) {
