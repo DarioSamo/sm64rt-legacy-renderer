@@ -50,7 +50,9 @@ namespace RT64 {
 			RT64_VECTOR4 ambientNoGIColor;
 			RT64_VECTOR4 eyeLightDiffuseColor;
 			RT64_VECTOR4 eyeLightSpecularColor;
+			RT64_VECTOR4 skyDiffuseMultiplier;
 			RT64_VECTOR4 skyHSLModifier;
+			float skyYawOffset;
 			float giDiffuseStrength;
 			float giSkyStrength;
 			float motionBlurStrength;

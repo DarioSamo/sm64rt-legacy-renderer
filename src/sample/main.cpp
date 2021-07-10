@@ -154,7 +154,9 @@ void setupRT64Scene() {
 	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
 	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
 	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
-	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f,0.0f };
+	RT64.sceneDesc.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
+	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
+	RT64.sceneDesc.skyYawOffset = 0.0f;
 	RT64.sceneDesc.giDiffuseStrength = 0.7f;
 	RT64.sceneDesc.giSkyStrength = 0.35f;
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);

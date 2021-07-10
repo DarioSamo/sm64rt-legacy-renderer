@@ -9,15 +9,15 @@
 #define SKYBOX_WIDTH (4 * SCREEN_WIDTH)
 #define SKYBOX_HEIGHT (4 * SCREEN_HEIGHT)
 
-float2 ComputeSkyPlaneUV(float2 uv, float4x4 viewI, float2 viewportSz) {
+float2 ComputeSkyPlaneUV(float2 uv, float4x4 viewI, float2 viewportSz, float yawOffset) {
 	float2 baseUV = float2(0.0f, 0.0f);
 
 	// Determine vertex UV.
 	float3 viewDirection = normalize(mul(viewI, float4(0, 0, 1, 0)).xyz);
 
 	// Scaled X
-	float skyYawRadians = atan2(viewDirection.x, -viewDirection.z);
-	baseUV.x = SCREEN_WIDTH * 360.0 * skyYawRadians / (90.0f * M_PI * 2.0f);
+	float skyYawRadians = fmod(yawOffset + atan2(viewDirection.x, -viewDirection.z) + M_PI, M_TWO_PI);
+	baseUV.x = SCREEN_WIDTH * 360.0 * (skyYawRadians - M_PI) / (90.0f * M_PI * 2.0f);
 
 	// Scaled Y
 	float skyPitchRadians = atan2(-viewDirection.y, sqrt(viewDirection.x * viewDirection.x + viewDirection.z * viewDirection.z));

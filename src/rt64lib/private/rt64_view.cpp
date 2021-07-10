@@ -517,7 +517,9 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.ambientNoGIColor = ToVector4(desc.ambientNoGIColor, 0.0f);
 	globalParamsBufferData.eyeLightDiffuseColor = ToVector4(desc.eyeLightDiffuseColor, 0.0f);
 	globalParamsBufferData.eyeLightSpecularColor = ToVector4(desc.eyeLightSpecularColor, 0.0f);
+	globalParamsBufferData.skyDiffuseMultiplier = ToVector4(desc.skyDiffuseMultiplier, 0.0f);
 	globalParamsBufferData.skyHSLModifier = ToVector4(desc.skyHSLModifier, 0.0f);
+	globalParamsBufferData.skyYawOffset = desc.skyYawOffset;
 	globalParamsBufferData.giDiffuseStrength = desc.giDiffuseStrength;
 	globalParamsBufferData.giSkyStrength = desc.giSkyStrength;
 

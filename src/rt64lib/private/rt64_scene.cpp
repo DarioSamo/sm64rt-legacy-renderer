@@ -24,7 +24,9 @@ RT64::Scene::Scene(Device *device) {
 
 	description.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
 	description.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
+	description.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
 	description.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
+	description.skyYawOffset = 0.0f;
 	description.giDiffuseStrength = 0.7f;
 	description.giSkyStrength = 0.35f;
 	lightsBufferSize = 0;

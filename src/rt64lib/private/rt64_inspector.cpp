@@ -11,6 +11,7 @@
 #include "rt64_view.h"
 
 #include "im3d/im3d.h"
+#include "im3d/im3d_math.h"
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_dx12.h"
@@ -171,7 +172,9 @@ void RT64::Inspector::renderSceneInspector() {
         ImGui::DragFloat3("Ambient No GI Color", &sceneDesc->ambientNoGIColor.x, 0.01f, 0.0f, 100.0f);
         ImGui::DragFloat3("Eye Light Diffuse Color", &sceneDesc->eyeLightDiffuseColor.x, 0.01f, 0.0f, 100.0f);
         ImGui::DragFloat3("Eye Light Specular Color", &sceneDesc->eyeLightSpecularColor.x, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Sky Diffuse Multiplier", &sceneDesc->skyDiffuseMultiplier.x, 0.01f, 0.0f, 5.0f);
         ImGui::DragFloat3("Sky HSL Modifier", &sceneDesc->skyHSLModifier.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat("Sky Yaw Offset", &sceneDesc->skyYawOffset, 0.01f, 0.0f, Im3d::TwoPi);
         ImGui::DragFloat("GI Diffuse Strength", &sceneDesc->giDiffuseStrength, 0.01f, 0.0f, 100.0f);
         ImGui::DragFloat("GI Sky Strength", &sceneDesc->giSkyStrength, 0.01f, 0.0f, 100.0f);
         ImGui::End();

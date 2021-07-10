@@ -19,7 +19,9 @@ cbuffer gParams : register(b0) {
 	float4 ambientNoGIColor;
 	float4 eyeLightDiffuseColor;
 	float4 eyeLightSpecularColor;
+	float4 skyDiffuseMultiplier;
 	float4 skyHSLModifier;
+	float skyYawOffset;
 	float giDiffuseStrength;
 	float giSkyStrength;
 	float motionBlurStrength;

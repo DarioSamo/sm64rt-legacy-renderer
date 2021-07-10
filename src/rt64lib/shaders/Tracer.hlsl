@@ -223,10 +223,10 @@ float4 ComputeFog(uint instanceId, float3 position) {
 	return fogColor;
 }
 
-float2 FakeEnvMapUV(float3 rayDirection) {
-	float yaw = atan2(rayDirection.x, -rayDirection.z);
-	float pitch = atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z));
-	return float2((yaw + M_PI) / (M_PI * 2.0f), (pitch + M_PI) / (M_PI * 2.0f));
+float2 FakeEnvMapUV(float3 rayDirection, float yawOffset) {
+	float yaw = fmod(yawOffset + atan2(rayDirection.x, -rayDirection.z) + M_PI, M_TWO_PI);
+	float pitch = fmod(atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z)) + M_PI, M_TWO_PI);
+	return float2(yaw / M_TWO_PI, pitch / M_TWO_PI);
 }
 
 float3 SampleBackground2D(float2 screenUV) {
@@ -234,15 +234,17 @@ float3 SampleBackground2D(float2 screenUV) {
 }
 
 float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
-	return gBackground.SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection), 0).rgb;
+	return gBackground.SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, 0.0f), 0).rgb;
 }
 
 float4 SampleSky2D(float2 screenUV) {
 	if (skyPlaneTexIndex >= 0) {
-		float2 skyUV = ComputeSkyPlaneUV(screenUV, viewI, viewport.zw);
+		float2 skyUV = ComputeSkyPlaneUV(screenUV, viewI, viewport.zw, skyYawOffset);
 		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, skyUV, 0);
+		skyColor.rgb *= skyDiffuseMultiplier.rgb;
+
 		if (any(skyHSLModifier)) {
-			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.xyz);
+			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.rgb);
 		}
 
 		return skyColor;
@@ -254,9 +256,11 @@ float4 SampleSky2D(float2 screenUV) {
 
 float4 SampleSkyPlane(float3 rayDirection) {
 	if (skyPlaneTexIndex >= 0) {
-		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection), 0);
+		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, skyYawOffset), 0);
+		skyColor.rgb *= skyDiffuseMultiplier.rgb;
+
 		if (any(skyHSLModifier)) {
-			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.xyz);
+			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.rgb);
 		}
 
 		return skyColor;

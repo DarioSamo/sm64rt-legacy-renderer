@@ -141,7 +141,9 @@ typedef struct {
 	RT64_VECTOR3 ambientNoGIColor;
 	RT64_VECTOR3 eyeLightDiffuseColor;
 	RT64_VECTOR3 eyeLightSpecularColor;
+	RT64_VECTOR3 skyDiffuseMultiplier;
 	RT64_VECTOR3 skyHSLModifier;
+	float skyYawOffset;
 	float giDiffuseStrength;
 	float giSkyStrength;
 } RT64_SCENE_DESC;
