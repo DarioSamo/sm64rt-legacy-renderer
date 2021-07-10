@@ -288,7 +288,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
 			float3 resultLight = instanceMaterials[instanceId].selfLight;
-			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
+			float3 resultGiLight = ambientNoGIColor.rgb;
 
 			// Reuse the previous computed lights result if available.
 			if (lightGroupMaskBits > 0) {
@@ -300,7 +300,7 @@ float3 SimpleShadeFromGBuffers(uint hitOffset, uint hitCount, float3 rayOrigin, 
 				resultLight += simpleLightsResult;
 			}
 
-			resultLight += ambientLightColor.rgb + resultGiLight;
+			resultLight += ambientBaseColor.rgb + resultGiLight;
 			hitColor.rgb *= resultLight;
 
 			// Backwards alpha blending.
@@ -414,7 +414,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			// Lighting.
 			uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 			float3 resultLight = instanceMaterials[instanceId].selfLight;
-			float3 resultGiLight = float3(0.0f, 0.0f, 0.0f);
+			float3 resultGiLight = ambientNoGIColor.rgb;
 			if (lightGroupMaskBits > 0) {
 				float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 				float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular;
@@ -436,9 +436,10 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 
 				// Global illumination.
 				bool alphaGIRequired = (alphaContrib >= GI_MINIMUM_ALPHA);
-				if ((maxGI > 0) && (alphaGIRequired || lastHit)) {
+				if ((giBounces > 0) && (maxGI > 0) && (alphaGIRequired || lastHit)) {
 					uint giSamples = giBounces;
 					uint seedCopy = seed;
+					resultGiLight = float3(0.0f, 0.0f, 0.0f);
 					while (giSamples > 0) {
 						float3 bounceDir = getCosHemisphereSample(seedCopy, vertexNormal);
 						float3 bounceColor = TraceSimple(vertexPosition, bounceDir, RAY_MIN_DISTANCE, RAY_MAX_DISTANCE, hitCount, launchIndex, pixelDims, true, true, seed + giSamples);
@@ -458,7 +459,7 @@ void FullShadeFromGBuffers(uint hitCount, float3 rayOrigin, float3 rayDirection,
 			}
 			
 			// Apply lighting.
-			resultLight += ambientLightColor.rgb + resultGiLight;
+			resultLight += ambientBaseColor.rgb + resultGiLight;
 			hitColor.rgb *= resultLight;
 
 			// Add reflections.

@@ -237,7 +237,7 @@ typedef RT64_DEVICE* (*CreateDevicePtr)(void *hwnd);
 typedef void(*DestroyDevicePtr)(RT64_DEVICE* device);
 typedef void(*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval);
 typedef RT64_VIEW* (*CreateViewPtr)(RT64_SCENE* scenePtr);
-typedef void(*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist);
+typedef void(*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist, bool canReproject);
 typedef void(*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);
 typedef void(*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);

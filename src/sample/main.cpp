@@ -88,7 +88,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	}
 	case WM_PAINT: {
 		if (RT64.view != nullptr) {
-			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
+			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f, true);
 
 			if (RT64.inspector != nullptr) {
 				RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");

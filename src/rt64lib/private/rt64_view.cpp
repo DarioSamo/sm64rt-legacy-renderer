@@ -55,6 +55,7 @@ RT64::View::View(Scene *scene) {
 	denoiserTemporal = false;
 	denoiser = nullptr;
 	perspectiveControlActive = false;
+	perspectiveCanReproject = true;
 	im3dVertexCount = 0;
 	rtHitInstanceIdReadbackUpdated = false;
 	skyPlaneTexture = nullptr;
@@ -512,39 +513,32 @@ void RT64::View::updateGlobalParamsBuffer() {
 
 	// Update with the latest scene description.
 	RT64_SCENE_DESC desc = scene->getDescription();
-	if (globalParamsBufferData.giBounces > 0) {
-		globalParamsBufferData.ambientLightColor = ToVector4(desc.ambientBaseColor, 0.0f);
-	}
-	else {
-		globalParamsBufferData.ambientLightColor = ToVector4(desc.ambientBaseColor + desc.ambientNoGIColor, 0.0f);
-	}
-
+	globalParamsBufferData.ambientBaseColor = ToVector4(desc.ambientBaseColor, 0.0f);
+	globalParamsBufferData.ambientNoGIColor = ToVector4(desc.ambientNoGIColor, 0.0f);
 	globalParamsBufferData.eyeLightDiffuseColor = ToVector4(desc.eyeLightDiffuseColor, 0.0f);
 	globalParamsBufferData.eyeLightSpecularColor = ToVector4(desc.eyeLightSpecularColor, 0.0f);
 	globalParamsBufferData.skyHSLModifier = ToVector4(desc.skyHSLModifier, 0.0f);
 	globalParamsBufferData.giDiffuseStrength = desc.giDiffuseStrength;
 	globalParamsBufferData.giSkyStrength = desc.giSkyStrength;
 
-	// Previous view and projection matrices.
-	globalParamsBufferData.prevViewProj = globalParamsBufferData.viewProj;
-	globalParamsBufferData.viewProj = XMMatrixMultiply(globalParamsBufferData.view, globalParamsBufferData.projection);
+	// Previous and current view and projection matrices and their inverse.
+	if (perspectiveCanReproject) {
+		globalParamsBufferData.prevViewI = globalParamsBufferData.viewI;
+		globalParamsBufferData.prevViewProj = globalParamsBufferData.viewProj;
+	}
 
-#ifdef USE_VIEWPROJ_AS_HASH
-	// Compute the hash of the view and projection matrices and use it as the random seed.
-	// This is to prevent the denoiser from showing movement when the game is paused.
-	XXHash32 viewProjHash(0);
-	viewProjHash.add(&globalParamsBufferData.view, sizeof(XMMATRIX));
-	viewProjHash.add(&globalParamsBufferData.projection, sizeof(XMMATRIX));
-	globalParamsBufferData.randomSeed = viewProjHash.hash();
-#else
-	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
-#endif
-
-	// Inverse matrices required for raytracing.
 	XMVECTOR det;
-	globalParamsBufferData.prevViewI = globalParamsBufferData.viewI;
 	globalParamsBufferData.viewI = XMMatrixInverse(&det, globalParamsBufferData.view);
 	globalParamsBufferData.projectionI = XMMatrixInverse(&det, globalParamsBufferData.projection);
+	globalParamsBufferData.viewProj = XMMatrixMultiply(globalParamsBufferData.view, globalParamsBufferData.projection);
+
+	if (!perspectiveCanReproject) {
+		globalParamsBufferData.prevViewI = globalParamsBufferData.viewI;
+		globalParamsBufferData.prevViewProj = globalParamsBufferData.viewProj;
+	}
+
+	// Use the total frame count as the random seed.
+	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
 	
 	// Copy the camera buffer data to the resource.
 	uint8_t *pData;
@@ -1025,6 +1019,10 @@ void RT64::View::setPerspectiveControlActive(bool v) {
 	perspectiveControlActive = v;
 }
 
+void RT64::View::setPerspectiveCanReproject(bool v) {
+	perspectiveCanReproject = v;
+}
+
 RT64_VECTOR3 RT64::View::getViewPosition() {
 	XMVECTOR pos = XMVector4Transform(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), globalParamsBufferData.viewI);
 	return { XMVectorGetX(pos), XMVectorGetY(pos), XMVectorGetZ(pos) };
@@ -1223,10 +1221,11 @@ DLLEXPORT RT64_VIEW *RT64_CreateView(RT64_SCENE *scenePtr) {
 	return (RT64_VIEW *)(new RT64::View(scene));
 }
 
-DLLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist) {
+DLLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist, bool canReproject) {
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setPerspective(viewMatrix, fovRadians, nearDist, farDist);
+	view->setPerspectiveCanReproject(canReproject);
 }
 
 DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc) {

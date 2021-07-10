@@ -46,7 +46,8 @@ namespace RT64 {
 			XMMATRIX prevViewProj;
 			RT64_VECTOR4 viewport;
 			RT64_VECTOR4 resolution;
-			RT64_VECTOR4 ambientLightColor;
+			RT64_VECTOR4 ambientBaseColor;
+			RT64_VECTOR4 ambientNoGIColor;
 			RT64_VECTOR4 eyeLightDiffuseColor;
 			RT64_VECTOR4 eyeLightSpecularColor;
 			RT64_VECTOR4 skyHSLModifier;
@@ -68,6 +69,7 @@ namespace RT64 {
 		float nearDist;
 		float farDist;
 		bool perspectiveControlActive;
+		bool perspectiveCanReproject;
 		AccelerationStructureBuffers topLevelASBuffers;
 		nv_helpers_dx12::TopLevelASGenerator topLevelASGenerator;
 		AllocatedResource rasterBg;
@@ -140,6 +142,7 @@ namespace RT64 {
 		void movePerspective(RT64_VECTOR3 localMovement);
 		void rotatePerspective(float localYaw, float localPitch, float localRoll);
 		void setPerspectiveControlActive(bool v);
+		void setPerspectiveCanReproject(bool v);
 		RT64_VECTOR3 getViewPosition();
 		RT64_VECTOR3 getViewDirection();
 		float getFOVRadians() const;
