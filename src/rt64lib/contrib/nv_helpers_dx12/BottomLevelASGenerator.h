@@ -134,6 +134,8 @@ public:
       ID3D12Device8* device, /// Device on which the build will be performed
       bool allowUpdate,           /// If true, the resulting acceleration structure will
                                   /// allow iterative updates
+      bool compact,               // Prefer to build a smaller acceleration structure.
+      bool fastTrace,             // Prefer to build for fast tracing.
       UINT64* scratchSizeInBytes, /// Required scratch memory on the GPU to
                                   /// build the acceleration structure
       UINT64* resultSizeInBytes   /// Required GPU memory to store the

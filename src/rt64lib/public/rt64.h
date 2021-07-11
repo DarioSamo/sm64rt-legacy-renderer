@@ -44,6 +44,8 @@
 // Mesh flags.
 #define RT64_MESH_RAYTRACE_ENABLED				0x1
 #define RT64_MESH_RAYTRACE_UPDATABLE			0x2
+#define RT64_MESH_RAYTRACE_FAST_TRACE			0x4
+#define RT64_MESH_RAYTRACE_COMPACT				0x8
 
 // Shader flags.
 #define RT64_SHADER_FILTER_POINT				0x0

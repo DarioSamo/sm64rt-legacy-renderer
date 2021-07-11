@@ -247,7 +247,7 @@ void setupRT64Scene() {
 		}
 	}
 	
-	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_UPDATABLE);
+	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
 	RT64.lib.SetMesh(RT64.mesh, RT64.objVertices.data(), (int)(RT64.objVertices.size()), sizeof(VERTEX), RT64.objIndices.data(), (int)(RT64.objIndices.size()));
 	
 	// Configure material.
