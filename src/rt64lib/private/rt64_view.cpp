@@ -1008,6 +1008,10 @@ void RT64::View::render() {
 		CD3DX12_CPU_DESCRIPTOR_HANDLE outputRtvHandle(outputBgHeap[rtSwap ? 1 : 0]->GetCPUDescriptorHandleForHeapStart(), 0, outputRtvDescriptorSize);
 		d3dCommandList->OMSetRenderTargets(1, &outputRtvHandle, FALSE, nullptr);
 
+		// Apply the scissor and viewport to the size of the output texture.
+		applyScissor(CD3DX12_RECT(0, 0, static_cast<LONG>(rtWidth), static_cast<LONG>(rtHeight)));
+		applyViewport(CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(rtWidth), static_cast<float>(rtHeight)));
+
 		// Draw the raytracing output.
 		std::vector<ID3D12DescriptorHeap *> composeHeaps = { composeHeap };
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(composeHeaps.size()), composeHeaps.data());
