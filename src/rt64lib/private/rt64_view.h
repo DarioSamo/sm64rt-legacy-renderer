@@ -86,6 +86,19 @@ namespace RT64 {
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtHitInstanceIdReadback;
+
+		//
+		AllocatedResource rtShadingPosition;
+		AllocatedResource rtShadingNormal;
+		AllocatedResource rtShadingSpecular;
+		AllocatedResource rtDiffuse;
+		AllocatedResource rtInstanceId;
+		AllocatedResource rtDirectLight;
+		AllocatedResource rtIndirectLight;
+		AllocatedResource rtReflection;
+		AllocatedResource rtRefraction;
+		//
+
 		bool rtSwap;
 		int rtWidth;
 		int rtHeight;

@@ -5,6 +5,10 @@
 #ifdef SHADER_AS_STRING
 R"raw(
 #else
+
+#define RAY_MIN_DISTANCE					0.1f
+#define RAY_MAX_DISTANCE					100000.0f
+
 // Structures
 
 struct HitInfo {

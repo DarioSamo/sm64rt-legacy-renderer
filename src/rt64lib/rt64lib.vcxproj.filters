@@ -255,7 +255,19 @@
     <CustomBuild Include="shaders\FullScreenVS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\DebugMotionVectorsPS.hlsl">
+    <CustomBuild Include="shaders\DebugPS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\ReflectRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\PrimaryRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\DirectRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\IndirectRayGen.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>

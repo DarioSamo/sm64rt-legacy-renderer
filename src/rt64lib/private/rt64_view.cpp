@@ -120,6 +120,22 @@ void RT64::View::createOutputBuffers() {
 	rtAlbedo = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
+
+	//
+	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingSpecular = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtDirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtIndirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
+	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	//
 	
 	// Create hit result buffers.
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
@@ -159,6 +175,18 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitNormal.Release();
 	rtHitSpecular.Release();
 	rtHitInstanceId.Release();
+
+	//
+	rtShadingPosition.Release();
+	rtShadingNormal.Release();
+	rtShadingSpecular.Release();
+	rtDiffuse.Release();
+	rtReflection.Release();
+	rtRefraction.Release();
+	rtDirectLight.Release();
+	rtIndirectLight.Release();
+	rtInstanceId.Release();
+	//
 }
 
 void RT64::View::createInstanceTransformsBuffer() {
@@ -345,6 +373,38 @@ void RT64::View::createShaderResourceHeap() {
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceId.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
+	//
+	// REWRITE UAVS
+	uavDesc = {};
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingPosition.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingNormal.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingSpecular.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDiffuse.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtInstanceId.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDirectLight.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtIndirectLight.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtReflection.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtRefraction.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+	//
+
 	// SRV for background texture.
 	D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
 	textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -463,7 +523,9 @@ void RT64::View::createShaderBindingTable() {
 	auto heapPointer = reinterpret_cast<UINT64 *>(srvUavHeapHandle.ptr);
 
 	// The ray generation only uses heap data.
-	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getTraceRayGenID(), { heapPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getPrimaryRayGenID(), { heapPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getDirectRayGenID(), { heapPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getIndirectRayGenID(), { heapPointer });
 	
 	// Miss shaders don't use any external data.
 	sbtHelper.AddMissProgram(scene->getDevice()->getSurfaceMissID(), {});
@@ -805,7 +867,7 @@ void RT64::View::render() {
 		D3D12_DISPATCH_RAYS_DESC desc = {};
 		uint32_t rayGenerationSectionSizeInBytes = sbtHelper.GetRayGenSectionSize();
 		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress();
-		desc.RayGenerationShaderRecord.SizeInBytes = rayGenerationSectionSizeInBytes;
+		desc.RayGenerationShaderRecord.SizeInBytes = sbtHelper.GetRayGenEntrySize();
 
 		// Miss shader table.
 		uint32_t missSectionSizeInBytes = sbtHelper.GetMissSectionSize();
@@ -827,6 +889,24 @@ void RT64::View::render() {
 		// Bind pipeline and dispatch rays.
 		d3dCommandList->SetPipelineState1(scene->getDevice()->getD3D12RtStateObject());
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+		d3dCommandList->DispatchRays(&desc);
+
+		// Barriers for shading buffers.
+		CD3DX12_RESOURCE_BARRIER shadingBarriers[] = {
+				CD3DX12_RESOURCE_BARRIER::UAV(rtInstanceId.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingPosition.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingNormal.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get())
+		};
+
+		d3dCommandList->ResourceBarrier(_countof(shadingBarriers), shadingBarriers);
+
+		// Dispatch rays for direct light.
+		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize();
+		d3dCommandList->DispatchRays(&desc);
+
+		// Dispatch rays for indirect light.
+		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 2;
 		d3dCommandList->DispatchRays(&desc);
 
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -880,9 +960,9 @@ void RT64::View::render() {
 		d3dCommandList->DrawInstanced(3, 1, 0, 0);
 
 		// Draw the motion vector output.
-		if (globalParamsBufferData.visualizationMode == VisualizationModeMotionVectors) {
-			d3dCommandList->SetPipelineState(scene->getDevice()->getDebugMotionVectorsPipelineState());
-			d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getDebugMotionVectorsRootSignature());
+		if (globalParamsBufferData.visualizationMode >= VisualizationModeMotionVectors) {
+			d3dCommandList->SetPipelineState(scene->getDevice()->getDebugPipelineState());
+			d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getDebugRootSignature());
 			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
 			d3dCommandList->SetGraphicsRootDescriptorTable(0, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 			d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

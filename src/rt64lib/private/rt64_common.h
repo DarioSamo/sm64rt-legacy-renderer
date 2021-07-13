@@ -44,6 +44,15 @@ namespace RT64 {
 		gHitNormal,
 		gHitSpecular,
 		gHitInstanceId,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gDiffuse,
+		gInstanceId,
+		gDirectLight,
+		gIndirectLight,
+		gReflection,
+		gRefraction,
 		gBackground,
 		gParams,
 		SceneBVH,
@@ -63,7 +72,16 @@ namespace RT64 {
 		gHitColor,
 		gHitNormal,
 		gHitSpecular,
-		gHitInstanceId
+		gHitInstanceId,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gDiffuse,
+		gInstanceId,
+		gDirectLight,
+		gIndirectLight,
+		gReflection,
+		gRefraction
 	};
 
 	enum class SRVIndices : int {
@@ -85,6 +103,15 @@ namespace RT64 {
 	static const unsigned int VisualizationModeNormal = 0;
 	static const unsigned int VisualizationModeLights = 1;
 	static const unsigned int VisualizationModeMotionVectors = 2;
+	static const unsigned int VisualizationModeShadingPosition = 3;
+	static const unsigned int VisualizationModeShadingNormal = 4;
+	static const unsigned int VisualizationModeShadingSpecular = 5;
+	static const unsigned int VisualizationModeDiffuse = 6;
+	static const unsigned int VisualizationModeInstanceID = 7;
+	static const unsigned int VisualizationModeDirectLight = 8;
+	static const unsigned int VisualizationModeIndirectLight = 9;
+	static const unsigned int VisualizationModeReflection = 10;
+	static const unsigned int VisualizationModeRefraction = 11;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;

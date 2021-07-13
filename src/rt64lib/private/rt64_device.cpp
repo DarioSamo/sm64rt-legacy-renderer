@@ -17,12 +17,15 @@
 #include "rt64_texture.h"
 
 #include "shaders/ComposePS.hlsl.h"
-#include "shaders/DebugMotionVectorsPS.hlsl.h"
+#include "shaders/DebugPS.hlsl.h"
 #include "shaders/FullScreenVS.hlsl.h"
 #include "shaders/Im3DPS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
 #include "shaders/Im3DGSLines.hlsl.h"
+#include "shaders/DirectRayGen.hlsl.h"
+#include "shaders/IndirectRayGen.hlsl.h"
+#include "shaders/PrimaryRayGen.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -48,7 +51,15 @@ RT64::Device::Device(HWND hwnd) {
 	d3dRenderTargetReadbackRowWidth = 0;
 	d3dRtStateObjectDirty = false;
 	d3dTracerLibrary = nullptr;
+	d3dPrimaryRayGenLibrary = nullptr;
+	d3dDirectRayGenLibrary = nullptr;
+	d3dIndirectRayGenLibrary = nullptr;
 	traceRayGenID = nullptr;
+	primaryRayGenID = nullptr;
+	directRayGenID = nullptr;
+	indirectRayGenID = nullptr;
+	reflectionRayGenID = nullptr;
+	refractionRayGenID = nullptr;
 	surfaceMissID = nullptr;
 	shadowMissID = nullptr;
 	width = 0;
@@ -269,12 +280,12 @@ ID3D12PipelineState *RT64::Device::getComposePipelineState() const {
 	return d3dComposePipelineState;
 }
 
-ID3D12RootSignature *RT64::Device::getDebugMotionVectorsRootSignature() const {
-	return d3dDebugMotionVectorsRootSignature;
+ID3D12RootSignature *RT64::Device::getDebugRootSignature() const {
+	return d3dDebugRootSignature;
 }
 
-ID3D12PipelineState *RT64::Device::getDebugMotionVectorsPipelineState() const {
-	return d3dDebugMotionVectorsPipelineState;
+ID3D12PipelineState *RT64::Device::getDebugPipelineState() const {
+	return d3dDebugPipelineState;
 }
 
 ID3D12RootSignature *RT64::Device::getIm3dRootSignature() const {
@@ -295,6 +306,26 @@ ID3D12PipelineState *RT64::Device::getIm3dPipelineStateTriangle() const {
 
 void *RT64::Device::getTraceRayGenID() const {
 	return traceRayGenID;
+}
+
+void *RT64::Device::getPrimaryRayGenID() const {
+	return primaryRayGenID;
+}
+
+void *RT64::Device::getDirectRayGenID() const {
+	return directRayGenID;
+}
+
+void *RT64::Device::getIndirectRayGenID() const {
+	return indirectRayGenID;
+}
+
+void *RT64::Device::getReflectionRayGenID() const {
+	return reflectionRayGenID;
+}
+
+void *RT64::Device::getRefractionRayGenID() const {
+	return refractionRayGenID;
 }
 
 void *RT64::Device::getSurfaceMissID() const {
@@ -557,21 +588,30 @@ void RT64::Device::loadAssets() {
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
 			{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
+			{ UAV_INDEX(gShadingPosition), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingPosition) },
+			{ UAV_INDEX(gShadingNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingNormal) },
+			{ UAV_INDEX(gShadingSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingSpecular) },
+			{ UAV_INDEX(gDiffuse), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDiffuse) },
+			{ UAV_INDEX(gInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gInstanceId) },
+			{ UAV_INDEX(gDirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDirectLight) },
+			{ UAV_INDEX(gIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gIndirectLight) },
+			{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
+			{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) }
 		});
 
-		d3dDebugMotionVectorsRootSignature = rsc.Generate(d3dDevice, false, true, nullptr, 0);
+		d3dDebugRootSignature = rsc.Generate(d3dDevice, false, true, nullptr, 0);
 	}
 
 	{
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 		setPsoDefaults(psoDesc, alphaBlendDesc);
 		psoDesc.InputLayout = { nullptr, 0 };
-		psoDesc.pRootSignature = d3dDebugMotionVectorsRootSignature;
+		psoDesc.pRootSignature = d3dDebugRootSignature;
 		psoDesc.VS = CD3DX12_SHADER_BYTECODE(FullScreenVSBlob, sizeof(FullScreenVSBlob));
-		psoDesc.PS = CD3DX12_SHADER_BYTECODE(DebugMotionVectorsPSBlob, sizeof(DebugMotionVectorsPSBlob));
+		psoDesc.PS = CD3DX12_SHADER_BYTECODE(DebugPSBlob, sizeof(DebugPSBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dDebugMotionVectorsPipelineState)));
+		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dDebugPipelineState)));
 	}
 
 	// Create the command list.
@@ -604,8 +644,23 @@ void RT64::Device::createRaytracingPipeline() {
 		d3dTracerLibrary = new StaticBlob(TracerBlob, sizeof(TracerBlob));
 	}
 
-	// Add shaders from library to the pipeline.
+	if (d3dPrimaryRayGenLibrary == nullptr) {
+		d3dPrimaryRayGenLibrary = new StaticBlob(PrimaryRayGenBlob, sizeof(PrimaryRayGenBlob));
+	}
+
+	if (d3dDirectRayGenLibrary == nullptr) {
+		d3dDirectRayGenLibrary = new StaticBlob(DirectRayGenBlob, sizeof(DirectRayGenBlob));
+	}
+
+	if (d3dIndirectRayGenLibrary == nullptr) {
+		d3dIndirectRayGenLibrary = new StaticBlob(IndirectRayGenBlob, sizeof(IndirectRayGenBlob));
+	}
+
+	// Add shaders from libraries to the pipeline.
 	pipeline.AddLibrary(d3dTracerLibrary, { L"TraceRayGen", L"SurfaceMiss", L"ShadowMiss" });
+	pipeline.AddLibrary(d3dPrimaryRayGenLibrary, { L"PrimaryRayGen" });
+	pipeline.AddLibrary(d3dDirectRayGenLibrary, { L"DirectRayGen" });
+	pipeline.AddLibrary(d3dIndirectRayGenLibrary, { L"IndirectRayGen" });
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -626,7 +681,7 @@ void RT64::Device::createRaytracingPipeline() {
 	}
 
 	// Associate the root signatures to the hit groups.
-	pipeline.AddRootSignatureAssociation(d3dTracerSignature, { L"TraceRayGen" });
+	pipeline.AddRootSignatureAssociation(d3dTracerSignature, { L"TraceRayGen", L"PrimaryRayGen", L"DirectRayGen", L"IndirectRayGen" });
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -647,6 +702,9 @@ void RT64::Device::createRaytracingPipeline() {
 	D3D12_CHECK(d3dRtStateObject->QueryInterface(IID_PPV_ARGS(&d3dRtStateObjectProps)));
 
 	traceRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"TraceRayGen");
+	primaryRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"PrimaryRayGen");
+	directRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"DirectRayGen");
+	indirectRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"IndirectRayGen");
 	surfaceMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"SurfaceMiss");
 	shadowMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"ShadowMiss");
 	for (Shader *shader : shaders) {
@@ -676,6 +734,17 @@ ID3D12RootSignature *RT64::Device::createTracerSignature() {
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
 		{ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) },
 		{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
+		//
+		{ UAV_INDEX(gShadingPosition), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingPosition) },
+		{ UAV_INDEX(gShadingNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingNormal) },
+		{ UAV_INDEX(gShadingSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingSpecular) },
+		{ UAV_INDEX(gDiffuse), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDiffuse) },
+		{ UAV_INDEX(gInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gInstanceId) },
+		{ UAV_INDEX(gDirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDirectLight) },
+		{ UAV_INDEX(gIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gIndirectLight) },
+		{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
+		{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
+		//
 		{ SRV_INDEX(gBackground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBackground) },
 		{ SRV_INDEX(SceneBVH), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneBVH) },
 		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
