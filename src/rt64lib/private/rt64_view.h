@@ -76,18 +76,8 @@ namespace RT64 {
 		nv_helpers_dx12::TopLevelASGenerator topLevelASGenerator;
 		AllocatedResource rasterBg;
 		ID3D12DescriptorHeap *rasterBgHeap;
+		ID3D12DescriptorHeap *outputBgHeap[2];
 		AllocatedResource rtOutput[2];
-		AllocatedResource rtAlbedo;
-		AllocatedResource rtNormal;
-		AllocatedResource rtFlow;
-		AllocatedResource rtHitDistAndFlow;
-		AllocatedResource rtHitColor;
-		AllocatedResource rtHitNormal;
-		AllocatedResource rtHitSpecular;
-		AllocatedResource rtHitInstanceId;
-		AllocatedResource rtHitInstanceIdReadback;
-
-		//
 		AllocatedResource rtShadingPosition;
 		AllocatedResource rtShadingNormal;
 		AllocatedResource rtShadingSpecular;
@@ -97,7 +87,13 @@ namespace RT64 {
 		AllocatedResource rtIndirectLight;
 		AllocatedResource rtReflection;
 		AllocatedResource rtRefraction;
-		//
+		AllocatedResource rtFlow;
+		AllocatedResource rtHitDistAndFlow;
+		AllocatedResource rtHitColor;
+		AllocatedResource rtHitNormal;
+		AllocatedResource rtHitSpecular;
+		AllocatedResource rtHitInstanceId;
+		AllocatedResource rtHitInstanceIdReadback;
 
 		bool rtSwap;
 		int rtWidth;
@@ -113,6 +109,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *descriptorHeap;
 		UINT descriptorHeapEntryCount;
 		ID3D12DescriptorHeap *composeHeap;
+		ID3D12DescriptorHeap *postProcessHeap;
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;

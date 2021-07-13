@@ -89,10 +89,16 @@ void ReflectionRayGen() {
 			float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
 			resColor.rgb += hitColor.rgb * alphaContrib;
 			resColor.a *= (1.0 - hitColor.a);
-			resPosition = vertexPosition;
-			resNormal = vertexNormal;
-			resSpecular = specular;
-			resInstanceId = hitInstanceId;
+
+			// Store the primary hit data if the alpha requirment is met or this is the last hit.
+			bool primaryHitAlpha = hitColor.a >= PRIMARY_HIT_MINIMUM_ALPHA;
+			bool lastHit = (hit + 1) >= payload.nhits;
+			if ((resInstanceId < 0) && (primaryHitAlpha || lastHit)) {
+				resPosition = vertexPosition;
+				resNormal = vertexNormal;
+				resSpecular = specular;
+				resInstanceId = instanceId;
+			}
 		}
 
 		if (resColor.a <= EPSILON) {
@@ -109,6 +115,14 @@ void ReflectionRayGen() {
 	// Blend with the background.
 	resColor.rgb += bgColor * resColor.a;
 	resColor.a = 1.0f;
+
+	// Artificial shine factor.
+	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);
+	const float3 ShadowColor = float3(0.1f, 0.05f, 0.0f);
+	const float BlendingExponent = 3.0f;
+	float reflectionShineFactor = instanceMaterials[instanceId].reflectionShineFactor;
+	resColor.rgb = lerp(resColor.rgb, HighlightColor, pow(max(rayDirection.y, 0.0f) * reflectionShineFactor, BlendingExponent));
+	resColor.rgb = lerp(resColor.rgb, ShadowColor, pow(max(-rayDirection.y, 0.0f) * reflectionShineFactor, BlendingExponent));
 
 	gReflection[launchIndex].rgb = resColor.rgb;
 }

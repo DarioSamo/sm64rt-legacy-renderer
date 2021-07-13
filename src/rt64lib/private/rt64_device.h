@@ -57,18 +57,18 @@ namespace RT64 {
 		ID3D12DescriptorHeap *d3dDsvHeap;
 		ID3D12RootSignature *d3dComposeRootSignature;
 		ID3D12PipelineState *d3dComposePipelineState;
+		ID3D12RootSignature *d3dPostProcessRootSignature;
+		ID3D12PipelineState *d3dPostProcessPipelineState;
 		ID3D12RootSignature *d3dDebugRootSignature;
 		ID3D12PipelineState *d3dDebugPipelineState;
 		UINT d3dRtvDescriptorSize;
 		IDxcCompiler *d3dDxcCompiler;
 		IDxcLibrary *d3dDxcLibrary;
-		IDxcBlob *d3dTracerLibrary;
 		IDxcBlob *d3dPrimaryRayGenLibrary;
 		IDxcBlob *d3dDirectRayGenLibrary;
 		IDxcBlob *d3dIndirectRayGenLibrary;
 		IDxcBlob *d3dReflectionRayGenLibrary;
 		IDxcBlob *d3dRefractionRayGenLibrary;
-		void *traceRayGenID;
 		void *primaryRayGenID;
 		void *directRayGenID;
 		void *indirectRayGenID;
@@ -76,7 +76,7 @@ namespace RT64 {
 		void *refractionRayGenID;
 		void *surfaceMissID;
 		void *shadowMissID;
-		ID3D12RootSignature *d3dTracerSignature;
+		ID3D12RootSignature *d3dRayGenSignature;
 		ID3D12PipelineState *im3dPipelineStatePoint;
 		ID3D12PipelineState *im3dPipelineStateLine;
 		ID3D12PipelineState *im3dPipelineStateTriangle;
@@ -97,7 +97,7 @@ namespace RT64 {
 		void loadAssets();
 		void createRaytracingPipeline();
 		void createDxcCompiler();
-		ID3D12RootSignature *createTracerSignature();
+		ID3D12RootSignature *createRayGenSignature();
 		void preRender();
 		void postRender(int vsyncInterval);
 #endif
@@ -121,13 +121,14 @@ namespace RT64 {
 		CD3DX12_CPU_DESCRIPTOR_HANDLE getD3D12RTV() const;
 		ID3D12RootSignature *getComposeRootSignature() const;
 		ID3D12PipelineState *getComposePipelineState() const;
+		ID3D12RootSignature *getPostProcessRootSignature() const;
+		ID3D12PipelineState *getPostProcessPipelineState() const;
 		ID3D12RootSignature *getDebugRootSignature() const;
 		ID3D12PipelineState *getDebugPipelineState() const;
 		ID3D12RootSignature *getIm3dRootSignature() const;
 		ID3D12PipelineState *getIm3dPipelineStatePoint() const;
 		ID3D12PipelineState *getIm3dPipelineStateLine() const;
 		ID3D12PipelineState *getIm3dPipelineStateTriangle() const;
-		void *getTraceRayGenID() const;
 		void *getPrimaryRayGenID() const;
 		void *getDirectRayGenID() const;
 		void *getIndirectRayGenID() const;

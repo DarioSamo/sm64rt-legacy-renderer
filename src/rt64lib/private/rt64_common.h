@@ -35,15 +35,6 @@ using namespace DirectX;
 namespace RT64 {
 	// Matches order in heap used in shader binding table.
 	enum class HeapIndices : int {
-		gOutput,
-		gAlbedo,
-		gNormal,
-		gFlow,
-		gHitDistAndFlow,
-		gHitColor,
-		gHitNormal,
-		gHitSpecular,
-		gHitInstanceId,
 		gShadingPosition,
 		gShadingNormal,
 		gShadingSpecular,
@@ -53,6 +44,12 @@ namespace RT64 {
 		gIndirectLight,
 		gReflection,
 		gRefraction,
+		gFlow,
+		gHitDistAndFlow,
+		gHitColor,
+		gHitNormal,
+		gHitSpecular,
+		gHitInstanceId,
 		gBackground,
 		gParams,
 		SceneBVH,
@@ -64,15 +61,6 @@ namespace RT64 {
 	};
 
 	enum class UAVIndices : int {
-		gOutput,
-		gAlbedo,
-		gNormal,
-		gFlow,
-		gHitDistAndFlow,
-		gHitColor,
-		gHitNormal,
-		gHitSpecular,
-		gHitInstanceId,
 		gShadingPosition,
 		gShadingNormal,
 		gShadingSpecular,
@@ -81,7 +69,14 @@ namespace RT64 {
 		gDirectLight,
 		gIndirectLight,
 		gReflection,
-		gRefraction
+		gRefraction,
+		gFlow,
+		gHitDistAndFlow,
+		gHitColor,
+		gHitNormal,
+		gHitSpecular,
+		gHitInstanceId,
+		MAX
 	};
 
 	enum class SRVIndices : int {
@@ -100,18 +95,17 @@ namespace RT64 {
 	};
 
 	// Some shared shader constants.
-	static const unsigned int VisualizationModeNormal = 0;
-	static const unsigned int VisualizationModeLights = 1;
-	static const unsigned int VisualizationModeMotionVectors = 2;
-	static const unsigned int VisualizationModeShadingPosition = 3;
-	static const unsigned int VisualizationModeShadingNormal = 4;
-	static const unsigned int VisualizationModeShadingSpecular = 5;
-	static const unsigned int VisualizationModeDiffuse = 6;
-	static const unsigned int VisualizationModeInstanceID = 7;
-	static const unsigned int VisualizationModeDirectLight = 8;
-	static const unsigned int VisualizationModeIndirectLight = 9;
-	static const unsigned int VisualizationModeReflection = 10;
-	static const unsigned int VisualizationModeRefraction = 11;
+	static const unsigned int VisualizationModeFinal = 0;
+	static const unsigned int VisualizationModeShadingPosition = 1;
+	static const unsigned int VisualizationModeShadingNormal = 2;
+	static const unsigned int VisualizationModeShadingSpecular = 3;
+	static const unsigned int VisualizationModeDiffuse = 4;
+	static const unsigned int VisualizationModeInstanceID = 5;
+	static const unsigned int VisualizationModeDirectLight = 6;
+	static const unsigned int VisualizationModeIndirectLight = 7;
+	static const unsigned int VisualizationModeReflection = 8;
+	static const unsigned int VisualizationModeRefraction = 9;
+	static const unsigned int VisualizationModeMotionVectors = 10;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;

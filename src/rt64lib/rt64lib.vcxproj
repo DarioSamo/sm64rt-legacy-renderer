@@ -135,7 +135,7 @@
     <None Include="shaders\Ray.hlsli" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="shaders\Tracer.hlsl">
+    <None Include="shaders\Tracer.hlsl.deprecated">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
@@ -146,7 +146,7 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
-    </CustomBuild>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Im3DPS.hlsl">
@@ -248,6 +248,20 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\PostProcessPS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T ps_5_1 -E PSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T ps_5_1 -E PSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T ps_5_1 -E PSMain -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">Compiling %(Filename)%(Extension)</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>

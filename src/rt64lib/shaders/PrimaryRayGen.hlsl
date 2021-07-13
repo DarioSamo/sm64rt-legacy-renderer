@@ -49,6 +49,21 @@ float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, f
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
+float4 ComputeFog(uint instanceId, float3 position) {
+	float4 fogColor = float4(instanceMaterials[instanceId].fogColor, 0.0f);
+	float fogMul = instanceMaterials[instanceId].fogMul;
+	float fogOffset = instanceMaterials[instanceId].fogOffset;
+	float4 clipPos = mul(mul(projection, view), float4(position.xyz, 1.0f));
+
+	// Values from the game are designed around -1 to 1 space.
+	clipPos.z = clipPos.z * 2.0f - clipPos.w;
+
+	float winv = 1.0f / max(clipPos.w, 0.001f);
+	const float DivisionFactor = 255.0f;
+	fogColor.a = min(max((clipPos.z * winv * fogMul + fogOffset) / DivisionFactor, 0.0f), 1.0f);
+	return fogColor;
+}
+
 [shader("raygeneration")]
 void PrimaryRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
@@ -84,11 +99,11 @@ void PrimaryRayGen() {
 	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
 	// Process hits.
-	float4 resPosition = float4(0, 0, 0, 1);
-	float4 resNormal = float4(-rayDirection, 0.0f);
-	float4 resSpecular = float4(0, 0, 0, 1);
+	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
+	float3 resNormal = -rayDirection;
+	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
 	float4 resColor = float4(0, 0, 0, 1);
-	float4 resFlow = float4((curBgPos - prevBgPos) * resolution.xy, 0.0f, 0.0f);
+	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
@@ -100,15 +115,34 @@ void PrimaryRayGen() {
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
+			float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
+			float refractionFactor = instanceMaterials[instanceId].refractionFactor;
+
+			// Calculate the fog for the resulting color using the camera data if the option is enabled.
+			if (instanceMaterials[instanceId].fogEnabled) {
+				float4 fogColor = ComputeFog(instanceId, vertexPosition);
+				hitColor.rgb = lerp(hitColor.rgb, fogColor.rgb, fogColor.a);
+			}
+
 			resColor.rgb += hitColor.rgb * alphaContrib;
 			resColor.a *= (1.0 - hitColor.a);
-			resPosition.xyz = vertexPosition;
-			resNormal.xyz = vertexNormal;
-			resSpecular.xyz = specular;
-			resInstanceId = instanceId;
+			
+			// Store the primary hit data if the alpha requirment is met or this is the last hit.
+			bool primaryHitAlpha = hitColor.a >= PRIMARY_HIT_MINIMUM_ALPHA;
+			bool lastHit = ((hit + 1) >= payload.nhits) || (refractionFactor > 0.0f);
+			if ((resInstanceId < 0) && (primaryHitAlpha || lastHit)) {
+				// Calculate motion vector in screen space.
+				float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
+				float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
+				float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
+				resPosition = vertexPosition;
+				resNormal = vertexNormal;
+				resSpecular = specular;
+				resInstanceId = instanceId;
+				resFlow = (curPos - prevPos) * resolution.xy;
+			}
 			
 			// Store reflection amount and direction.
-			float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
 			if (reflectionFactor > EPSILON) {
 				float3 reflectionDirection = reflect(rayDirection, vertexNormal);
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
@@ -117,7 +151,6 @@ void PrimaryRayGen() {
 			}
 
 			// Store refraction amount and direction.
-			float refractionFactor = instanceMaterials[instanceId].refractionFactor;
 			if (refractionFactor > EPSILON) {
 				float3 refractionDirection = refract(rayDirection, vertexNormal, refractionFactor);
 				gRefraction[launchIndex].xyz = refractionDirection;
@@ -135,9 +168,21 @@ void PrimaryRayGen() {
 	resColor.rgb += bgColor * resColor.a;
 	resColor.a = 1.0f - resColor.a;
 
-	gShadingPosition[launchIndex] = resPosition;
-	gShadingNormal[launchIndex] = resNormal;
-	gShadingSpecular[launchIndex] = resSpecular;
+	// Store shading information buffers.
+	gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
+	gShadingNormal[launchIndex] = float4(resNormal, 0.0f);
+	gShadingSpecular[launchIndex] = float4(resSpecular, 0.0f);
 	gDiffuse[launchIndex] = resColor;
 	gInstanceId[launchIndex] = resInstanceId;
+	gFlow[launchIndex] = float4(resFlow, 0.0f, 0.0f);
+}
+
+[shader("miss")]
+void SurfaceMiss(inout HitInfo payload : SV_RayPayload) {
+	// No-op.
+}
+
+[shader("miss")]
+void ShadowMiss(inout ShadowHitInfo payload : SV_RayPayload) {
+	// No-op.
 }

@@ -33,6 +33,7 @@ RT64::View::View(Scene *scene) {
 	descriptorHeap = nullptr;
 	descriptorHeapEntryCount = 0;
 	composeHeap = nullptr;
+	postProcessHeap = nullptr;
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
@@ -114,29 +115,25 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Width = rtWidth;
 	resDesc.Height = rtHeight;
 	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 	rtOutput[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
 	rtOutput[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
-	rtAlbedo = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
-	rtNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
+	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
+	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
-
-	//
-	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
 	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtShadingSpecular = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtDirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtIndirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
 	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
 	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	//
-	
+
 	// Create hit result buffers.
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
 	UINT64 hitCountBufferSizeAll = hitCountBufferSizeOne * MaxQueries;
@@ -147,7 +144,7 @@ void RT64::View::createOutputBuffers() {
 	rtHitInstanceId = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, hitCountBufferSizeOne * 2, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
-	// Create the RTVs for the raster resources.
+	// Create the RTVs.
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
 	rtvHeapDesc.NumDescriptors = 1;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -157,9 +154,15 @@ void RT64::View::createOutputBuffers() {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvBgHandle(rasterBgHeap->GetCPUDescriptorHandleForHeapStart());
 	scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rasterBg.Get(), nullptr, rtvBgHandle);
 
+	for (int i = 0; i < 2; i++) {
+		D3D12_CHECK(scene->getDevice()->getD3D12Device()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&outputBgHeap[i])));
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvOutHandle(outputBgHeap[i]->GetCPUDescriptorHandleForHeapStart());
+		scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rtOutput[i].Get(), nullptr, rtvOutHandle);
+	}
+
 	if (denoiserEnabled) {
 		ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
-		denoiser->set(rtWidth, rtHeight, rtOutputArray, rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
+		denoiser->set(rtWidth, rtHeight, rtOutputArray, rtDiffuse.Get(), rtShadingNormal.Get(), rtFlow.Get());
 	}
 }
 
@@ -167,26 +170,22 @@ void RT64::View::releaseOutputBuffers() {
 	rasterBg.Release();
 	rtOutput[0].Release();
 	rtOutput[1].Release();
-	rtAlbedo.Release();
-	rtNormal.Release();
+	rtShadingPosition.Release();
+	rtShadingNormal.Release();
+	rtShadingSpecular.Release();
+	rtDiffuse.Release();
+	rtInstanceId.Release();
+	rtDirectLight.Release();
+	rtIndirectLight.Release();
+	rtReflection.Release();
+	rtRefraction.Release();
 	rtFlow.Release();
 	rtHitDistAndFlow.Release();
 	rtHitColor.Release();
 	rtHitNormal.Release();
 	rtHitSpecular.Release();
 	rtHitInstanceId.Release();
-
-	//
-	rtShadingPosition.Release();
-	rtShadingNormal.Release();
-	rtShadingSpecular.Release();
-	rtDiffuse.Release();
-	rtReflection.Release();
-	rtRefraction.Release();
-	rtDirectLight.Release();
-	rtIndirectLight.Release();
-	rtInstanceId.Release();
-	//
+	rtHitInstanceIdReadback.Release();
 }
 
 void RT64::View::createInstanceTransformsBuffer() {
@@ -327,21 +326,45 @@ void RT64::View::createShaderResourceHeap() {
 	// descriptors directly
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
-	// UAV for output buffer.
+	// UAV for shading position buffer.
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutput[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingPosition.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
-	// UAV for albedo output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtAlbedo.Get(), nullptr, &uavDesc, handle);
+	// UAV for shading normal buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingNormal.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
-	// UAV for normal output buffer.
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtNormal.Get(), nullptr, &uavDesc, handle);
+	// UAV for shading specular buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingSpecular.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
-	// UAV for motion vector output buffer.
+	// UAV for diffuse buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDiffuse.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for instance ID buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtInstanceId.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for direct light buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDirectLight.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for indirect light buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtIndirectLight.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for reflection buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtReflection.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for refraction buffer.
+	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtRefraction.Get(), nullptr, &uavDesc, handle);
+	handle.ptr += handleIncrement;
+
+	// UAV for flow buffer.
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFlow.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
 
@@ -372,38 +395,6 @@ void RT64::View::createShaderResourceHeap() {
 	uavDesc.Format = DXGI_FORMAT_R16_UINT;
 	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceId.Get(), nullptr, &uavDesc, handle);
 	handle.ptr += handleIncrement;
-
-	//
-	// REWRITE UAVS
-	uavDesc = {};
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingPosition.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingNormal.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingSpecular.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDiffuse.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtInstanceId.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDirectLight.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtIndirectLight.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtReflection.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-
-	scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtRefraction.Get(), nullptr, &uavDesc, handle);
-	handle.ptr += handleIncrement;
-	//
 
 	// SRV for background texture.
 	D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
@@ -480,7 +471,7 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
-			uint32_t handleCount = 10;
+			uint32_t handleCount = 9;
 			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
@@ -491,13 +482,9 @@ void RT64::View::createShaderResourceHeap() {
 		textureSRVDesc.Texture2D.MipLevels = 1;
 		textureSRVDesc.Texture2D.MostDetailedMip = 0;
 		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-
-		// SRV for denoised texture.
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
-		handle.ptr += handleIncrement;
 
 		// SRV for motion vector texture.
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFlow.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
@@ -507,7 +494,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 
 		// SRV for diffuse buffer.
-		textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtDiffuse.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
@@ -540,21 +527,46 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
 		handle.ptr += handleIncrement;
 	}
+
+	{
+		// Create the heap for the post process shader.
+		if (postProcessHeap == nullptr) {
+			uint32_t handleCount = 3;
+			postProcessHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = postProcessHeap->GetCPUDescriptorHandleForHeapStart();
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		textureSRVDesc.Texture2D.MipLevels = 1;
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+		// SRV for output buffer.
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for flow buffer.
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFlow.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for global parameters.
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+	}
 }
 
 void RT64::View::createShaderBindingTable() {
-	// The SBT helper class collects calls to Add*Program.  If called several
-	// times, the helper must be emptied before re-adding shaders.
+	// The SBT helper class collects calls to Add*Program. If called several times, the helper must be emptied before re-adding shaders.
 	sbtHelper.Reset();
 
-	// The pointer to the beginning of the heap is the only parameter required by
-	// shaders without root parameters
+	// The pointer to the beginning of the heap is the only parameter required by shaders without root parameters
 	D3D12_GPU_DESCRIPTOR_HANDLE srvUavHeapHandle = descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	
-	// The helper treats both root parameter pointers and heap pointers as void*,
-	// while DX12 uses the
-	// D3D12_GPU_DESCRIPTOR_HANDLE to define heap pointers. The pointer in this
-	// struct is a UINT64, which then has to be reinterpreted as a pointer.
+	// The helper treats both root parameter pointers and heap pointers as void*, while DX12 uses the D3D12_GPU_DESCRIPTOR_HANDLE 
+	// to define heap pointers. The pointer in this struct is a UINT64, which then has to be reinterpreted as a pointer.
 	auto heapPointer = reinterpret_cast<UINT64 *>(srvUavHeapHandle.ptr);
 
 	// The ray generation only uses heap data.
@@ -894,12 +906,6 @@ void RT64::View::render() {
 
 	// Raytracing.
 	if (!rtInstances.empty()) {
-		//CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		//d3dCommandList->ResourceBarrier(1, &rtBarrier);
-
-		//CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		//d3dCommandList->ResourceBarrier(1, &flowBarrier);
-
 		// Ray generation.
 		D3D12_DISPATCH_RAYS_DESC desc = {};
 		uint32_t rayGenerationSectionSizeInBytes = sbtHelper.GetRayGenSectionSize();
@@ -982,38 +988,10 @@ void RT64::View::render() {
 		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 4;
 		d3dCommandList->DispatchRays(&desc);
 
-		/*
-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		d3dCommandList->ResourceBarrier(1, &barrier);
-
-		// Denoiser.
-		if (denoiserEnabled && (denoiser != nullptr)) {
-			CD3DX12_RESOURCE_BARRIER barriers[] = {
-				CD3DX12_RESOURCE_BARRIER::UAV(rtAlbedo.Get()),
-				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal.Get()),
-				CD3DX12_RESOURCE_BARRIER::UAV(rtFlow.Get())
-			};
-
-			d3dCommandList->ResourceBarrier(_countof(barriers), barriers);
-			
-			// Wait for the raytracing step to be finished.
-			// TODO: Maybe use a fence for this instead so we don't need to wait on all of the GPU operations.
-			scene->getDevice()->submitCommandList();
-			scene->getDevice()->waitForGPU();
-			scene->getDevice()->resetCommandList();
-
-			// Execute the denoiser.
-			denoiser->denoise(rtSwap);
-			rtSwap = !rtSwap;
-			
-			// Reset the scissor and the viewport since the command list was reset.
-			resetScissor();
-			resetViewport();
-		}
-		*/
-
+		// Compose the output buffer.
 		// Barriers for shading buffers after rays are finished.
 		CD3DX12_RESOURCE_BARRIER afterDispatchBarriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtShadingPosition.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDiffuse.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
@@ -1026,13 +1004,9 @@ void RT64::View::render() {
 
 		d3dCommandList->ResourceBarrier(_countof(afterDispatchBarriers), afterDispatchBarriers);
 
-		// Apply the same scissor and viewport that was determined for the raytracing step.
-		applyScissor(rtScissorRect);
-		applyViewport(rtViewport);
-
-		// Set the final render target view.
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = scene->getDevice()->getD3D12RTV();
-		d3dCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+		// Set the output as the current render target.
+		CD3DX12_CPU_DESCRIPTOR_HANDLE outputRtvHandle(outputBgHeap[rtSwap ? 1 : 0]->GetCPUDescriptorHandleForHeapStart(), 0, outputRtvDescriptorSize);
+		d3dCommandList->OMSetRenderTargets(1, &outputRtvHandle, FALSE, nullptr);
 
 		// Draw the raytracing output.
 		std::vector<ID3D12DescriptorHeap *> composeHeaps = { composeHeap };
@@ -1044,8 +1018,48 @@ void RT64::View::render() {
 		d3dCommandList->SetGraphicsRootDescriptorTable(0, composeHeap->GetGPUDescriptorHandleForHeapStart());
 		d3dCommandList->DrawInstanced(3, 1, 0, 0);
 
-		// Draw the motion vector output.
-		if (globalParamsBufferData.visualizationMode >= VisualizationModeMotionVectors) {
+		// Switch output to a pixel shader resource.
+		CD3DX12_RESOURCE_BARRIER afterComposeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		d3dCommandList->ResourceBarrier(1, &afterComposeBarrier);
+
+		// Denoise if enabled.
+		if (denoiserEnabled && (denoiser != nullptr)) {
+			// Wait for the raytracing step to be finished.
+			// TODO: Maybe use a fence for this instead so we don't need to wait on all of the GPU operations.
+			scene->getDevice()->submitCommandList();
+			scene->getDevice()->waitForGPU();
+			scene->getDevice()->resetCommandList();
+
+			// Execute the denoiser.
+			denoiser->denoise(rtSwap);
+			rtSwap = !rtSwap;
+
+			// Reset the scissor and the viewport since the command list was reset.
+			resetScissor();
+			resetViewport();
+		}
+
+		// Set the final render target.
+		CD3DX12_CPU_DESCRIPTOR_HANDLE finalRtvHandle = scene->getDevice()->getD3D12RTV();
+		d3dCommandList->OMSetRenderTargets(1, &finalRtvHandle, FALSE, nullptr);
+
+		// Apply the same scissor and viewport that was determined for the raytracing step.
+		applyScissor(rtScissorRect);
+		applyViewport(rtViewport);
+
+		// Draw the output to the screen.
+		if (globalParamsBufferData.visualizationMode == VisualizationModeFinal) {
+			std::vector<ID3D12DescriptorHeap *> postProcessHeaps = { postProcessHeap };
+			d3dCommandList->SetPipelineState(scene->getDevice()->getPostProcessPipelineState());
+			d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getPostProcessRootSignature());
+			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(postProcessHeaps.size()), postProcessHeaps.data());
+			d3dCommandList->SetGraphicsRootDescriptorTable(0, postProcessHeap->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			d3dCommandList->IASetVertexBuffers(0, 0, nullptr);
+			d3dCommandList->DrawInstanced(3, 1, 0, 0);
+		}
+		// Draw the debugging view.
+		else {
 			d3dCommandList->SetPipelineState(scene->getDevice()->getDebugPipelineState());
 			d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getDebugRootSignature());
 			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
@@ -1282,7 +1296,7 @@ void RT64::View::checkDenoiser() {
 
 	// Update the buffer sizes since they might've changed since the last time the denoiser was enabled.
 	ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
-	denoiser->set(rtWidth, rtHeight, rtOutputArray, rtAlbedo.Get(), rtNormal.Get(), rtFlow.Get());
+	denoiser->set(rtWidth, rtHeight, rtOutputArray, rtDiffuse.Get(), rtShadingNormal.Get(), rtFlow.Get());
 }
 
 void RT64::View::setDenoiserEnabled(bool v) {

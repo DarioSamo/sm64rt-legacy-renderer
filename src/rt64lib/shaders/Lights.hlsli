@@ -104,7 +104,7 @@ float3 ComputeLight(uint lightIndex, float3 rayDirection, uint instanceId, float
 }
 
 float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLights, const bool checkShadows, uint seed) {
-	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
+	float3 resultLight = instanceMaterials[instanceId].selfLight;
 	uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
 	if (lightGroupMaskBits > 0) {

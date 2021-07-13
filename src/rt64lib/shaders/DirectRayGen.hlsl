@@ -29,6 +29,14 @@ void DirectRayGen() {
 	float4 normal = gShadingNormal[launchIndex];
 	float4 specular = gShadingSpecular[launchIndex];
 	float3 directLight = ComputeLightsRandom(rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, 1, true, seed);
+
+	// Add the eye light.
+	float specularExponent = instanceMaterials[instanceId].specularExponent;
+	float eyeLightLambertFactor = max(dot(normal.xyz, -rayDirection), 0.0f);
+	float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
+	float3 eyeLightSpecularFactor = specular.rgb * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
+	directLight += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
+
 	gDirectLight[launchIndex] = float4(directLight, 1.0f);
 }
 
