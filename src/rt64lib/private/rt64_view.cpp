@@ -123,18 +123,18 @@ void RT64::View::createOutputBuffers() {
 
 	//
 	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtShadingSpecular = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	rtDirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	rtIndirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtDirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtIndirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
-	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	//
 	
 	// Create hit result buffers.
@@ -480,7 +480,7 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
-			uint32_t handleCount = 3;
+			uint32_t handleCount = 10;
 			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
@@ -499,6 +499,41 @@ void RT64::View::createShaderResourceHeap() {
 
 		// SRV for motion vector texture.
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFlow.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for shading position buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtShadingPosition.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for diffuse buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtDiffuse.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for instance ID buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R32_SINT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtInstanceId.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for direct light buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtDirectLight.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for indirect light buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtIndirectLight.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for reflection buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtReflection.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for refraction buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtRefraction.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.
@@ -526,6 +561,8 @@ void RT64::View::createShaderBindingTable() {
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getPrimaryRayGenID(), { heapPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getDirectRayGenID(), { heapPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getIndirectRayGenID(), { heapPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getReflectionRayGenID(), { heapPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getRefractionRayGenID(), { heapPointer });
 	
 	// Miss shaders don't use any external data.
 	sbtHelper.AddMissProgram(scene->getDevice()->getSurfaceMissID(), {});
@@ -857,11 +894,11 @@ void RT64::View::render() {
 
 	// Raytracing.
 	if (!rtInstances.empty()) {
-		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		d3dCommandList->ResourceBarrier(1, &rtBarrier);
+		//CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		//d3dCommandList->ResourceBarrier(1, &rtBarrier);
 
-		CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		d3dCommandList->ResourceBarrier(1, &flowBarrier);
+		//CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		//d3dCommandList->ResourceBarrier(1, &flowBarrier);
 
 		// Ray generation.
 		D3D12_DISPATCH_RAYS_DESC desc = {};
@@ -886,17 +923,33 @@ void RT64::View::render() {
 		desc.Height = rtHeight;
 		desc.Depth = 1;
 
-		// Bind pipeline and dispatch rays.
+		// Make sure all these buffers are usable as UAVs.
+		CD3DX12_RESOURCE_BARRIER preDispatchBarriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtShadingPosition.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDiffuse.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtReflection.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtInstanceId.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+		};
+
+		d3dCommandList->ResourceBarrier(_countof(preDispatchBarriers), preDispatchBarriers);
+
+		// Bind pipeline and dispatch primary rays.
 		d3dCommandList->SetPipelineState1(scene->getDevice()->getD3D12RtStateObject());
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
 		d3dCommandList->DispatchRays(&desc);
 
-		// Barriers for shading buffers.
+		// Barriers for shading buffers before dispatching secondary rays.
 		CD3DX12_RESOURCE_BARRIER shadingBarriers[] = {
 				CD3DX12_RESOURCE_BARRIER::UAV(rtInstanceId.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingPosition.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingNormal.Get()),
-				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get())
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtRefraction.Get())
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(shadingBarriers), shadingBarriers);
@@ -909,6 +962,27 @@ void RT64::View::render() {
 		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 2;
 		d3dCommandList->DispatchRays(&desc);
 
+		// Wait until indirect light is done before dispatching reflection rays.
+		// TODO: This is only required to prevent simultaneos usage of the anyhit buffers.
+		// This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
+		CD3DX12_RESOURCE_BARRIER indirectBarrier = CD3DX12_RESOURCE_BARRIER::UAV(rtIndirectLight.Get());
+		d3dCommandList->ResourceBarrier(1, &indirectBarrier);
+
+		// Dispatch rays for reflection.
+		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 3;
+		d3dCommandList->DispatchRays(&desc);
+
+		// Wait until reflection is done before dispatching reflection rays.
+		// TODO: This is only required to prevent simultaneos usage of the anyhit buffers.
+		// This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
+		CD3DX12_RESOURCE_BARRIER reflectionBarrier = CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get());
+		d3dCommandList->ResourceBarrier(1, &reflectionBarrier);
+
+		// Dispatch rays for refraction.
+		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 4;
+		d3dCommandList->DispatchRays(&desc);
+
+		/*
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		d3dCommandList->ResourceBarrier(1, &barrier);
 
@@ -936,14 +1010,25 @@ void RT64::View::render() {
 			resetScissor();
 			resetViewport();
 		}
-		
+		*/
+
+		// Barriers for shading buffers after rays are finished.
+		CD3DX12_RESOURCE_BARRIER afterDispatchBarriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtShadingPosition.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDiffuse.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtReflection.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtInstanceId.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+		};
+
+		d3dCommandList->ResourceBarrier(_countof(afterDispatchBarriers), afterDispatchBarriers);
+
 		// Apply the same scissor and viewport that was determined for the raytracing step.
 		applyScissor(rtScissorRect);
 		applyViewport(rtViewport);
-
-		// Transition the motion vector to a shader resource.
-		flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		d3dCommandList->ResourceBarrier(1, &flowBarrier);
 
 		// Set the final render target view.
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = scene->getDevice()->getD3D12RTV();

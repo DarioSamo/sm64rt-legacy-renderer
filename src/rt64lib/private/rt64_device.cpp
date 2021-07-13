@@ -25,6 +25,8 @@
 #include "shaders/Im3DGSLines.hlsl.h"
 #include "shaders/DirectRayGen.hlsl.h"
 #include "shaders/IndirectRayGen.hlsl.h"
+#include "shaders/ReflectionRayGen.hlsl.h"
+#include "shaders/RefractionRayGen.hlsl.h"
 #include "shaders/PrimaryRayGen.hlsl.h"
 #include "shaders/Tracer.hlsl.h"
 
@@ -54,6 +56,8 @@ RT64::Device::Device(HWND hwnd) {
 	d3dPrimaryRayGenLibrary = nullptr;
 	d3dDirectRayGenLibrary = nullptr;
 	d3dIndirectRayGenLibrary = nullptr;
+	d3dReflectionRayGenLibrary = nullptr;
+	d3dRefractionRayGenLibrary = nullptr;
 	traceRayGenID = nullptr;
 	primaryRayGenID = nullptr;
 	directRayGenID = nullptr;
@@ -551,7 +555,14 @@ void RT64::Device::loadAssets() {
 		rsc.AddHeapRangesParameter({
 			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
 			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 },
-			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
+			{ 2, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2 },
+			{ 3, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3 },
+			{ 4, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4 },
+			{ 5, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5 },
+			{ 6, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6 },
+			{ 7, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7 },
+			{ 8, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8 },
+			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 9 }
 		});
 
 		// Fill out the sampler.
@@ -656,11 +667,21 @@ void RT64::Device::createRaytracingPipeline() {
 		d3dIndirectRayGenLibrary = new StaticBlob(IndirectRayGenBlob, sizeof(IndirectRayGenBlob));
 	}
 
+	if (d3dReflectionRayGenLibrary == nullptr) {
+		d3dReflectionRayGenLibrary = new StaticBlob(ReflectionRayGenBlob, sizeof(ReflectionRayGenBlob));
+	}
+
+	if (d3dRefractionRayGenLibrary == nullptr) {
+		d3dRefractionRayGenLibrary = new StaticBlob(RefractionRayGenBlob, sizeof(RefractionRayGenBlob));
+	}
+
 	// Add shaders from libraries to the pipeline.
 	pipeline.AddLibrary(d3dTracerLibrary, { L"TraceRayGen", L"SurfaceMiss", L"ShadowMiss" });
 	pipeline.AddLibrary(d3dPrimaryRayGenLibrary, { L"PrimaryRayGen" });
 	pipeline.AddLibrary(d3dDirectRayGenLibrary, { L"DirectRayGen" });
 	pipeline.AddLibrary(d3dIndirectRayGenLibrary, { L"IndirectRayGen" });
+	pipeline.AddLibrary(d3dReflectionRayGenLibrary, { L"ReflectionRayGen" });
+	pipeline.AddLibrary(d3dRefractionRayGenLibrary, { L"RefractionRayGen" });
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -681,7 +702,7 @@ void RT64::Device::createRaytracingPipeline() {
 	}
 
 	// Associate the root signatures to the hit groups.
-	pipeline.AddRootSignatureAssociation(d3dTracerSignature, { L"TraceRayGen", L"PrimaryRayGen", L"DirectRayGen", L"IndirectRayGen" });
+	pipeline.AddRootSignatureAssociation(d3dTracerSignature, { L"TraceRayGen", L"PrimaryRayGen", L"DirectRayGen", L"IndirectRayGen", L"ReflectionRayGen", L"RefractionRayGen" });
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -705,6 +726,8 @@ void RT64::Device::createRaytracingPipeline() {
 	primaryRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"PrimaryRayGen");
 	directRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"DirectRayGen");
 	indirectRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"IndirectRayGen");
+	reflectionRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"ReflectionRayGen");
+	refractionRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"RefractionRayGen");
 	surfaceMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"SurfaceMiss");
 	shadowMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"ShadowMiss");
 	for (Shader *shader : shaders) {

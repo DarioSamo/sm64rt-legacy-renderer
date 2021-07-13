@@ -14,8 +14,6 @@
 #include "Textures.hlsli"
 #include "Lights.hlsli"
 
-#define MAX_LIGHTS 32
-
 SamplerState gBackgroundSampler : register(s0);
 
 float2 FakeEnvMapUV(float3 rayDirection, float yawOffset) {
@@ -45,19 +43,23 @@ float4 SampleSkyPlane(float3 rayDirection) {
 }
 
 [shader("raygeneration")]
-void IndirectRayGen() {
+void RefractionRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
+	uint2 launchDims = DispatchRaysDimensions().xy;
 	int instanceId = gInstanceId[launchIndex];
-	if (instanceId < 0) {
-		gIndirectLight[launchIndex] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	if ((instanceId < 0) || (gRefraction[launchIndex].a <= EPSILON)) {
+		gRefraction[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 		return;
 	}
 
-	uint2 launchDims = DispatchRaysDimensions().xy;
-	uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
+	// Grab the ray origin and direction from the buffers.
 	float3 rayOrigin = gShadingPosition[launchIndex].xyz;
-	float3 shadingNormal = gShadingNormal[launchIndex].xyz;
-	float3 rayDirection = getCosHemisphereSample(seed, shadingNormal);
+	float3 rayDirection = gRefraction[launchIndex].xyz;
+
+	// Mix background and sky color together.
+	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
+	float4 skyColor = SampleSkyPlane(rayDirection);
+	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 	// Trace.
 	RayDesc ray;
@@ -70,49 +72,46 @@ void IndirectRayGen() {
 	payload.ohits = 0;
 	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
-	// Mix background and sky color together.
-	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
-	float4 skyColor = SampleSkyPlane(rayDirection);
-	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
-
 	// Process hits.
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
 	float3 resNormal = float3(0.0f, 0.0f, 0.0f);
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
-	float4 resColor = float4(0, 0, 0, 1);
 	int resInstanceId = -1;
+	float4 resColor = float4(0, 0, 0, 1);
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
-			uint instanceId = gHitInstanceId[hitBufferIndex];
-			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
+			uint hitInstanceId = gHitInstanceId[hitBufferIndex];
+			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, hitInstanceId);
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
-			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
+			float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
 			resColor.rgb += hitColor.rgb * alphaContrib;
 			resColor.a *= (1.0 - hitColor.a);
 			resPosition = vertexPosition;
 			resNormal = vertexNormal;
 			resSpecular = specular;
-			resInstanceId = instanceId;
+			resInstanceId = hitInstanceId;
 		}
 
 		if (resColor.a <= EPSILON) {
 			break;
 		}
 	}
-	
+
 	if (resInstanceId >= 0) {
+		uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
 		float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true, seed);
-		float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
-		float3 skyLight = bgColor * giSkyStrength * resColor.a;
-		gIndirectLight[launchIndex] = ambientBaseColor + float4(indirectLight + skyLight, 1.0f);
+		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
 	}
-	else {
-		gIndirectLight[launchIndex] = ambientBaseColor + float4(bgColor * giSkyStrength, 1.0f);
-	}
+
+	// Blend with the background.
+	resColor.rgb += bgColor * resColor.a;
+	resColor.a = 1.0f;
+
+	gRefraction[launchIndex].rgb = resColor.rgb;
 }
 
 [shader("miss")]

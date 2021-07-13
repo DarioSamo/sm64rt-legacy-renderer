@@ -45,19 +45,19 @@ float4 getMotionVector(float2 pos) {
 }
 
 float4 getShadingPosition(float2 pos) {
-    return gShadingPosition[pos];
+    return float4(gShadingPosition[pos].rgb, 1.0f);
 }
 
 float4 getShadingNormal(float2 pos) {
-    return gShadingNormal[pos];
+    return float4(gShadingNormal[pos].rgb, 1.0f);
 }
 
 float4 getShadingSpecular(float2 pos) {
-    return gShadingSpecular[pos];
+    return float4(gShadingSpecular[pos].rgb, 1.0f);
 }
 
 float4 getDiffuse(float2 pos) {
-    return gDiffuse[pos];
+    return float4(gDiffuse[pos].rgb, 1.0f);
 }
 
 float4 getInstanceId(float2 pos) {
@@ -72,19 +72,19 @@ float4 getInstanceId(float2 pos) {
 }
 
 float4 getDirectLight(float2 pos) {
-    return gDirectLight[pos];
+    return float4(gDirectLight[pos].rgb, 1.0f);
 }
 
 float4 getIndirectLight(float2 pos) {
-    return gIndirectLight[pos];
+    return float4(gIndirectLight[pos].rgb, 1.0f);
 }
 
 float4 getReflection(float2 pos) {
-    return gReflection[pos];
+    return float4(gReflection[pos].rgb * gReflection[pos].a, 1.0f);
 }
 
 float4 getRefraction(float2 pos) {
-    return gRefraction[pos];
+    return float4(gRefraction[pos].rgb * gRefraction[pos].a, 1.0f);
 }
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {

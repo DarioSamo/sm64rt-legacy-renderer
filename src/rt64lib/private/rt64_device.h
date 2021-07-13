@@ -66,6 +66,8 @@ namespace RT64 {
 		IDxcBlob *d3dPrimaryRayGenLibrary;
 		IDxcBlob *d3dDirectRayGenLibrary;
 		IDxcBlob *d3dIndirectRayGenLibrary;
+		IDxcBlob *d3dReflectionRayGenLibrary;
+		IDxcBlob *d3dRefractionRayGenLibrary;
 		void *traceRayGenID;
 		void *primaryRayGenID;
 		void *directRayGenID;
