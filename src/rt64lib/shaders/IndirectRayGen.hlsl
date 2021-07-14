@@ -53,6 +53,11 @@ void IndirectRayGen() {
 		return;
 	}
 
+	if (giBounces == 0) {
+		gIndirectLight[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 1.0f);
+		return;
+	}
+
 	uint2 launchDims = DispatchRaysDimensions().xy;
 	uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
 	float3 rayOrigin = gShadingPosition[launchIndex].xyz;

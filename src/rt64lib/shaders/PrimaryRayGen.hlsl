@@ -154,7 +154,7 @@ void PrimaryRayGen() {
 			if (refractionFactor > EPSILON) {
 				float3 refractionDirection = refract(rayDirection, vertexNormal, refractionFactor);
 				gRefraction[launchIndex].xyz = refractionDirection;
-				gRefraction[launchIndex].a = alphaContrib;
+				gRefraction[launchIndex].a = resColor.a;
 				resColor.a = 0.0f;
 			}
 		}
