@@ -28,11 +28,11 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         // Compute the result as affected by the light source.
         result *= (directLight.rgb + indirectLight.rgb);
 
-        // Mix with the reflection.
-        result = lerp(result, reflection.rgb, reflection.a);
-
         // Mix the computed result with the alpha.
         result = lerp(diffuse.rgb, result, diffuse.a);
+
+        // Add the reflection.
+        result += reflection.rgb * reflection.a;
 
         // Add the refraction.
         result += refraction.rgb * refraction.a;

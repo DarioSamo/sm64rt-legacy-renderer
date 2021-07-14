@@ -45,14 +45,16 @@ float4 SampleSkyPlane(float3 rayDirection) {
 [shader("raygeneration")]
 void ReflectionRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
+	uint2 launchIndexFull = uint2(launchIndex.x, launchIndex.y * 2);
 	uint2 launchDims = DispatchRaysDimensions().xy;
-	int instanceId = gInstanceId[launchIndex];
+	int instanceId = gInstanceId[launchIndexFull];
 	if ((instanceId < 0) || (gReflection[launchIndex].a <= EPSILON)) {
+		gReflection[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 		return;
 	}
 
 	// Grab the ray origin and direction from the buffers.
-	float3 rayOrigin = gShadingPosition[launchIndex].xyz;
+	float3 rayOrigin = gShadingPosition[launchIndexFull].xyz;
 	float3 rayDirection = gReflection[launchIndex].xyz;
 
 	// Mix background and sky color together.
