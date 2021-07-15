@@ -100,16 +100,10 @@ void IndirectRayGen() {
 				float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
 				resColor.rgb += hitColor.rgb * alphaContrib;
 				resColor.a *= (1.0 - hitColor.a);
-
-				// Store the primary hit data if the alpha requirment is met or this is the last hit.
-				bool primaryHitAlpha = hitColor.a >= PRIMARY_HIT_MINIMUM_ALPHA;
-				bool lastHit = (hit + 1) >= payload.nhits;
-				if ((resInstanceId < 0) && (primaryHitAlpha || lastHit)) {
-					resPosition = vertexPosition;
-					resNormal = vertexNormal;
-					resSpecular = specular;
-					resInstanceId = instanceId;
-				}
+				resPosition = vertexPosition;
+				resNormal = vertexNormal;
+				resSpecular = specular;
+				resInstanceId = instanceId;
 			}
 
 			if (resColor.a <= EPSILON) {

@@ -125,20 +125,15 @@ void PrimaryRayGen() {
 				hitColor.rgb = lerp(hitColor.rgb, fogColor.rgb, fogColor.a);
 			}
 
-			// Store the primary hit data if the alpha requirment is met or this is the last hit.
-			bool primaryHitAlpha = hitColor.a >= PRIMARY_HIT_MINIMUM_ALPHA;
-			bool lastHit = ((hit + 1) >= payload.nhits) || (refractionFactor > 0.0f);
-			if ((resInstanceId < 0) && (primaryHitAlpha || lastHit)) {
-				// Calculate motion vector in screen space.
-				float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
-				float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
-				float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
-				resPosition = vertexPosition;
-				resNormal = vertexNormal;
-				resSpecular = specular;
-				resInstanceId = instanceId;
-				resFlow = (curPos - prevPos) * resolution.xy;
-			}
+			// Calculate motion vector in screen space.
+			float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
+			float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
+			float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
+			resPosition = vertexPosition;
+			resNormal = vertexNormal;
+			resSpecular = specular;
+			resInstanceId = instanceId;
+			resFlow = (curPos - prevPos) * resolution.xy;
 			
 			// Store reflection amount and direction.
 			float alphaMultiplier = 1.0f;
