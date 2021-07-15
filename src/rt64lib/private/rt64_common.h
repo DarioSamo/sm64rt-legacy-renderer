@@ -94,6 +94,16 @@ namespace RT64 {
 		gParams
 	};
 
+	enum class UpscaleMode {
+		Bilinear,
+		FSR
+	};
+
+	enum class SharpenMode {
+		None,
+		FSR
+	};
+
 	// Some shared shader constants.
 	static const unsigned int VisualizationModeFinal = 0;
 	static const unsigned int VisualizationModeShadingPosition = 1;

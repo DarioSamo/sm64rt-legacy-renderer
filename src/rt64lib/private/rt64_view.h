@@ -94,16 +94,21 @@ namespace RT64 {
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtHitInstanceIdReadback;
-		AllocatedResource rtUpscaled;
+		AllocatedResource rtOutputUpscaled;
+		AllocatedResource rtOutputSharpened;
 
 		bool rtSwap;
 		int rtWidth;
 		int rtHeight;
 		float rtScale;
 		float resolutionScale;
+		float sharpenAttenuation;
+		bool rtUpscaleActive;
+		bool rtSharpenActive;
+		UpscaleMode rtUpscaleMode;
+		SharpenMode rtSharpenMode;
 		bool denoiserEnabled;
 		bool denoiserTemporal;
-		bool upscaleFsrEasu;
 		Denoiser *denoiser;
 
 		bool rtHitInstanceIdReadbackUpdated;
@@ -112,6 +117,7 @@ namespace RT64 {
 		UINT descriptorHeapEntryCount;
 		ID3D12DescriptorHeap *composeHeap;
 		ID3D12DescriptorHeap *upscaleHeap;
+		ID3D12DescriptorHeap *sharpenHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
@@ -121,6 +127,8 @@ namespace RT64 {
 		uint32_t globalParamsBufferSize;
 		AllocatedResource upscalingParamBufferResource;
 		uint32_t upscalingParamBufferSize;
+		AllocatedResource sharpenParamBufferResource;
+		uint32_t sharpenParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -150,6 +158,8 @@ namespace RT64 {
 		void updateGlobalParamsBuffer();
 		void createUpscalingParamsBuffer();
 		void updateUpscalingParamsBuffer();
+		void createSharpenParamsBuffer();
+		void updateSharpenParamsBuffer();
 		void checkDenoiser();
 	public:
 		View(Scene *scene);
@@ -185,8 +195,10 @@ namespace RT64 {
 		bool getDenoiserEnabled() const;
 		void setDenoiserTemporalMode(bool v);
 		bool getDenoiserTemporalMode() const;
-		void setUpscaleFsrEasuEnabled(bool v);
-		bool getUpscaleFsrEasuEnabled() const;
+		void setUpscaleMode(UpscaleMode v);
+		UpscaleMode getUpscaleMode() const;
+		void setSharpenMode(SharpenMode v);
+		SharpenMode getSharpenMode() const;
 		void setSkyPlaneTexture(Texture *texture);
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);

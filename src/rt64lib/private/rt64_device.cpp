@@ -23,6 +23,7 @@
 #include "shaders/PrimaryRayGen.hlsl.h"
 
 #include "shaders/FsrEasuPassCS.hlsl.h"
+#include "shaders/FsrRcasPassCS.hlsl.h"
 
 #include "shaders/FullScreenVS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
@@ -301,6 +302,14 @@ ID3D12RootSignature *RT64::Device::getFsrEasuRootSignature() const {
 
 ID3D12PipelineState *RT64::Device::getFsrEasuPipelineState() const {
 	return d3dFsrEasuPipelineState;
+}
+
+ID3D12RootSignature *RT64::Device::getFsrRcasRootSignature() const {
+	return d3dFsrRcasRootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getFsrRcasPipelineState() const {
+	return d3dFsrRcasPipelineState;
 }
 
 ID3D12RootSignature *RT64::Device::getDebugRootSignature() const {
@@ -669,7 +678,7 @@ void RT64::Device::loadAssets() {
 		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dDebugPipelineState)));
 	}
 
-	// AMD FSR compute shader.
+	// AMD FSR upscaling compute shader.
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
@@ -697,6 +706,36 @@ void RT64::Device::loadAssets() {
 		psoDesc.NodeMask = 0;
 
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dFsrEasuPipelineState)));
+	}
+
+	// AMD FSR sharpening compute shader.
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
+		});
+
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc = { };
+		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.MaxAnisotropy = 1;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+
+		d3dFsrRcasRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
+	}
+
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+		psoDesc.CS = CD3DX12_SHADER_BYTECODE(FsrRcasPassCSBlob, sizeof(FsrRcasPassCSBlob));
+		psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		psoDesc.pRootSignature = d3dFsrRcasRootSignature;
+		psoDesc.NodeMask = 0;
+
+		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dFsrRcasPipelineState)));
 	}
 
 	// Create the command list.

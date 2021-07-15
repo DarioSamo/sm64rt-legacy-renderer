@@ -45,6 +45,7 @@ RT64::View::View(Scene *scene) {
 	descriptorHeapEntryCount = 0;
 	composeHeap = nullptr;
 	upscaleHeap = nullptr;
+	sharpenHeap = nullptr;
 	postProcessHeap = nullptr;
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
@@ -63,10 +64,13 @@ RT64::View::View(Scene *scene) {
 	rtWidth = 0;
 	rtHeight = 0;
 	rtScale = 1.0f;
+	rtUpscaleActive = false;
+	rtSharpenActive = false;
 	resolutionScale = 1.0f;
+	sharpenAttenuation = 0.25f;
 	denoiserEnabled = false;
 	denoiserTemporal = false;
-	upscaleFsrEasu = false;
+	rtUpscaleMode = UpscaleMode::Bilinear;
 	denoiser = nullptr;
 	perspectiveControlActive = false;
 	perspectiveCanReproject = true;
@@ -79,6 +83,7 @@ RT64::View::View(Scene *scene) {
 	createOutputBuffers();
 	createGlobalParamsBuffer();
 	createUpscalingParamsBuffer();
+	createSharpenParamsBuffer();
 
 	scene->addView(this);
 }
@@ -149,10 +154,16 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
 	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
-	resDesc.Width = screenWidth;
-	resDesc.Height = screenHeight;
 	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	rtUpscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	if (rtUpscaleActive) {
+		resDesc.Width = screenWidth;
+		resDesc.Height = screenHeight;
+		rtOutputUpscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	}
+	else {
+		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	}
 
 	// Create hit result buffers.
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
@@ -206,7 +217,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitSpecular.Release();
 	rtHitInstanceId.Release();
 	rtHitInstanceIdReadback.Release();
-	rtUpscaled.Release();
+	rtOutputUpscaled.Release();
+	rtOutputSharpened.Release();
 }
 
 void RT64::View::createInstanceTransformsBuffer() {
@@ -554,7 +566,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 	}
 
-	{
+	if (rtUpscaleActive) {
 		// Create the heap for upscaling.
 		if (upscaleHeap == nullptr) {
 			uint32_t handleCount = 3;
@@ -563,7 +575,7 @@ void RT64::View::createShaderResourceHeap() {
 
 		D3D12_CPU_DESCRIPTOR_HANDLE handle = upscaleHeap->GetCPUDescriptorHandleForHeapStart();
 
-		// SRV for denoised buffer.
+		// SRV for input image.
 		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
 		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		textureSRVDesc.Texture2D.MipLevels = 1;
@@ -573,16 +585,60 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// UAV for upscaled buffer.
+		// UAV for output image.
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtUpscaled.Get(), nullptr, &uavDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutputUpscaled.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for upscaling parameters.
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 		cbvDesc.BufferLocation = upscalingParamBufferResource.Get()->GetGPUVirtualAddress();
 		cbvDesc.SizeInBytes = upscalingParamBufferSize;
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+	}
+
+	if (rtSharpenActive) {
+		// Create the heap for sharpen.
+		if (sharpenHeap == nullptr) {
+			uint32_t handleCount = 3;
+			sharpenHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = sharpenHeap->GetCPUDescriptorHandleForHeapStart();
+
+		// SRV for input image.
+		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		textureSRVDesc.Texture2D.MipLevels = 1;
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+		ID3D12Resource *inputResource = nullptr;
+		if (rtUpscaleActive) {
+			inputResource = rtOutputUpscaled.Get();
+			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		}
+		else {
+			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
+			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		}
+
+		// SRV for input image.
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for output image.
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutputSharpened.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for sharpen parameters.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = sharpenParamBufferResource.Get()->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = sharpenParamBufferSize;
 		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
 		handle.ptr += handleIncrement;
 	}
@@ -602,18 +658,22 @@ void RT64::View::createShaderResourceHeap() {
 		textureSRVDesc.Texture2D.MostDetailedMip = 0;
 		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-		// SRV for upscaled buffer.
-		ID3D12Resource *upscaleResource = nullptr;
-		if (upscaleFsrEasu) {
-			upscaleResource = rtUpscaled.Get();
+		// SRV for input image.
+		ID3D12Resource *inputResource = nullptr;
+		if (rtSharpenActive) {
+			inputResource = rtOutputSharpened.Get();
+			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		}
+		else if (rtUpscaleActive) {
+			inputResource = rtOutputUpscaled.Get();
 			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		}
 		else {
-			upscaleResource = rtOutput[rtSwap ? 1 : 0].Get();
+			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
 			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(upscaleResource, &textureSRVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for flow buffer.
@@ -758,10 +818,48 @@ void RT64::View::updateUpscalingParamsBuffer() {
 	upscalingParamBufferResource.Get()->Unmap(0, nullptr);
 }
 
+void RT64::View::createSharpenParamsBuffer() {
+	sharpenParamBufferSize = ROUND_UP(sizeof(FSRConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	sharpenParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, upscalingParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateSharpenParamsBuffer() {
+	FSRConstants consts = {};
+	FsrRcasCon(reinterpret_cast<AU1 *>(&consts.Const0), sharpenAttenuation);
+
+	uint8_t *pData;
+	D3D12_CHECK(sharpenParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &consts, sizeof(FSRConstants));
+	sharpenParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
 void RT64::View::update() {
+	bool recreateBuffers = false;
+
+	// Check upscale.
+	int screenWidth = scene->getDevice()->getWidth();
+	int screenHeight = scene->getDevice()->getHeight();
+	bool upscale = (rtUpscaleMode != UpscaleMode::Bilinear) && ((rtWidth < screenWidth) || (rtHeight < screenHeight));
+	if (rtUpscaleActive != upscale) {
+		rtUpscaleActive = upscale;
+		recreateBuffers = true;
+	}
+
+	// Check sharpen.
+	bool sharpen = (rtSharpenMode != SharpenMode::None);
+	if (rtSharpenActive != sharpen) {
+		rtSharpenActive = sharpen;
+	}
+
+	// Check resolution scale.
 	if (rtScale != resolutionScale) {
 		rtScale = std::max(std::min(resolutionScale, 2.0f), 0.01f);
 		resolutionScale = rtScale;
+		recreateBuffers = true;
+	}
+
+	// Recreate buffers if necessary for next frame.
+	if (recreateBuffers) {
 		createOutputBuffers();
 	}
 
@@ -972,8 +1070,10 @@ void RT64::View::render() {
 		globalParamsBufferData.viewport.y = rtViewport.TopLeftY;
 		globalParamsBufferData.viewport.z = rtViewport.Width;
 		globalParamsBufferData.viewport.w = rtViewport.Height;
+
 		updateGlobalParamsBuffer();
 		updateUpscalingParamsBuffer();
+		updateSharpenParamsBuffer();
 	}
 
 	// Draw the background instances to the screen.
@@ -1142,27 +1242,60 @@ void RT64::View::render() {
 			resetViewport();
 		}
 
-		if (upscaleFsrEasu) {
-			// Switch denoised output to a UAV.
-			CD3DX12_RESOURCE_BARRIER beforeEasuBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			d3dCommandList->ResourceBarrier(1, &beforeEasuBarrier);
+		if (rtUpscaleActive) {
+			if (rtUpscaleMode == UpscaleMode::FSR) {
+				// Switch output to UAV.
+				CD3DX12_RESOURCE_BARRIER beforeEasuBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				d3dCommandList->ResourceBarrier(1, &beforeEasuBarrier);
 
-			// Execute the compute shader for upscaling.
-			std::vector<ID3D12DescriptorHeap *> upscaleHeaps = { upscaleHeap };
-			static const int threadGroupWorkRegionDim = 16;
-			int screenWidth = scene->getDevice()->getWidth();
-			int screenHeight = scene->getDevice()->getHeight();
-			int dispatchX = (screenWidth + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
-			int dispatchY = (screenHeight + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
-			d3dCommandList->SetPipelineState(scene->getDevice()->getFsrEasuPipelineState());
-			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getFsrEasuRootSignature());
-			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(upscaleHeaps.size()), upscaleHeaps.data());
-			d3dCommandList->SetComputeRootDescriptorTable(0, upscaleHeap->GetGPUDescriptorHandleForHeapStart());
-			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
+				// Execute the compute shader for upscaling.
+				std::vector<ID3D12DescriptorHeap *> upscaleHeaps = { upscaleHeap };
+				static const int threadGroupWorkRegionDim = 16;
+				int width = scene->getDevice()->getWidth();
+				int height = scene->getDevice()->getHeight();
+				int dispatchX = (width + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
+				int dispatchY = (height + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
+				d3dCommandList->SetPipelineState(scene->getDevice()->getFsrEasuPipelineState());
+				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getFsrEasuRootSignature());
+				d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(upscaleHeaps.size()), upscaleHeaps.data());
+				d3dCommandList->SetComputeRootDescriptorTable(0, upscaleHeap->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
 
-			// Switch denoised output to a shader resource.
-			CD3DX12_RESOURCE_BARRIER afterEasuBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			d3dCommandList->ResourceBarrier(1, &afterEasuBarrier);
+				// Switch output to shader resource.
+				CD3DX12_RESOURCE_BARRIER afterEasuBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				d3dCommandList->ResourceBarrier(1, &afterEasuBarrier);
+			}
+			else {
+				assert(false && "Unimplemented upscaling mode.");
+			}
+		}
+
+		if (rtSharpenActive) {
+			if (rtSharpenMode == SharpenMode::FSR) {
+				// Switch output to UAV.
+				CD3DX12_RESOURCE_BARRIER beforeRcasBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputSharpened.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				d3dCommandList->ResourceBarrier(1, &beforeRcasBarrier);
+
+				// Execute the compute shader for sharpening.
+				std::vector<ID3D12DescriptorHeap *> sharpenHeaps = { sharpenHeap };
+				static const int threadGroupWorkRegionDim = 16;
+				int width = rtUpscaleActive ? scene->getDevice()->getWidth() : rtWidth;
+				int height = rtUpscaleActive ? scene->getDevice()->getHeight() : rtHeight;
+				int dispatchX = (width + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
+				int dispatchY = (height + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
+				d3dCommandList->SetPipelineState(scene->getDevice()->getFsrRcasPipelineState());
+				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getFsrRcasRootSignature());
+				d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(sharpenHeaps.size()), sharpenHeaps.data());
+				d3dCommandList->SetComputeRootDescriptorTable(0, sharpenHeap->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
+
+				// Switch output to shader resource.
+				CD3DX12_RESOURCE_BARRIER afterRcasBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputSharpened.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				d3dCommandList->ResourceBarrier(1, &afterRcasBarrier);
+			}
+			else {
+				assert(false && "Unimplemented sharpen mode.");
+			}
 		}
 
 		// Set the final render target.
@@ -1454,12 +1587,20 @@ bool RT64::View::getDenoiserTemporalMode() const {
 	return denoiserTemporal;
 }
 
-void RT64::View::setUpscaleFsrEasuEnabled(bool v) {
-	upscaleFsrEasu = v;
+void RT64::View::setUpscaleMode(UpscaleMode v) {
+	rtUpscaleMode = v;
 }
 
-bool RT64::View::getUpscaleFsrEasuEnabled() const {
-	return upscaleFsrEasu;
+RT64::UpscaleMode RT64::View::getUpscaleMode() const {
+	return rtUpscaleMode;
+}
+
+void RT64::View::setSharpenMode(SharpenMode v) {
+	rtSharpenMode = v;
+}
+
+RT64::SharpenMode RT64::View::getSharpenMode() const {
+	return rtSharpenMode;
 }
 
 void RT64::View::setSkyPlaneTexture(Texture *texture) {

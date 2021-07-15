@@ -123,7 +123,8 @@ void RT64::Inspector::renderViewParams(View *view) {
     int motionBlurSamples = view->getMotionBlurSamples();
     int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
-    bool fsrEasu = view->getUpscaleFsrEasuEnabled();
+    int upscaleMode = (int)(view->getUpscaleMode());
+    int sharpenMode = (int)(view->getSharpenMode());
     bool denoiser = view->getDenoiserEnabled();
     bool temporal = view->getDenoiserTemporalMode();
 
@@ -134,8 +135,10 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
     ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light\0Reflection\0Refraction\0Motion vectors\0");
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
-    ImGui::Checkbox("AMD FSR 1.0 Upscaling", &fsrEasu);
+    ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0");
+    ImGui::Combo("Sharpen Mode", &sharpenMode, "None\0AMD FidelityFX Super Resolution 1.0\0");
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
+
     if (denoiser) {
         ImGui::Checkbox("Temporal Mode", &temporal);
     }
@@ -161,7 +164,8 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setMotionBlurSamples(motionBlurSamples);
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
-    view->setUpscaleFsrEasuEnabled(fsrEasu);
+    view->setUpscaleMode((UpscaleMode)(upscaleMode));
+    view->setSharpenMode((SharpenMode)(sharpenMode));
     view->setDenoiserEnabled(denoiser);
     view->setDenoiserTemporalMode(temporal);
 
