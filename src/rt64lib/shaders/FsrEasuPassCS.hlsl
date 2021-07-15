@@ -35,9 +35,9 @@ RWTexture2D<float4> OutputTexture : register(u0);
 SamplerState samLinearClamp : register(s0);
 
 #define FSR_EASU_F 1
-AF4 FsrEasuRF(AF2 p) { AF4 res = saturate(InputTexture.GatherRed(samLinearClamp, p, int2(0, 0))); return res; }
-AF4 FsrEasuGF(AF2 p) { AF4 res = saturate(InputTexture.GatherGreen(samLinearClamp, p, int2(0, 0))); return res; }
-AF4 FsrEasuBF(AF2 p) { AF4 res = saturate(InputTexture.GatherBlue(samLinearClamp, p, int2(0, 0))); return res; }
+AF4 FsrEasuRF(AF2 p) { AF4 res = InputTexture.GatherRed(samLinearClamp, p, int2(0, 0)); return res; }
+AF4 FsrEasuGF(AF2 p) { AF4 res = InputTexture.GatherGreen(samLinearClamp, p, int2(0, 0)); return res; }
+AF4 FsrEasuBF(AF2 p) { AF4 res = InputTexture.GatherBlue(samLinearClamp, p, int2(0, 0)); return res; }
 
 #include "ffx_fsr1.h"
 
@@ -45,7 +45,7 @@ void CurrFilter(int2 pos)
 {
 	AF3 c;
 	FsrEasuF(c, pos, Const0, Const1, Const2, Const3);
-	OutputTexture[pos] = saturate(float4(c, 1));
+	OutputTexture[pos] = float4(c, 1);
 }
 
 // Constants from AMD's DX12 Sample.
