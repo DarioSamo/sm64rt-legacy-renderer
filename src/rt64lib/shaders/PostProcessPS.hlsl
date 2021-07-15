@@ -11,6 +11,7 @@ Texture2D<float4> gFlow : register(t1);
 SamplerState gSampler : register(s0);
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
+/*
     if ((motionBlurStrength > 0.0f) && (motionBlurSamples > 0)) {
         float2 flow = gFlow.SampleLevel(gSampler, uv, 0).xy / resolution.xy;
         float flowLength = length(flow);
@@ -29,6 +30,6 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
             return sumColor / sumWeight;
         }
     }
-
+*/
     return gOutput.SampleLevel(gSampler, uv, 0);
 }

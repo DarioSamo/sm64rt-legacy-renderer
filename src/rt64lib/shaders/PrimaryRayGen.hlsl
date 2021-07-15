@@ -76,8 +76,8 @@ void PrimaryRayGen() {
 
 	// Reset the reflection and refraction buffers.
 	// TODO: Don't store relevant data on the reflection and refraction buffers if possible.
-	gReflection[uint2(launchIndex.x, launchIndex.y / 2)] = float4(0.0f, 0.0f, 0.0f, 0.0f);
-	gRefraction[uint2(launchIndex.x, launchIndex.y / 2)] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	gReflection[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	gRefraction[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 	// Sample the background.
 	float2 screenUV = float2(launchIndex.x, launchIndex.y) / float2(launchDims.x, launchDims.y);
@@ -141,8 +141,8 @@ void PrimaryRayGen() {
 				float3 reflectionDirection = reflect(rayDirection, vertexNormal);
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
 				float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
-				gReflection[uint2(launchIndex.x, launchIndex.y / 2)].xyz = reflectionDirection;
-				gReflection[uint2(launchIndex.x, launchIndex.y / 2)].a = alphaContrib * fresnelAmount;
+				gReflection[launchIndex].xyz = reflectionDirection;
+				gReflection[launchIndex].a = alphaContrib * fresnelAmount;
 				alphaMultiplier = 1.0f - fresnelAmount;
 			}
 
@@ -152,8 +152,8 @@ void PrimaryRayGen() {
 			// Store refraction amount and direction.
 			if (refractionFactor > EPSILON) {
 				float3 refractionDirection = refract(rayDirection, vertexNormal, refractionFactor);
-				gRefraction[uint2(launchIndex.x, launchIndex.y / 2)].xyz = refractionDirection;
-				gRefraction[uint2(launchIndex.x, launchIndex.y / 2)].a = resColor.a;
+				gRefraction[launchIndex].xyz = refractionDirection;
+				gRefraction[launchIndex].a = resColor.a;
 				resColor.a = 0.0f;
 			}
 		}

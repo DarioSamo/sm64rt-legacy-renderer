@@ -94,6 +94,7 @@ namespace RT64 {
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtHitInstanceIdReadback;
+		AllocatedResource rtUpscaled;
 
 		bool rtSwap;
 		int rtWidth;
@@ -102,6 +103,7 @@ namespace RT64 {
 		float resolutionScale;
 		bool denoiserEnabled;
 		bool denoiserTemporal;
+		bool upscaleFsrEasu;
 		Denoiser *denoiser;
 
 		bool rtHitInstanceIdReadbackUpdated;
@@ -109,6 +111,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *descriptorHeap;
 		UINT descriptorHeapEntryCount;
 		ID3D12DescriptorHeap *composeHeap;
+		ID3D12DescriptorHeap *upscaleHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
@@ -116,6 +119,8 @@ namespace RT64 {
 		AllocatedResource globalParamBufferResource;
 		GlobalParamsBuffer globalParamsBufferData;
 		uint32_t globalParamsBufferSize;
+		AllocatedResource upscalingParamBufferResource;
+		uint32_t upscalingParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -143,6 +148,8 @@ namespace RT64 {
 		void createShaderBindingTable();
 		void createGlobalParamsBuffer();
 		void updateGlobalParamsBuffer();
+		void createUpscalingParamsBuffer();
+		void updateUpscalingParamsBuffer();
 		void checkDenoiser();
 	public:
 		View(Scene *scene);
@@ -178,6 +185,8 @@ namespace RT64 {
 		bool getDenoiserEnabled() const;
 		void setDenoiserTemporalMode(bool v);
 		bool getDenoiserTemporalMode() const;
+		void setUpscaleFsrEasuEnabled(bool v);
+		bool getUpscaleFsrEasuEnabled() const;
 		void setSkyPlaneTexture(Texture *texture);
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);

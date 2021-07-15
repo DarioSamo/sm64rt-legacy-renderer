@@ -59,6 +59,8 @@ namespace RT64 {
 		ID3D12PipelineState *d3dComposePipelineState;
 		ID3D12RootSignature *d3dPostProcessRootSignature;
 		ID3D12PipelineState *d3dPostProcessPipelineState;
+		ID3D12RootSignature *d3dFsrEasuRootSignature;
+		ID3D12PipelineState *d3dFsrEasuPipelineState;
 		ID3D12RootSignature *d3dDebugRootSignature;
 		ID3D12PipelineState *d3dDebugPipelineState;
 		UINT d3dRtvDescriptorSize;
@@ -123,6 +125,8 @@ namespace RT64 {
 		ID3D12PipelineState *getComposePipelineState() const;
 		ID3D12RootSignature *getPostProcessRootSignature() const;
 		ID3D12PipelineState *getPostProcessPipelineState() const;
+		ID3D12RootSignature *getFsrEasuRootSignature() const;
+		ID3D12PipelineState *getFsrEasuPipelineState() const;
 		ID3D12RootSignature *getDebugRootSignature() const;
 		ID3D12PipelineState *getDebugPipelineState() const;
 		ID3D12RootSignature *getIm3dRootSignature() const;
