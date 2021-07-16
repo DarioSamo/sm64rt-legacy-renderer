@@ -80,12 +80,10 @@ float4 getIndirectLight(float2 pos) {
 }
 
 float4 getReflection(float2 pos) {
-    pos.y /= 2.0f;
     return float4(gReflection[pos].rgb * gReflection[pos].a, 1.0f);
 }
 
 float4 getRefraction(float2 pos) {
-    pos.y /= 2.0f;
     return float4(gRefraction[pos].rgb * gRefraction[pos].a, 1.0f);
 }
 
