@@ -78,6 +78,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *rasterBgHeap;
 		ID3D12DescriptorHeap *outputBgHeap[2];
 		AllocatedResource rtOutput[2];
+		AllocatedResource rtViewDirection;
 		AllocatedResource rtShadingPosition;
 		AllocatedResource rtShadingNormal;
 		AllocatedResource rtShadingSpecular;
@@ -87,6 +88,7 @@ namespace RT64 {
 		AllocatedResource rtIndirectLight;
 		AllocatedResource rtReflection;
 		AllocatedResource rtRefraction;
+		AllocatedResource rtTransparent;
 		AllocatedResource rtFlow;
 		AllocatedResource rtHitDistAndFlow;
 		AllocatedResource rtHitColor;
@@ -102,6 +104,7 @@ namespace RT64 {
 		int rtHeight;
 		float rtScale;
 		float resolutionScale;
+		int maxReflections;
 		float sharpenAttenuation;
 		bool rtUpscaleActive;
 		bool rtSharpenActive;
@@ -191,6 +194,8 @@ namespace RT64 {
 		int getVisualizationMode() const;
 		void setResolutionScale(float v);
 		float getResolutionScale() const;
+		void setMaxReflections(int v);
+		int getMaxReflections() const;
 		void setDenoiserEnabled(bool v);
 		bool getDenoiserEnabled() const;
 		void setDenoiserTemporalMode(bool v);

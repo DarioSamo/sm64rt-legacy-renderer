@@ -35,6 +35,7 @@ using namespace DirectX;
 namespace RT64 {
 	// Matches order in heap used in shader binding table.
 	enum class HeapIndices : int {
+		gViewDirection,
 		gShadingPosition,
 		gShadingNormal,
 		gShadingSpecular,
@@ -44,6 +45,7 @@ namespace RT64 {
 		gIndirectLight,
 		gReflection,
 		gRefraction,
+		gTransparent,
 		gFlow,
 		gHitDistAndFlow,
 		gHitColor,
@@ -61,6 +63,7 @@ namespace RT64 {
 	};
 
 	enum class UAVIndices : int {
+		gViewDirection,
 		gShadingPosition,
 		gShadingNormal,
 		gShadingSpecular,
@@ -70,6 +73,7 @@ namespace RT64 {
 		gIndirectLight,
 		gReflection,
 		gRefraction,
+		gTransparent,
 		gFlow,
 		gHitDistAndFlow,
 		gHitColor,
@@ -115,7 +119,8 @@ namespace RT64 {
 	static const unsigned int VisualizationModeIndirectLight = 7;
 	static const unsigned int VisualizationModeReflection = 8;
 	static const unsigned int VisualizationModeRefraction = 9;
-	static const unsigned int VisualizationModeMotionVectors = 10;
+	static const unsigned int VisualizationModeTransparent = 9;
+	static const unsigned int VisualizationModeMotionVectors = 11;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
@@ -134,6 +139,12 @@ namespace RT64 {
 		}
 
 		~AllocatedResource() { }
+
+		void SetName(LPCWSTR name) {
+			if (!IsNull()) {
+				Get()->SetName(name);
+			}
+		}
 
 		inline ID3D12Resource *Get() const {
 			if (!IsNull()) {

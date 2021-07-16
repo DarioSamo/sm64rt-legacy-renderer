@@ -13,6 +13,7 @@
 #include "Ray.hlsli"
 #include "SkyPlaneUV.hlsli"
 #include "Textures.hlsli"
+#include "Lights.hlsli"
 
 SamplerState gBackgroundSampler : register(s0);
 
@@ -74,8 +75,8 @@ void PrimaryRayGen() {
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
 	uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
 
-	// Reset the reflection and refraction buffers.
-	// TODO: Don't store relevant data on the reflection and refraction buffers if possible.
+	// Initialize the buffers.
+	gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
 	gReflection[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	gRefraction[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -103,6 +104,9 @@ void PrimaryRayGen() {
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
 	float3 resNormal = -rayDirection;
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
+	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
+	float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
+	bool resTransparentLightComputed = false;
 	float4 resColor = float4(0, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
 	int resInstanceId = -1;
@@ -112,6 +116,8 @@ void PrimaryRayGen() {
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
+			bool usesLighting = (instanceMaterials[instanceId].lightGroupMaskBits > 0);
+			bool applyLighting = usesLighting && (hitColor.a > APPLY_LIGHTS_MINIMUM_ALPHA);
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
@@ -120,41 +126,66 @@ void PrimaryRayGen() {
 			float refractionFactor = instanceMaterials[instanceId].refractionFactor;
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
+			bool storeHit = false;
 			if (instanceMaterials[instanceId].fogEnabled) {
 				float4 fogColor = ComputeFog(instanceId, vertexPosition);
-				hitColor.rgb = lerp(hitColor.rgb, fogColor.rgb, fogColor.a);
+				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
+				alphaContrib *= (1.0f - fogColor.a);
 			}
 
-			// Calculate motion vector in screen space.
-			float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
-			float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
-			float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
-			resPosition = vertexPosition;
-			resNormal = vertexNormal;
-			resSpecular = specular;
-			resInstanceId = instanceId;
-			resFlow = (curPos - prevPos) * resolution.xy;
-			
-			// Store reflection amount and direction.
-			float alphaMultiplier = 1.0f;
+			// Reflection.
 			if (reflectionFactor > EPSILON) {
-				float3 reflectionDirection = reflect(rayDirection, vertexNormal);
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
 				float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
-				gReflection[launchIndex].xyz = reflectionDirection;
-				gReflection[launchIndex].a = alphaContrib * fresnelAmount;
-				alphaMultiplier = 1.0f - fresnelAmount;
+				gReflection[launchIndex].a = fresnelAmount * alphaContrib;
+				alphaContrib *= (1.0f - fresnelAmount);
+				storeHit = true;
 			}
 
-			resColor.rgb += hitColor.rgb * alphaContrib * alphaMultiplier;
+			// Add the color to the hit color or the transparent buffer if the lighting is disabled.
+			float3 resColorAdd = hitColor.rgb * alphaContrib;
+			if (applyLighting) {
+				storeHit = true;
+				resColor.rgb += resColorAdd;
+			}
+			// Expensive case: transparent geometry that is not solid enough to act as the main
+			// instance in the deferred pass and it also needs lighting to work correctly.
+			// We sample one light at random and use it for any other transparent geometry that
+			// has the same problem.
+			else if (usesLighting) {
+				if (!resTransparentLightComputed) {
+					uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
+					resTransparentLight = ComputeLightsRandom(rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, true, seed);
+					resTransparentLightComputed = true;
+				}
+
+				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight + resTransparentLight);
+			}
+			// Cheap case: we ignore the geometry entirely from the lighting pass and just add
+			// it to the transparency buffer directly.
+			else {
+				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight);
+			}
+
 			resColor.a *= (1.0 - hitColor.a);
 
-			// Store refraction amount and direction.
+			// Refraction. Stop searching for more hits afterwards.
 			if (refractionFactor > EPSILON) {
-				float3 refractionDirection = refract(rayDirection, vertexNormal, refractionFactor);
-				gRefraction[launchIndex].xyz = refractionDirection;
+				storeHit = true;
 				gRefraction[launchIndex].a = resColor.a;
 				resColor.a = 0.0f;
+			}
+
+			// Store hit if it's been flagged as the primary one.
+			if (storeHit && (resInstanceId < 0)) {
+				float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
+				float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
+				float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
+				resPosition = vertexPosition;
+				resNormal = vertexNormal;
+				resSpecular = specular;
+				resInstanceId = instanceId;
+				resFlow = (curPos - prevPos) * resolution.xy;
 			}
 		}
 
@@ -173,6 +204,7 @@ void PrimaryRayGen() {
 	gShadingSpecular[launchIndex] = float4(resSpecular, 0.0f);
 	gDiffuse[launchIndex] = resColor;
 	gInstanceId[launchIndex] = resInstanceId;
+	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float4(resFlow, 0.0f, 0.0f);
 }
 

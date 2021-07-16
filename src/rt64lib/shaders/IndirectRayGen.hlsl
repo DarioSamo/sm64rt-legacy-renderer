@@ -113,7 +113,7 @@ void IndirectRayGen() {
 
 		// Add diffuse bounce as indirect light.
 		if (resInstanceId >= 0) {
-			float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true, seed);
+			float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true, seed) + instanceMaterials[resInstanceId].selfLight;
 			float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
 			indirectResult += indirectLight;
 		}

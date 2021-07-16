@@ -80,17 +80,19 @@ float4 getIndirectLight(float2 pos) {
 }
 
 float4 getReflection(float2 pos) {
-    return float4(gReflection[pos].rgb * gReflection[pos].a, 1.0f);
+    return float4(gReflection[pos].rgb, 1.0f);
 }
 
 float4 getRefraction(float2 pos) {
-    return float4(gRefraction[pos].rgb * gRefraction[pos].a, 1.0f);
+    return float4(gRefraction[pos].rgb, 1.0f);
+}
+
+float4 getTransparent(float2 pos) {
+    return float4(gTransparent[pos].rgb, 1.0f);
 }
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     switch (visualizationMode) {
-    case VISUALIZATION_MODE_FLOW:
-        return getMotionVector(uv * resolution.xy);
     case VISUALIZATION_MODE_SHADING_POSITION:
         return getShadingPosition(uv * resolution.xy);
     case VISUALIZATION_MODE_SHADING_NORMAL:
@@ -109,6 +111,10 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getReflection(uv * resolution.xy);
     case VISUALIZATION_MODE_REFRACTION:
         return getRefraction(uv * resolution.xy);
+    case VISUALIZATION_MODE_TRANSPARENT:
+        return getTransparent(uv * resolution.xy);
+    case VISUALIZATION_MODE_FLOW:
+        return getMotionVector(uv * resolution.xy);
     default:
         return float4(0.5f, 0.5f, 0.5f, 1.0f);
     }

@@ -47,14 +47,18 @@ void RefractionRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 launchDims = DispatchRaysDimensions().xy;
 	int instanceId = gInstanceId[launchIndex];
-	if ((instanceId < 0) || (gRefraction[launchIndex].a <= EPSILON)) {
-		gRefraction[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float refractionAlpha = gRefraction[launchIndex].a;
+	if ((instanceId < 0) || (refractionAlpha <= EPSILON)) {
 		return;
 	}
 
 	// Grab the ray origin and direction from the buffers.
 	float3 rayOrigin = gShadingPosition[launchIndex].xyz;
-	float3 rayDirection = gRefraction[launchIndex].xyz;
+	float3 viewDirection = gViewDirection[launchIndex].xyz;
+	float3 shadingNormal = gShadingNormal[launchIndex].xyz;
+	float refractionFactor = instanceMaterials[instanceId].refractionFactor;
+	float3 rayDirection = refract(viewDirection, shadingNormal, refractionFactor);
+	float newRefractionAlpha = 0.0f;
 
 	// Mix background and sky color together.
 	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
@@ -93,7 +97,7 @@ void RefractionRayGen() {
 			resPosition = vertexPosition;
 			resNormal = vertexNormal;
 			resSpecular = specular;
-			resInstanceId = instanceId;
+			resInstanceId = hitInstanceId;
 		}
 
 		if (resColor.a <= EPSILON) {
@@ -103,7 +107,7 @@ void RefractionRayGen() {
 
 	if (resInstanceId >= 0) {
 		uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
-		float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true, seed);
+		float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true, seed) + instanceMaterials[resInstanceId].selfLight;
 		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
 	}
 
@@ -111,7 +115,8 @@ void RefractionRayGen() {
 	resColor.rgb += bgColor * resColor.a;
 	resColor.a = 1.0f;
 
-	gRefraction[launchIndex].rgb = resColor.rgb;
+	// Add refraction result.
+	gRefraction[launchIndex].rgb += resColor.rgb * refractionAlpha;
 }
 
 [shader("miss")]

@@ -119,6 +119,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     int softLightSamples = view->getSoftLightSamples();
     int giBounces = view->getGIBounces();
     int maxLightSamples = view->getMaxLightSamples();
+    int maxReflections = view->getMaxReflections();
     float motionBlurStrength = view->getMotionBlurStrength();
     int motionBlurSamples = view->getMotionBlurSamples();
     int visualizationMode = view->getVisualizationMode();
@@ -131,9 +132,10 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI bounces", &giBounces, 0.1f, 0, 32);
     ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
+    ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light\0Reflection\0Refraction\0Motion vectors\0");
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light\0Reflection\0Refraction\0Transparent\0Motion vectors\0");
     ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0");
     ImGui::Combo("Sharpen Mode", &sharpenMode, "None\0AMD FidelityFX Super Resolution 1.0\0");
@@ -160,6 +162,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setSoftLightSamples(softLightSamples);
     view->setGIBounces(giBounces);
     view->setMaxLightSamples(maxLightSamples);
+    view->setMaxReflections(maxReflections);
     view->setMotionBlurStrength(motionBlurStrength);
     view->setMotionBlurSamples(motionBlurSamples);
     view->setVisualizationMode(visualizationMode);
