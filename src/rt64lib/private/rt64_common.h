@@ -35,9 +35,17 @@ using namespace DirectX;
 namespace RT64 {
 	// Matches order in heap used in shader binding table.
 	enum class HeapIndices : int {
-		gOutput,
-		gAlbedo,
-		gNormal,
+		gViewDirection,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gDiffuse,
+		gInstanceId,
+		gDirectLight,
+		gIndirectLight,
+		gReflection,
+		gRefraction,
+		gTransparent,
 		gFlow,
 		gHitDistAndFlow,
 		gHitColor,
@@ -55,15 +63,24 @@ namespace RT64 {
 	};
 
 	enum class UAVIndices : int {
-		gOutput,
-		gAlbedo,
-		gNormal,
+		gViewDirection,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gDiffuse,
+		gInstanceId,
+		gDirectLight,
+		gIndirectLight,
+		gReflection,
+		gRefraction,
+		gTransparent,
 		gFlow,
 		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
 		gHitSpecular,
-		gHitInstanceId
+		gHitInstanceId,
+		MAX
 	};
 
 	enum class SRVIndices : int {
@@ -81,10 +98,29 @@ namespace RT64 {
 		gParams
 	};
 
+	enum class UpscaleMode {
+		Bilinear,
+		FSR
+	};
+
+	enum class SharpenMode {
+		None,
+		FSR
+	};
+
 	// Some shared shader constants.
-	static const unsigned int VisualizationModeNormal = 0;
-	static const unsigned int VisualizationModeLights = 1;
-	static const unsigned int VisualizationModeMotionVectors = 2;
+	static const unsigned int VisualizationModeFinal = 0;
+	static const unsigned int VisualizationModeShadingPosition = 1;
+	static const unsigned int VisualizationModeShadingNormal = 2;
+	static const unsigned int VisualizationModeShadingSpecular = 3;
+	static const unsigned int VisualizationModeDiffuse = 4;
+	static const unsigned int VisualizationModeInstanceID = 5;
+	static const unsigned int VisualizationModeDirectLight = 6;
+	static const unsigned int VisualizationModeIndirectLight = 7;
+	static const unsigned int VisualizationModeReflection = 8;
+	static const unsigned int VisualizationModeRefraction = 9;
+	static const unsigned int VisualizationModeTransparent = 9;
+	static const unsigned int VisualizationModeMotionVectors = 11;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
@@ -103,6 +139,12 @@ namespace RT64 {
 		}
 
 		~AllocatedResource() { }
+
+		void SetName(LPCWSTR name) {
+			if (!IsNull()) {
+				Get()->SetName(name);
+			}
+		}
 
 		inline ID3D12Resource *Get() const {
 			if (!IsNull()) {

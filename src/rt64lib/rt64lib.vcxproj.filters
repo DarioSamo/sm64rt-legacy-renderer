@@ -234,9 +234,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="shaders\Tracer.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
     <CustomBuild Include="shaders\Im3DPS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
@@ -255,7 +252,31 @@
     <CustomBuild Include="shaders\FullScreenVS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\DebugMotionVectorsPS.hlsl">
+    <CustomBuild Include="shaders\DebugPS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\ReflectionRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\PrimaryRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\DirectRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\IndirectRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\RefractionRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\PostProcessPS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\FsrEasuPassCS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\FsrRcasPassCS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>

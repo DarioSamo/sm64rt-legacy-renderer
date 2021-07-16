@@ -24,6 +24,7 @@ enum {
 };
 
 #define SHADER_OPT_ALPHA (1 << 24)
+#define SHADER_OPT_TEXTURE_EDGE (1 << 26)
 #define SHADER_OPT_NOISE (1 << 27)
 
 struct ColorCombinerParams {
@@ -35,6 +36,7 @@ struct ColorCombinerParams {
 	int do_mix[2];
 	int color_alpha_same;
 	int opt_alpha;
+	int opt_texture_edge;
 	int opt_noise;
 
 	ColorCombinerParams(int shaderId) {
@@ -68,6 +70,7 @@ struct ColorCombinerParams {
 
 		color_alpha_same = (shaderId & 0xfff) == ((shaderId >> 12) & 0xfff);
 		opt_alpha = (shaderId & SHADER_OPT_ALPHA) != 0;
+		opt_texture_edge = (shaderId & SHADER_OPT_TEXTURE_EDGE) != 0;
 		opt_noise = (shaderId & SHADER_OPT_NOISE) != 0;
 	}
 };
@@ -513,7 +516,16 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("    resultColor.rgb = lerp(resultColor.rgb, diffuseColorMix.rgb, max(diffuseColorMix.a, 0.0f));");
 
 	// Apply the solid alpha multiplier.
-	SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);")
+	SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);");
+
+	if (cc.opt_texture_edge) {
+		SS("    if (resultColor.a > 0.3f) {");
+		SS("      resultColor.a = 1.0f;");
+		SS("    }");
+		SS("    else {");
+		SS("      IgnoreHit();");
+		SS("    }");
+	}
 
 	if (cc.opt_noise) {
 		SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
@@ -637,6 +649,15 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 		}
 
 		SS("    resultAlpha = clamp(resultAlpha * instanceMaterials[instanceId].shadowAlphaMultiplier, 0.0f, 1.0f);");
+
+		if (cc.opt_texture_edge) {
+			SS("    if (resultAlpha > 0.3f) {");
+			SS("      resultAlpha = 1.0f;");
+			SS("    }");
+			SS("    else {");
+			SS("      IgnoreHit();");
+			SS("    }");
+		}
 
 		if (cc.opt_noise) {
 			SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
