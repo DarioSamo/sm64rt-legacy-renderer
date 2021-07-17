@@ -118,13 +118,3 @@ void RefractionRayGen() {
 	// Add refraction result.
 	gRefraction[launchIndex].rgb += resColor.rgb * refractionAlpha;
 }
-
-[shader("miss")]
-void SurfaceMiss(inout HitInfo payload : SV_RayPayload) {
-	// No-op.
-}
-
-[shader("miss")]
-void ShadowMiss(inout ShadowHitInfo payload : SV_RayPayload) {
-	// No-op.
-}

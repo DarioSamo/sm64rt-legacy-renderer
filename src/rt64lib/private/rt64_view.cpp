@@ -659,7 +659,6 @@ void RT64::View::createShaderResourceHeap() {
 			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 
-		// SRV for input image.
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 

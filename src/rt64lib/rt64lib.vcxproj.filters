@@ -279,5 +279,8 @@
     <CustomBuild Include="shaders\FsrRcasPassCS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="shaders\SurfaceRayHits.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

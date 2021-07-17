@@ -40,13 +40,3 @@ void DirectRayGen() {
 
 	gDirectLight[launchIndex] = float4(directLight, 1.0f);
 }
-
-[shader("miss")]
-void SurfaceMiss(inout HitInfo payload : SV_RayPayload) {
-	// No-op.
-}
-
-[shader("miss")]
-void ShadowMiss(inout ShadowHitInfo payload : SV_RayPayload) {
-	// No-op.
-}

@@ -145,13 +145,3 @@ void ReflectionRayGen() {
 	// Store parameters for new reflection.
 	gReflection[launchIndex].a = saturate(newReflectionAlpha);
 }
-
-[shader("miss")]
-void SurfaceMiss(inout HitInfo payload : SV_RayPayload) {
-	// No-op.
-}
-
-[shader("miss")]
-void ShadowMiss(inout ShadowHitInfo payload : SV_RayPayload) {
-	// No-op.
-}
