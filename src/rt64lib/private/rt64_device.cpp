@@ -43,6 +43,8 @@
 // Private
 
 RT64::Device::Device(HWND hwnd) {
+	RT64_LOG_OPEN("rt64.log");
+
 	createDXGIFactory();
 	createRaytracingDevice();
 
@@ -79,9 +81,13 @@ RT64::Device::Device(HWND hwnd) {
 	createDxcCompiler();
 	createRaytracingPipeline();
 #endif
+
+	RT64_LOG_PRINTF("Created device");
 }
 
 RT64::Device::~Device() {
+	RT64_LOG_CLOSE();
+
 	/* TODO: Re-enable once resources are properly released.
 	if (d3dAllocator != nullptr) {
 		d3dAllocator->Release();
@@ -173,6 +179,8 @@ void RT64::Device::createRaytracingDevice() {
 #ifndef RT64_MINIMAL
 
 void RT64::Device::updateSize() {
+	RT64_LOG_PRINTF("Starting device size update");
+
 	RECT rect;
 	GetClientRect(hwnd, &rect);
 	int newWidth = rect.right - rect.left;
@@ -201,6 +209,8 @@ void RT64::Device::updateSize() {
 			inspector->resize();
 		}
 	}
+
+	RT64_LOG_PRINTF("Finished device size update");
 }
 
 void RT64::Device::releaseRTVs() {
@@ -901,6 +911,8 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 }
 
 void RT64::Device::preRender() {
+	RT64_LOG_PRINTF("Started device prerender");
+
 	// Submit and wait for execution if command list was open.
 	if (d3dCommandListOpen) {
 		submitCommandList();
@@ -913,6 +925,8 @@ void RT64::Device::preRender() {
 	d3dCommandList->RSSetViewports(1, &d3dViewport);
 	d3dCommandList->RSSetScissorRects(1, &d3dScissorRect);
 
+	RT64_LOG_PRINTF("Setting render target");
+
 	// Indicate that the back buffer will be used as a render target.
 	CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3dRenderTargets[d3dFrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	d3dCommandList->ResourceBarrier(1, &transitionBarrier);
@@ -922,9 +936,13 @@ void RT64::Device::preRender() {
 
 	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	d3dCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
+	RT64_LOG_PRINTF("Finished device prerender");
 }
 
 void RT64::Device::postRender(int vsyncInterval) {
+	RT64_LOG_PRINTF("Started device postrender");
+
 	// Indicate that the back buffer will now be used to present.
 	CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3dRenderTargets[d3dFrameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	d3dCommandList->ResourceBarrier(1, &transitionBarrier);
@@ -939,9 +957,13 @@ void RT64::Device::postRender(int vsyncInterval) {
 
 	// Leave command list open.
 	resetCommandList();
+
+	RT64_LOG_PRINTF("Finished device postrender");
 }
 
 void RT64::Device::draw(int vsyncInterval) {
+	RT64_LOG_PRINTF("Started device draw");
+
 	if (d3dRtStateObjectDirty) {
 		createRaytracingPipeline();
 		d3dRtStateObjectDirty = false;
@@ -964,6 +986,8 @@ void RT64::Device::draw(int vsyncInterval) {
 	for (Scene *scene : scenes) {
 		scene->render();
 	}
+
+	RT64_LOG_PRINTF("Reset render target");
 
 	// Scene has most likely changed the render target. Set it again for the inspectors to work properly.
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = getD3D12RTV();
@@ -991,6 +1015,8 @@ void RT64::Device::draw(int vsyncInterval) {
 	}
 
 	postRender(vsyncInterval);
+
+	RT64_LOG_PRINTF("Finished device draw");
 }
 
 void RT64::Device::addScene(Scene *scene) {
@@ -1030,6 +1056,8 @@ void RT64::Device::removeInspector(Inspector* inspector) {
 }
 
 void RT64::Device::resetCommandList() {
+	RT64_LOG_PRINTF("Command list reset");
+
 	// Reset the command allocator.
 	d3dCommandAllocator->Reset();
 

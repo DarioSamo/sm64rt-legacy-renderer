@@ -39,6 +39,8 @@ namespace {
 // Private
 
 RT64::View::View(Scene *scene) {
+	RT64_LOG_PRINTF("Starting view creation");
+
 	assert(scene != nullptr);
 	this->scene = scene;
 	descriptorHeap = nullptr;
@@ -87,6 +89,8 @@ RT64::View::View(Scene *scene) {
 	createSharpenParamsBuffer();
 
 	scene->addView(this);
+
+	RT64_LOG_PRINTF("Finished view creation");
 }
 
 RT64::View::~View() {
@@ -98,6 +102,8 @@ RT64::View::~View() {
 }
 
 void RT64::View::createOutputBuffers() {
+	RT64_LOG_PRINTF("Starting output buffer creation");
+
 	releaseOutputBuffers();
 
 	outputRtvDescriptorSize = scene->getDevice()->getD3D12Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -224,6 +230,8 @@ void RT64::View::createOutputBuffers() {
 		ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
 		denoiser->set(rtWidth, rtHeight, rtOutputArray, rtDiffuse.Get(), rtShadingNormal.Get(), rtFlow.Get());
 	}
+
+	RT64_LOG_PRINTF("Finished output buffer creation");
 }
 
 void RT64::View::releaseOutputBuffers() {
@@ -867,6 +875,7 @@ void RT64::View::updateSharpenParamsBuffer() {
 }
 
 void RT64::View::update() {
+	RT64_LOG_PRINTF("Started view update");
 	bool recreateBuffers = false;
 
 	// Check upscale.
@@ -1010,9 +1019,13 @@ void RT64::View::update() {
 		rasterBgInstances.clear();
 		rasterFgInstances.clear();
 	}
+
+	RT64_LOG_PRINTF("Finished view update");
 }
 
 void RT64::View::render() {
+	RT64_LOG_PRINTF("Started view render");
+
 	if (descriptorHeap == nullptr) {
 		return;
 	}
@@ -1084,6 +1097,8 @@ void RT64::View::render() {
 		}
 	};
 
+	RT64_LOG_PRINTF("Updating global parameters");
+
 	// Determine whether to use the viewport and scissor from the first RT Instance or not.
 	// TODO: Some less hackish way to determine what viewport to use for the raytraced content perhaps.
 	CD3DX12_RECT rtScissorRect = scissorRect;
@@ -1110,6 +1125,7 @@ void RT64::View::render() {
 	}
 
 	// Draw the background instances to the screen.
+	RT64_LOG_PRINTF("Drawing background instances");
 	resetScissor();
 	resetViewport();
 	drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
@@ -1127,6 +1143,7 @@ void RT64::View::render() {
 		d3dCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 		
 		// Draw background instances to it.
+		RT64_LOG_PRINTF("Drawing background instances to render target");
 		resetScissor();
 		resetViewport();
 		drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), false);
@@ -1138,6 +1155,8 @@ void RT64::View::render() {
 
 	// Raytracing.
 	if (!rtInstances.empty()) {
+		RT64_LOG_PRINTF("Drawing raytraced instances");
+
 		// Ray generation.
 		D3D12_DISPATCH_RAYS_DESC desc = {};
 		uint32_t rayGenerationSectionSizeInBytes = sbtHelper.GetRayGenSectionSize();
@@ -1175,6 +1194,7 @@ void RT64::View::render() {
 		d3dCommandList->ResourceBarrier(_countof(preDispatchBarriers), preDispatchBarriers);
 
 		// Bind pipeline and dispatch primary rays.
+		RT64_LOG_PRINTF("Dispatching primary rays");
 		d3dCommandList->SetPipelineState1(scene->getDevice()->getD3D12RtStateObject());
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
 		d3dCommandList->DispatchRays(&desc);
@@ -1193,10 +1213,12 @@ void RT64::View::render() {
 		d3dCommandList->ResourceBarrier(_countof(shadingBarriers), shadingBarriers);
 
 		// Dispatch rays for direct light.
+		RT64_LOG_PRINTF("Dispatching direct light rays");
 		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize();
 		d3dCommandList->DispatchRays(&desc);
 
 		// Dispatch rays for indirect light.
+		RT64_LOG_PRINTF("Dispatching indirect light rays");
 		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 2;
 		d3dCommandList->DispatchRays(&desc);
 
@@ -1207,6 +1229,7 @@ void RT64::View::render() {
 		d3dCommandList->ResourceBarrier(1, &indirectBarrier);
 
 		// Dispatch rays for refraction.
+		RT64_LOG_PRINTF("Dispatching refraction rays");
 		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 4;
 		d3dCommandList->DispatchRays(&desc);
 
@@ -1220,6 +1243,7 @@ void RT64::View::render() {
 		int reflections = maxReflections;
 		while (reflections > 0) {
 			// Dispatch rays for reflection.
+			RT64_LOG_PRINTF("Dispatching reflection rays");
 			desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 3;
 			d3dCommandList->DispatchRays(&desc);
 			reflections--;
@@ -1260,6 +1284,7 @@ void RT64::View::render() {
 		applyViewport(CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(rtWidth), static_cast<float>(rtHeight)));
 
 		// Draw the raytracing output.
+		RT64_LOG_PRINTF("Composing the raytracing output");
 		std::vector<ID3D12DescriptorHeap *> composeHeaps = { composeHeap };
 		d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(composeHeaps.size()), composeHeaps.data());
 		d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1275,6 +1300,8 @@ void RT64::View::render() {
 
 		// Denoise if enabled.
 		if (denoiserEnabled && (denoiser != nullptr)) {
+			RT64_LOG_PRINTF("Submitting frame to denoiser");
+
 			// Wait for the raytracing step to be finished.
 			// TODO: Maybe use a fence for this instead so we don't need to wait on all of the GPU operations.
 			scene->getDevice()->submitCommandList();
@@ -1292,6 +1319,8 @@ void RT64::View::render() {
 
 		if (rtUpscaleActive) {
 			if (rtUpscaleMode == UpscaleMode::FSR) {
+				RT64_LOG_PRINTF("Upscaling frame");
+
 				// Switch output to UAV.
 				CD3DX12_RESOURCE_BARRIER beforeEasuBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				d3dCommandList->ResourceBarrier(1, &beforeEasuBarrier);
@@ -1320,6 +1349,8 @@ void RT64::View::render() {
 
 		if (rtSharpenActive) {
 			if (rtSharpenMode == SharpenMode::FSR) {
+				RT64_LOG_PRINTF("Sharpening frame");
+
 				// Switch output to UAV.
 				CD3DX12_RESOURCE_BARRIER beforeRcasBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputSharpened.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				d3dCommandList->ResourceBarrier(1, &beforeRcasBarrier);
@@ -1360,6 +1391,7 @@ void RT64::View::render() {
 
 		// Draw the output to the screen.
 		if (globalParamsBufferData.visualizationMode == VisualizationModeFinal) {
+			RT64_LOG_PRINTF("Drawing final output");
 			std::vector<ID3D12DescriptorHeap *> postProcessHeaps = { postProcessHeap };
 			d3dCommandList->SetPipelineState(scene->getDevice()->getPostProcessPipelineState());
 			d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getPostProcessRootSignature());
@@ -1371,6 +1403,7 @@ void RT64::View::render() {
 		}
 		// Draw the debugging view.
 		else {
+			RT64_LOG_PRINTF("Drawing debug view");
 			d3dCommandList->SetPipelineState(scene->getDevice()->getDebugPipelineState());
 			d3dCommandList->SetGraphicsRootSignature(scene->getDevice()->getDebugRootSignature());
 			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
@@ -1386,6 +1419,7 @@ void RT64::View::render() {
 	}
 	
 	// Draw the foreground to the screen.
+	RT64_LOG_PRINTF("Drawing foreground instances");
 	resetScissor();
 	resetViewport();
 	drawInstances(rasterFgInstances, (UINT)(rasterBgInstances.size() + rtInstances.size()), true);
@@ -1393,6 +1427,8 @@ void RT64::View::render() {
 	// Clear flags.
 	rtHitInstanceIdReadbackUpdated = false;
 	globalParamsBufferData.frameCount++;
+
+	RT64_LOG_PRINTF("Finished view render");
 }
 
 void RT64::View::renderInspector(Inspector *inspector) {

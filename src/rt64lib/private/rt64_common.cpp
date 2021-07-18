@@ -21,7 +21,8 @@ namespace nv_helpers_dx12
 #endif
 
 namespace RT64 {
-	std::string GlobalLastError;
+	FILE *GlobalLogFile = nullptr;
+	std::string GlobalLastError = "";
 };
 
 DLLEXPORT const char *RT64_GetLastError() {

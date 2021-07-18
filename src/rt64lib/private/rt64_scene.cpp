@@ -50,15 +50,23 @@ RT64::Scene::~Scene() {
 }
 
 void RT64::Scene::update() {
+	RT64_LOG_PRINTF("Started scene update");
+
 	for (View *view : views) {
 		view->update();
 	}
+
+	RT64_LOG_PRINTF("Finished scene update");
 }
 
 void RT64::Scene::render() {
+	RT64_LOG_PRINTF("Started scene render");
+
 	for (View *view : views) {
 		view->render();
 	}
+
+	RT64_LOG_PRINTF("Finished scene render");
 }
 
 void RT64::Scene::resize() {

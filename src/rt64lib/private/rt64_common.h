@@ -125,6 +125,20 @@ namespace RT64 {
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
 
+#ifdef NDEBUG
+#	define RT64_LOG_OPEN(x)
+#	define RT64_LOG_CLOSE()
+#	define RT64_LOG_PRINTF(x, ...)
+#else
+	extern FILE *GlobalLogFile;
+#	define RT64_LOG_OPEN(x) GlobalLogFile = fopen(x, "wt");
+#	define RT64_LOG_CLOSE() fclose(GlobalLogFile);
+#	define RT64_LOG_PRINTF(x, ...) \
+        do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); } while (0)
+#endif
+
+
+
 #ifndef RT64_MINIMAL
 	class AllocatedResource {
 	private:
