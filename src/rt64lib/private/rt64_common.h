@@ -134,7 +134,7 @@ namespace RT64 {
 #	define RT64_LOG_OPEN(x) GlobalLogFile = fopen(x, "wt");
 #	define RT64_LOG_CLOSE() fclose(GlobalLogFile);
 #	define RT64_LOG_PRINTF(x, ...) \
-        do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); } while (0)
+        do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); fflush(GlobalLogFile); } while (0)
 #endif
 
 
