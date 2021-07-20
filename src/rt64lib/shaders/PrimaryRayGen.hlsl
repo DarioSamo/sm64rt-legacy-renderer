@@ -69,7 +69,7 @@ float4 ComputeFog(uint instanceId, float3 position) {
 void PrimaryRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 launchDims = DispatchRaysDimensions().xy;
-	float2 d = (((launchIndex.xy + 0.5f) / float2(launchDims)) * 2.f - 1.f);
+	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
@@ -109,6 +109,7 @@ void PrimaryRayGen() {
 	bool resTransparentLightComputed = false;
 	float4 resColor = float4(0, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
+	float resDepth = 1.0f;
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
@@ -181,11 +182,13 @@ void PrimaryRayGen() {
 				float3 vertexFlow = gHitDistAndFlow[hitBufferIndex].yzw;
 				float2 prevPos = WorldToScreenPos(prevViewProj, vertexPosition - vertexFlow);
 				float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
+				float4 projPos = mul(viewProj, float4(vertexPosition, 1.0f));
 				resPosition = vertexPosition;
 				resNormal = vertexNormal;
 				resSpecular = specular;
 				resInstanceId = instanceId;
 				resFlow = (curPos - prevPos) * resolution.xy;
+				resDepth = projPos.z / projPos.w;
 			}
 		}
 
@@ -206,6 +209,7 @@ void PrimaryRayGen() {
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float4(resFlow, 0.0f, 0.0f);
+	gDepth[launchIndex] = resDepth;
 }
 
 [shader("miss")]

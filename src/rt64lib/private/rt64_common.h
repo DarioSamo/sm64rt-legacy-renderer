@@ -47,6 +47,7 @@ namespace RT64 {
 		gRefraction,
 		gTransparent,
 		gFlow,
+		gDepth,
 		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
@@ -75,6 +76,7 @@ namespace RT64 {
 		gRefraction,
 		gTransparent,
 		gFlow,
+		gDepth,
 		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
@@ -100,7 +102,8 @@ namespace RT64 {
 
 	enum class UpscaleMode {
 		Bilinear,
-		FSR
+		FSR,
+		DLSS
 	};
 
 	enum class SharpenMode {
@@ -121,6 +124,7 @@ namespace RT64 {
 	static const unsigned int VisualizationModeRefraction = 9;
 	static const unsigned int VisualizationModeTransparent = 9;
 	static const unsigned int VisualizationModeMotionVectors = 11;
+	static const unsigned int VisualizationModeDepth = 12;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
@@ -131,10 +135,9 @@ namespace RT64 {
 #	define RT64_LOG_PRINTF(x, ...)
 #else
 	extern FILE *GlobalLogFile;
-#	define RT64_LOG_OPEN(x) GlobalLogFile = fopen(x, "wt");
-#	define RT64_LOG_CLOSE() fclose(GlobalLogFile);
-#	define RT64_LOG_PRINTF(x, ...) \
-        do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); fflush(GlobalLogFile); } while (0)
+#	define RT64_LOG_OPEN(x) do { GlobalLogFile = fopen(x, "wt"); } while (0)
+#	define RT64_LOG_CLOSE() do { fclose(GlobalLogFile); } while (0)
+#	define RT64_LOG_PRINTF(x, ...) do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); fflush(GlobalLogFile); } while (0)
 #endif
 
 

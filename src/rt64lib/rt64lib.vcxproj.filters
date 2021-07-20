@@ -120,6 +120,9 @@
     <ClInclude Include="private\rt64_shader_hlsli.h">
       <Filter>private</Filter>
     </ClInclude>
+    <ClInclude Include="private\rt64_dlss.h">
+      <Filter>private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">
@@ -189,6 +192,9 @@
       <Filter>private</Filter>
     </ClCompile>
     <ClCompile Include="private\rt64_shader.cpp">
+      <Filter>private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_dlss.cpp">
       <Filter>private</Filter>
     </ClCompile>
   </ItemGroup>

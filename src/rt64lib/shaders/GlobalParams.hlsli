@@ -21,6 +21,7 @@ cbuffer gParams : register(b0) {
 	float4 eyeLightSpecularColor;
 	float4 skyDiffuseMultiplier;
 	float4 skyHSLModifier;
+	float2 pixelJitter;
 	float skyYawOffset;
 	float giDiffuseStrength;
 	float giSkyStrength;
@@ -47,5 +48,6 @@ cbuffer gParams : register(b0) {
 #define VISUALIZATION_MODE_REFRACTION		9
 #define VISUALIZATION_MODE_TRANSPARENT		10
 #define VISUALIZATION_MODE_FLOW				11
+#define VISUALIZATION_MODE_DEPTH			12
 //)raw"
 #endif

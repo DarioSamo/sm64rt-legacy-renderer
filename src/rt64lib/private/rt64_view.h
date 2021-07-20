@@ -13,6 +13,7 @@
 
 namespace RT64 {
 	class Denoiser;
+	class DLSS;
 	class Scene;
 	class Shader;
 	class Inspector;
@@ -52,6 +53,7 @@ namespace RT64 {
 			RT64_VECTOR4 eyeLightSpecularColor;
 			RT64_VECTOR4 skyDiffuseMultiplier;
 			RT64_VECTOR4 skyHSLModifier;
+			RT64_VECTOR2 pixelJitter;
 			float skyYawOffset;
 			float giDiffuseStrength;
 			float giSkyStrength;
@@ -90,6 +92,7 @@ namespace RT64 {
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
 		AllocatedResource rtFlow;
+		AllocatedResource rtDepth;
 		AllocatedResource rtHitDistAndFlow;
 		AllocatedResource rtHitColor;
 		AllocatedResource rtHitNormal;
@@ -113,6 +116,7 @@ namespace RT64 {
 		bool denoiserEnabled;
 		bool denoiserTemporal;
 		Denoiser *denoiser;
+		DLSS *dlss;
 
 		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;

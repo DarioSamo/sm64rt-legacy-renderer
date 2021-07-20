@@ -11,6 +11,7 @@
 
 #include "rt64_denoiser.h"
 #include "rt64_device.h"
+#include "rt64_dlss.h"
 #include "rt64_instance.h"
 #include "rt64_mesh.h"
 #include "rt64_scene.h"
@@ -83,6 +84,8 @@ RT64::View::View(Scene *scene) {
 	scissorApplied = false;
 	viewportApplied = false;
 
+	dlss = new DLSS(scene->getDevice());
+
 	createOutputBuffers();
 	createGlobalParamsBuffer();
 	createUpscalingParamsBuffer();
@@ -115,6 +118,8 @@ void RT64::View::createOutputBuffers() {
 	globalParamsBufferData.resolution.y = (float)(rtHeight);
 	globalParamsBufferData.resolution.z = (float)(screenWidth);
 	globalParamsBufferData.resolution.w = (float)(screenHeight);
+
+	dlss->set(rtWidth, rtHeight, screenWidth, screenHeight);
 
 	D3D12_CLEAR_VALUE clearValue = { };
 	clearValue.Color[0] = 0.0f;
@@ -150,6 +155,9 @@ void RT64::View::createOutputBuffers() {
 	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
 	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
+	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	rtDepth = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	rtViewDirection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -200,6 +208,7 @@ void RT64::View::createOutputBuffers() {
 	rtRefraction.SetName(L"rtRefraction");
 	rtTransparent.SetName(L"rtTransparent");
 	rtFlow.SetName(L"rtFlow");
+	rtDepth.SetName(L"rtDepth");
 	rtHitDistAndFlow.SetName(L"rtHitDistAndFlow");
 	rtHitColor.SetName(L"rtHitColor");
 	rtHitNormal.SetName(L"rtHitNormal");
@@ -250,6 +259,7 @@ void RT64::View::releaseOutputBuffers() {
 	rtRefraction.Release();
 	rtTransparent.Release();
 	rtFlow.Release();
+	rtDepth.Release();
 	rtHitDistAndFlow.Release();
 	rtHitColor.Release();
 	rtHitNormal.Release();
@@ -447,6 +457,10 @@ void RT64::View::createShaderResourceHeap() {
 		
 		// UAV for flow buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFlow.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for depth buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDepth.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for hit distance and world flow buffer.
@@ -1023,6 +1037,26 @@ void RT64::View::update() {
 	RT64_LOG_PRINTF("Finished view update");
 }
 
+float halton(int i, int b) {
+	/* Creates a halton sequence of values between 0 and 1.
+	https://en.wikipedia.org/wiki/Halton_sequence
+	Used for jittering based on a constant set of 2D points. */
+	float f = 1.0;
+	float r = 0.0;
+	while (i > 0)
+	{
+		f = f / float(b);
+		r = r + f * float(i % b);
+		i = i / b;
+	}
+	return r;
+}
+
+// Halton<2, 3> 16
+RT64_VECTOR2 jitter(int frame) {
+	return { halton(frame % 32 + 1, 2) - 0.5f, halton(frame % 32 + 1, 3) - 0.5f };
+}
+
 void RT64::View::render() {
 	RT64_LOG_PRINTF("Started view render");
 
@@ -1114,6 +1148,7 @@ void RT64::View::render() {
 			rtViewport = viewport;
 		}
 
+		globalParamsBufferData.pixelJitter = jitter(globalParamsBufferData.frameCount);
 		globalParamsBufferData.viewport.x = rtViewport.TopLeftX;
 		globalParamsBufferData.viewport.y = rtViewport.TopLeftY;
 		globalParamsBufferData.viewport.z = rtViewport.Width;
@@ -1262,9 +1297,11 @@ void RT64::View::render() {
 		}
 
 		// Compose the output buffer.
+		ID3D12Resource *rtOutputCur = rtOutput[rtSwap ? 1 : 0].Get();
+
 		// Barriers for shading buffers after rays are finished.
 		CD3DX12_RESOURCE_BARRIER afterDispatchBarriers[] = {
-			CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDiffuse.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
@@ -1295,7 +1332,7 @@ void RT64::View::render() {
 		d3dCommandList->DrawInstanced(3, 1, 0, 0);
 
 		// Switch output to a pixel shader resource.
-		CD3DX12_RESOURCE_BARRIER afterComposeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutput[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		CD3DX12_RESOURCE_BARRIER afterComposeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		d3dCommandList->ResourceBarrier(1, &afterComposeBarrier);
 
 		// Denoise if enabled.
@@ -1316,6 +1353,10 @@ void RT64::View::render() {
 			resetScissor();
 			resetViewport();
 		}
+
+		// Transition the motion vector texture to a shader resource.
+		CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		d3dCommandList->ResourceBarrier(1, &flowBarrier);
 
 		if (rtUpscaleActive) {
 			if (rtUpscaleMode == UpscaleMode::FSR) {
@@ -1341,6 +1382,30 @@ void RT64::View::render() {
 				// Switch output to shader resource.
 				CD3DX12_RESOURCE_BARRIER afterEasuBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				d3dCommandList->ResourceBarrier(1, &afterEasuBarrier);
+			}
+			else if (rtUpscaleMode == UpscaleMode::DLSS) {
+				// Switch output to UAV.
+				CD3DX12_RESOURCE_BARRIER beforeDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				d3dCommandList->ResourceBarrier(1, &beforeDlssBarrier);
+
+				// Execute everything until now.
+				scene->getDevice()->submitCommandList();
+				scene->getDevice()->waitForGPU();
+				scene->getDevice()->resetCommandList();
+
+				// Execute DLSS.
+				dlss->upscale(0, 0, rtWidth, rtHeight, rtOutputCur, rtOutputUpscaled.Get(), rtFlow.Get(), rtDepth.Get(), false, -globalParamsBufferData.pixelJitter.x, -globalParamsBufferData.pixelJitter.y);
+
+				// Switch output to shader resource.
+				CD3DX12_RESOURCE_BARRIER afterDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				d3dCommandList->ResourceBarrier(1, &afterDlssBarrier);
+
+				// Reset the command list.
+				scene->getDevice()->submitCommandList();
+				scene->getDevice()->waitForGPU();
+				scene->getDevice()->resetCommandList();
+				resetScissor();
+				resetViewport();
 			}
 			else {
 				assert(false && "Unimplemented upscaling mode.");
@@ -1384,10 +1449,6 @@ void RT64::View::render() {
 		// Apply the same scissor and viewport that was determined for the raytracing step.
 		applyScissor(rtScissorRect);
 		applyViewport(rtViewport);
-
-		// Transition the motion vector texture to a shader resource.
-		CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		d3dCommandList->ResourceBarrier(1, &flowBarrier);
 
 		// Draw the output to the screen.
 		if (globalParamsBufferData.visualizationMode == VisualizationModeFinal) {
