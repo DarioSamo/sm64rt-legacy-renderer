@@ -40,12 +40,14 @@ RT64::Scene::~Scene() {
 
 	lightsBuffer.Release();
 
-	for (int i = 0; i < views.size(); i++) {
-		delete views[i];
+	auto viewsCopy = views;
+	for (View *view : viewsCopy) {
+		delete view;
 	}
 
-	for (int i = 0; i < instances.size(); i++) {
-		delete instances[i];
+	auto instancesCopy = instances;
+	for (Instance *instance : instancesCopy) {
+		delete instance;
 	}
 }
 

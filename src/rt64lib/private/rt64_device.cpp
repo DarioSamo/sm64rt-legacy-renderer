@@ -86,13 +86,12 @@ RT64::Device::Device(HWND hwnd) {
 }
 
 RT64::Device::~Device() {
-	RT64_LOG_CLOSE();
-
-	/* TODO: Re-enable once resources are properly released.
-	if (d3dAllocator != nullptr) {
-		d3dAllocator->Release();
+	auto scenesCopy = scenes;
+	for (Scene *scene : scenesCopy) {
+		delete scene;
 	}
-	*/
+
+	RT64_LOG_CLOSE();
 }
 
 void RT64::Device::createDXGIFactory() {

@@ -84,6 +84,7 @@ RT64::View::View(Scene *scene) {
 	scissorApplied = false;
 	viewportApplied = false;
 
+	// Try to initialize DLSS. The object will not be initialized in unsupported hardware.
 	dlss = new DLSS(scene->getDevice());
 	dlssQuality = DLSS::QualityMode::Balanced;
 	dlssSharpness = 0.0f;
@@ -102,6 +103,7 @@ RT64::View::View(Scene *scene) {
 
 RT64::View::~View() {
 	delete denoiser;
+	delete dlss;
 
 	scene->removeView(this);
 

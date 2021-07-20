@@ -346,7 +346,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;D:\Librerias\nvngx_dlss_sdk\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;./contrib/nvngx_dlss_sdk/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -355,11 +355,11 @@
     <Link>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;cudart_static.lib;nvsdk_ngx_s_dbg.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>../../lib/rt64libd.lib</ImportLibrary>
-      <AdditionalLibraryDirectories>D:\Librerias\nvngx_dlss_sdk\Lib\Windows_x86_64\x86_64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>./contrib/nvngx_dlss_sdk/Lib/Windows_x86_64/x86_64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "D:\Librerias\nvngx_dlss_sdk\Lib\Windows_x86_64\dev" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
+(robocopy "$(ProjectDir)\contrib\nvngx_dlss_sdk\Lib\Windows_x86_64\dev" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -371,7 +371,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;D:\Librerias\nvngx_dlss_sdk\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;./contrib/nvngx_dlss_sdk/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -380,12 +380,12 @@
       <OptimizeReferences>true</OptimizeReferences>
       <ImportLibrary>../../lib/rt64lib.lib</ImportLibrary>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;cudart_static.lib;nvsdk_ngx_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>D:\Librerias\nvngx_dlss_sdk\Lib\Windows_x86_64\x86_64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>./contrib/nvngx_dlss_sdk/Lib/Windows_x86_64/x86_64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "D:\Librerias\nvngx_dlss_sdk\Lib\Windows_x86_64\rel" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
+(robocopy "$(ProjectDir)\contrib\nvngx_dlss_sdk\Lib\Windows_x86_64\rel" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">
@@ -397,9 +397,9 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;NDEBUG;RT64_MINIMAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>./;./contrib/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

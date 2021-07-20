@@ -2,6 +2,8 @@
 // RT64
 //
 
+#ifndef RT64_MINIMAL
+
 #include "rt64_dlss.h"
 
 #include <nvsdk_ngx_helpers.h>
@@ -9,8 +11,7 @@
 #include "rt64_common.h"
 #include "rt64_device.h"
 
-// TODO: Change App Id to what exactly?
-#define APP_ID 231313132
+#define APP_ID 0x4D4152494F3634
 
 class RT64::DLSS::Context {
 private:
@@ -234,3 +235,5 @@ void RT64::DLSS::upscale(const UpscaleParameters &p) {
 bool RT64::DLSS::isInitialized() const {
     return ctx->isInitialized();
 }
+
+#endif
