@@ -4,6 +4,8 @@
 
 #ifndef RT64_MINIMAL
 
+#ifdef RT64_DLSS
+
 #include "rt64_dlss.h"
 
 #include <nvsdk_ngx_helpers.h>
@@ -235,5 +237,7 @@ void RT64::DLSS::upscale(const UpscaleParameters &p) {
 bool RT64::DLSS::isInitialized() const {
     return ctx->isInitialized();
 }
+
+#endif
 
 #endif

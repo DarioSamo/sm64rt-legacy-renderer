@@ -116,11 +116,6 @@ namespace RT64 {
 		bool denoiserEnabled;
 		bool denoiserTemporal;
 		Denoiser *denoiser;
-		DLSS *dlss;
-		DLSS::QualityMode dlssQuality;
-		float dlssSharpness;
-		bool dlssAutoExposure;
-		bool dlssResolutionOverride;
 
 		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
@@ -155,6 +150,14 @@ namespace RT64 {
 		AllocatedResource im3dVertexBuffer;
 		D3D12_VERTEX_BUFFER_VIEW im3dVertexBufferView;
 		unsigned int im3dVertexCount;
+
+#ifdef RT64_DLSS
+		DLSS *dlss;
+		DLSS::QualityMode dlssQuality;
+		float dlssSharpness;
+		bool dlssAutoExposure;
+		bool dlssResolutionOverride;
+#endif
 		
 		void createOutputBuffers();
 		void releaseOutputBuffers();
@@ -210,6 +213,14 @@ namespace RT64 {
 		bool getDenoiserTemporalMode() const;
 		void setUpscaleMode(UpscaleMode v);
 		UpscaleMode getUpscaleMode() const;
+		void setSkyPlaneTexture(Texture *texture);
+		RT64_VECTOR3 getRayDirectionAt(int x, int y);
+		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
+		void resize();
+		int getWidth() const;
+		int getHeight() const;
+
+#ifdef RT64_DLSS
 		void setDlssQualityMode(RT64::DLSS::QualityMode v);
 		DLSS::QualityMode getDlssQualityMode();
 		void setDlssSharpness(float v);
@@ -219,11 +230,6 @@ namespace RT64 {
 		void setDlssAutoExposure(bool v);
 		bool getDlssAutoExposure() const;
 		bool getDlssInitialized() const;
-		void setSkyPlaneTexture(Texture *texture);
-		RT64_VECTOR3 getRayDirectionAt(int x, int y);
-		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
-		void resize();
-		int getWidth() const;
-		int getHeight() const;
+#endif
 	};
 };

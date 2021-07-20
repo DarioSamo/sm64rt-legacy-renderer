@@ -103,7 +103,9 @@ namespace RT64 {
 	enum class UpscaleMode {
 		Bilinear,
 		FSR,
+#ifdef RT64_DLSS
 		DLSS
+#endif
 	};
 
 	// Some shared shader constants.

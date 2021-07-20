@@ -84,12 +84,14 @@ RT64::View::View(Scene *scene) {
 	scissorApplied = false;
 	viewportApplied = false;
 
-	// Try to initialize DLSS. The object will not be initialized in unsupported hardware.
+#ifdef RT64_DLSS
+	// Try to initialize DLSS. The object will not be initialized if the hardware doesn't support it.
 	dlss = new DLSS(scene->getDevice());
 	dlssQuality = DLSS::QualityMode::Balanced;
 	dlssSharpness = 0.0f;
 	dlssAutoExposure = false;
 	dlssResolutionOverride = false;
+#endif
 
 	createOutputBuffers();
 	createGlobalParamsBuffer();
@@ -102,9 +104,12 @@ RT64::View::View(Scene *scene) {
 }
 
 RT64::View::~View() {
-	delete denoiser;
+#ifdef RT64_DLSS
 	delete dlss;
+#endif
 
+	delete denoiser;
+	
 	scene->removeView(this);
 
 	releaseOutputBuffers();
@@ -118,6 +123,8 @@ void RT64::View::createOutputBuffers() {
 	outputRtvDescriptorSize = scene->getDevice()->getD3D12Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	int screenWidth = scene->getDevice()->getWidth();
 	int screenHeight = scene->getDevice()->getHeight();
+
+#ifdef RT64_DLSS
 	if ((rtUpscaleMode == UpscaleMode::DLSS) && dlss->isInitialized()) {
 		int dlssWidth, dlssHeight;
 		DLSS::QualityMode setQuality = DLSS::QualityMode::Balanced;
@@ -138,7 +145,9 @@ void RT64::View::createOutputBuffers() {
 
 		dlss->set(setQuality, rtWidth, rtHeight, screenWidth, screenHeight, dlssAutoExposure);
 	}
-	else {
+	else
+#endif
+	{
 		rtWidth = lround(screenWidth * resolutionScale);
 		rtHeight = lround(screenHeight * resolutionScale);
 	}
@@ -1136,8 +1145,12 @@ void RT64::View::render() {
 			rtViewport = viewport;
 		}
 
+#	ifdef RT64_DLSS
 		// Only use jitter when DLSS is active.
 		bool jitterActive = rtUpscaleActive && (rtUpscaleMode == UpscaleMode::DLSS);
+#	else
+		bool jitterActive = false;
+#	endif
 		if (jitterActive) {
 			const int PhaseCount = 64;
 			globalParamsBufferData.pixelJitter = HaltonJitter(globalParamsBufferData.frameCount, PhaseCount);
@@ -1385,6 +1398,7 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER afterEasuBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				d3dCommandList->ResourceBarrier(1, &afterEasuBarrier);
 			}
+#		ifdef RT64_DLSS
 			else if (rtUpscaleMode == UpscaleMode::DLSS) {
 				// Switch output to UAV.
 				CD3DX12_RESOURCE_BARRIER beforeDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -1407,6 +1421,7 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER afterDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				d3dCommandList->ResourceBarrier(1, &afterDlssBarrier);
 			}
+#		endif
 			else {
 				assert(false && "Unimplemented upscaling mode.");
 			}
@@ -1758,51 +1773,6 @@ RT64::UpscaleMode RT64::View::getUpscaleMode() const {
 	return rtUpscaleMode;
 }
 
-void RT64::View::setDlssQualityMode(RT64::DLSS::QualityMode v) {
-	if (dlssQuality != v) {
-		dlssQuality = v;
-		rtRecreateBuffers = true;
-	}
-}
-
-RT64::DLSS::QualityMode RT64::View::getDlssQualityMode() {
-	return dlssQuality;
-}
-
-void RT64::View::setDlssSharpness(float v) {
-	dlssSharpness = v;
-}
-
-float RT64::View::getDlssSharpness() const {
-	return dlssSharpness;
-}
-
-void RT64::View::setDlssResolutionOverride(bool v) {
-	if (dlssResolutionOverride != v) {
-		dlssResolutionOverride = v;
-		rtRecreateBuffers = true;
-	}
-}
-
-bool RT64::View::getDlssResolutionOverride() const {
-	return dlssResolutionOverride;
-}
-
-void RT64::View::setDlssAutoExposure(bool v) {
-	if (dlssAutoExposure != v) {
-		dlssAutoExposure = v;
-		rtRecreateBuffers = true;
-	}
-}
-
-bool RT64::View::getDlssAutoExposure() const {
-	return dlssAutoExposure;
-}
-
-bool RT64::View::getDlssInitialized() const {
-	return dlss->isInitialized();
-}
-
 void RT64::View::setSkyPlaneTexture(Texture *texture) {
 	skyPlaneTexture = texture;
 }
@@ -1872,6 +1842,53 @@ int RT64::View::getWidth() const {
 int RT64::View::getHeight() const {
 	return scene->getDevice()->getHeight();
 }
+
+#ifdef RT64_DLSS
+void RT64::View::setDlssQualityMode(RT64::DLSS::QualityMode v) {
+	if (dlssQuality != v) {
+		dlssQuality = v;
+		rtRecreateBuffers = true;
+	}
+}
+
+RT64::DLSS::QualityMode RT64::View::getDlssQualityMode() {
+	return dlssQuality;
+}
+
+void RT64::View::setDlssSharpness(float v) {
+	dlssSharpness = v;
+}
+
+float RT64::View::getDlssSharpness() const {
+	return dlssSharpness;
+}
+
+void RT64::View::setDlssResolutionOverride(bool v) {
+	if (dlssResolutionOverride != v) {
+		dlssResolutionOverride = v;
+		rtRecreateBuffers = true;
+	}
+}
+
+bool RT64::View::getDlssResolutionOverride() const {
+	return dlssResolutionOverride;
+}
+
+void RT64::View::setDlssAutoExposure(bool v) {
+	if (dlssAutoExposure != v) {
+		dlssAutoExposure = v;
+		rtRecreateBuffers = true;
+	}
+}
+
+bool RT64::View::getDlssAutoExposure() const {
+	return dlssAutoExposure;
+}
+
+bool RT64::View::getDlssInitialized() const {
+	return dlss->isInitialized();
+}
+#endif
 
 // Public
 
