@@ -14,8 +14,6 @@
 #include "Textures.hlsli"
 #include "Lights.hlsli"
 
-#define MAX_LIGHTS 32
-
 SamplerState gBackgroundSampler : register(s0);
 
 float2 FakeEnvMapUV(float3 rayDirection, float yawOffset) {

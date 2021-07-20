@@ -11,9 +11,10 @@
 #include "nv_helpers_dx12/TopLevelASGenerator.h"
 #include "nv_helpers_dx12/ShaderBindingTableGenerator.h"
 
+#include "rt64_dlss.h"
+
 namespace RT64 {
 	class Denoiser;
-	class DLSS;
 	class Scene;
 	class Shader;
 	class Inspector;
@@ -105,18 +106,21 @@ namespace RT64 {
 		bool rtSwap;
 		int rtWidth;
 		int rtHeight;
-		float rtScale;
 		float resolutionScale;
 		int maxReflections;
 		float sharpenAttenuation;
 		bool rtUpscaleActive;
 		bool rtSharpenActive;
 		UpscaleMode rtUpscaleMode;
-		SharpenMode rtSharpenMode;
+		bool rtRecreateBuffers;
 		bool denoiserEnabled;
 		bool denoiserTemporal;
 		Denoiser *denoiser;
 		DLSS *dlss;
+		DLSS::QualityMode dlssQuality;
+		float dlssSharpness;
+		bool dlssAutoExposure;
+		bool dlssResolutionOverride;
 
 		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
@@ -206,8 +210,15 @@ namespace RT64 {
 		bool getDenoiserTemporalMode() const;
 		void setUpscaleMode(UpscaleMode v);
 		UpscaleMode getUpscaleMode() const;
-		void setSharpenMode(SharpenMode v);
-		SharpenMode getSharpenMode() const;
+		void setDlssQualityMode(RT64::DLSS::QualityMode v);
+		DLSS::QualityMode getDlssQualityMode();
+		void setDlssSharpness(float v);
+		float getDlssSharpness() const;
+		void setDlssResolutionOverride(bool v);
+		bool getDlssResolutionOverride() const;
+		void setDlssAutoExposure(bool v);
+		bool getDlssAutoExposure() const;
+		bool getDlssInitialized() const;
 		void setSkyPlaneTexture(Texture *texture);
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);

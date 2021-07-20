@@ -17,6 +17,7 @@ private:
     Device *device;
 	NVSDK_NGX_Parameter *ngxParameters = nullptr;
 	NVSDK_NGX_Handle *dlssFeature = nullptr;
+    bool initialized = false;
 public:
 	Context(Device *device) {
         assert(device != nullptr);
@@ -64,6 +65,8 @@ public:
 			RT64_LOG_PRINTF("NVIDIA DLSS not available on this hardware/platform., FeatureInitResult = 0x%08x, info: %ls", FeatureInitResult, GetNGXResultAsString(FeatureInitResult));
 			return;
 		}
+
+        initialized = true;
 	}
 
 	~Context() {
@@ -71,26 +74,43 @@ public:
         NVSDK_NGX_D3D12_Shutdown();
 	}
 
-    bool set(int inputWidth, int inputHeight, int outputWidth, int outputHeight) {
+    NVSDK_NGX_PerfQuality_Value toNGXQuality(QualityMode q) {
+        switch (q) {
+        case QualityMode::UltraPerformance:
+            return NVSDK_NGX_PerfQuality_Value_UltraPerformance;
+        case QualityMode::MaxPerformance:
+            return NVSDK_NGX_PerfQuality_Value_MaxPerf;
+        case QualityMode::Balanced:
+            return NVSDK_NGX_PerfQuality_Value_Balanced;
+        case QualityMode::MaxQuality:
+            return NVSDK_NGX_PerfQuality_Value_MaxQuality;
+        default:
+            return NVSDK_NGX_PerfQuality_Value_Balanced;
+        }
+    }
+
+    bool set(QualityMode quality, int renderWidth, int renderHeight, int displayWidth, int displayHeight, bool autoExposure) {
         release();
 
-        // TODO: Check if NGX is initialized.
         unsigned int CreationNodeMask = 1;
         unsigned int VisibilityNodeMask = 1;
         NVSDK_NGX_Result ResultDLSS = NVSDK_NGX_Result_Fail;
         int DlssCreateFeatureFlags = NVSDK_NGX_DLSS_Feature_Flags_None;
         DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
-        //DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_DoSharpening;
+        DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_DoSharpening;
+
+        if (autoExposure) {
+            DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_IsHDR;
+            DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_AutoExposure;
+        }
 
         NVSDK_NGX_DLSS_Create_Params DlssCreateParams;
         memset(&DlssCreateParams, 0, sizeof(DlssCreateParams));
-        DlssCreateParams.Feature.InWidth = inputWidth;
-        DlssCreateParams.Feature.InHeight = inputHeight;
-        DlssCreateParams.Feature.InTargetWidth = outputWidth;
-        DlssCreateParams.Feature.InTargetHeight = outputHeight;
-        //DlssCreateParams.Feature.InPerfQualityValue = NVSDK_NGX_PerfQuality_Value_MaxPerf;
-        DlssCreateParams.Feature.InPerfQualityValue = NVSDK_NGX_PerfQuality_Value_Balanced;
-        //DlssCreateParams.Feature.InPerfQualityValue = NVSDK_NGX_PerfQuality_Value_MaxQuality;
+        DlssCreateParams.Feature.InWidth = renderWidth;
+        DlssCreateParams.Feature.InHeight = renderHeight;
+        DlssCreateParams.Feature.InTargetWidth = displayWidth;
+        DlssCreateParams.Feature.InTargetHeight = displayHeight;
+        DlssCreateParams.Feature.InPerfQualityValue = toNGXQuality(quality);
         DlssCreateParams.InFeatureCreateFlags = DlssCreateFeatureFlags;
 
         auto d3dCommandList = device->getD3D12CommandList();
@@ -120,36 +140,55 @@ public:
         dlssFeature = nullptr;
     }
 
-    void upscale(
-        unsigned int inColorOffX,
-        unsigned int inColorOffY,
-        unsigned int inColorWidth,
-        unsigned int inColorHeight,
-        ID3D12Resource *inColor,
-        ID3D12Resource *outColor,
-        ID3D12Resource *inFlow,
-        ID3D12Resource *inDepth,
-        bool resetAccumulation,
-        float jitterOffX,
-        float jitterOffY)
-    {
+    bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight, float &sharpness) {
+        unsigned int renderOptimalWidth = 0, renderOptimalHeight = 0;
+        unsigned int renderMaxWidth = 0, renderMaxHeight = 0;
+        unsigned int renderMinWidth = 0, renderMinHeight = 0;
+        float renderSharpness;
+        NVSDK_NGX_Result Result = NGX_DLSS_GET_OPTIMAL_SETTINGS(
+            ngxParameters,
+            displayWidth, displayHeight,
+            toNGXQuality(quality),
+            &renderOptimalWidth, &renderOptimalHeight,
+            &renderMaxWidth, &renderMaxHeight,
+            &renderMinWidth, &renderMinHeight,
+            &renderSharpness);
+
+        // Failed to retrieve the optimal settings.
+        if (NVSDK_NGX_FAILED(Result)) {
+            RT64_LOG_PRINTF("Querying Optimal Settings failed! code = 0x%08x, info: %ls", Result, GetNGXResultAsString(Result));
+            return false;
+        }
+        // Quality mode isn't allowed.
+        else if ((renderOptimalWidth == 0) || (renderOptimalHeight == 0)) {
+            return false;
+        }
+        else {
+            renderWidth = renderOptimalWidth;
+            renderHeight = renderOptimalHeight;
+            sharpness = renderSharpness;
+            return true;
+        }
+    }
+
+    void upscale(const UpscaleParameters &p) {
         assert(dlssFeature != nullptr);
-        int Reset = resetAccumulation ? 1 : 0;
-        NVSDK_NGX_Coordinates renderingOffset = { inColorOffX, inColorOffY };
-        NVSDK_NGX_Dimensions  renderingSize = { inColorWidth, inColorHeight };
+        int Reset = p.resetAccumulation ? 1 : 0;
+        NVSDK_NGX_Coordinates renderingOffset = { (unsigned int)(p.inRect.x), (unsigned int)(p.inRect.y) };
+        NVSDK_NGX_Dimensions  renderingSize = { (unsigned int)(p.inRect.w), (unsigned int)(p.inRect.h) };
 
         NVSDK_NGX_Result Result;
         NVSDK_NGX_D3D12_DLSS_Eval_Params D3D12DlssEvalParams;
         memset(&D3D12DlssEvalParams, 0, sizeof(D3D12DlssEvalParams));
 
-        D3D12DlssEvalParams.Feature.pInColor = inColor;
-        D3D12DlssEvalParams.Feature.pInOutput = outColor;
-        D3D12DlssEvalParams.pInDepth = inDepth;
-        D3D12DlssEvalParams.pInMotionVectors = inFlow;
+        D3D12DlssEvalParams.Feature.pInColor = p.inColor;
+        D3D12DlssEvalParams.Feature.pInOutput = p.outColor;
+        D3D12DlssEvalParams.pInDepth = p.inDepth;
+        D3D12DlssEvalParams.pInMotionVectors = p.inFlow;
         D3D12DlssEvalParams.pInExposureTexture = nullptr;
-        D3D12DlssEvalParams.InJitterOffsetX = jitterOffX;
-        D3D12DlssEvalParams.InJitterOffsetY = jitterOffY;
-        D3D12DlssEvalParams.Feature.InSharpness = 0.0f;//flSharpness;
+        D3D12DlssEvalParams.InJitterOffsetX = p.jitterX;
+        D3D12DlssEvalParams.InJitterOffsetY = p.jitterY;
+        D3D12DlssEvalParams.Feature.InSharpness = p.sharpness;
         D3D12DlssEvalParams.InReset = Reset;
         D3D12DlssEvalParams.InMVScaleX = 1.0f;
         D3D12DlssEvalParams.InMVScaleY = 1.0f;
@@ -166,6 +205,10 @@ public:
             RT64_LOG_PRINTF("Failed to NVSDK_NGX_D3D12_EvaluateFeature for DLSS, code = 0x%08x, info: %ls", Result, GetNGXResultAsString(Result));
         }
     }
+
+    bool isInitialized() const {
+        return initialized;
+    }
 };
 
 RT64::DLSS::DLSS(Device *device) {
@@ -176,61 +219,18 @@ RT64::DLSS::~DLSS() {
 	delete ctx;
 }
 
-void RT64::DLSS::set(int inputWidth, int inputHeight, int outputWidth, int outputHeight) {
-    ctx->set(inputWidth, inputHeight, outputWidth, outputHeight);
+void RT64::DLSS::set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight, bool autoExposure) {
+    ctx->set(inQuality, renderWidth, renderHeight, displayWidth, displayHeight, autoExposure);
 }
 
-void RT64::DLSS::upscale(
-    unsigned int inColorOffX, unsigned int inColorOffY,
-    unsigned int inColorWidth, unsigned int inColorHeight,
-    ID3D12Resource *inColor, ID3D12Resource *outColor, ID3D12Resource *inFlow, ID3D12Resource *inDepth,
-    bool resetAccumulation, float jitterOffX, float jitterOffY)
-{
-	ctx->upscale(
-        inColorOffX, inColorOffY,
-        inColorWidth, inColorHeight,
-        inColor, outColor, inFlow, inDepth,
-        resetAccumulation, jitterOffX, jitterOffY);
+bool RT64::DLSS::getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight, float &sharpness) {
+    return ctx->getQualityInformation(quality, displayWidth, displayHeight, renderWidth, renderHeight, sharpness);
 }
 
-/*
-// Not everything is returned from GET_OPTIMAL_SETTINGS as it is unneeded for this sample.  However, everything is
-// saved off for future use, since this sample should be updated as needed.
-bool NGXWrapper::QueryOptimalSettings(uint2 inDisplaySize, NVSDK_NGX_PerfQuality_Value inQualValue, DlssRecommendedSettings *outRecommendedSettings)
-{
-    if (!IsNGXInitialized())
-    {
-        outRecommendedSettings->m_ngxRecommendedOptimalRenderSize = inDisplaySize;
-        outRecommendedSettings->m_ngxDynamicMaximumRenderSize     = inDisplaySize;
-        outRecommendedSettings->m_ngxDynamicMinimumRenderSize     = inDisplaySize;
-        outRecommendedSettings->m_ngxRecommendedSharpness         = 0.0f;
-
-        log::info("NGX was not initialized when querying Optimal Settings");
-        return false;
-    }
-
-    NVSDK_NGX_Result Result = NGX_DLSS_GET_OPTIMAL_SETTINGS(m_ngxParameters,
-        inDisplaySize.x, inDisplaySize.y, inQualValue,
-        &outRecommendedSettings->m_ngxRecommendedOptimalRenderSize.x, &outRecommendedSettings->m_ngxRecommendedOptimalRenderSize.y,
-        &outRecommendedSettings->m_ngxDynamicMaximumRenderSize    .x, &outRecommendedSettings->m_ngxDynamicMaximumRenderSize    .y,
-        &outRecommendedSettings->m_ngxDynamicMinimumRenderSize    .x, &outRecommendedSettings->m_ngxDynamicMinimumRenderSize    .y,
-        &outRecommendedSettings->m_ngxRecommendedSharpness);
-
-    // Depending on what version of DLSS DLL is being used, a sharpness of > 1.0f was possible.
-    // This makes sure we clamp to 1.0f.
-    clamp(outRecommendedSettings->m_ngxRecommendedSharpness, 0.0f, 1.0f);
-
-    if (NVSDK_NGX_FAILED(Result))
-    {
-        outRecommendedSettings->m_ngxRecommendedOptimalRenderSize   = inDisplaySize;
-        outRecommendedSettings->m_ngxDynamicMaximumRenderSize       = inDisplaySize;
-        outRecommendedSettings->m_ngxDynamicMinimumRenderSize       = inDisplaySize;
-        outRecommendedSettings->m_ngxRecommendedSharpness           = 0.0f;
-
-        log::warning("Querying Optimal Settings failed! code = 0x%08x, info: %ls", Result, GetNGXResultAsString(Result));
-        return false;
-    }
-
-    return true;
+void RT64::DLSS::upscale(const UpscaleParameters &p) {
+    ctx->upscale(p);
 }
-*/
+
+bool RT64::DLSS::isInitialized() const {
+    return ctx->isInitialized();
+}

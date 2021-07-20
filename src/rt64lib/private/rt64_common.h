@@ -106,11 +106,6 @@ namespace RT64 {
 		DLSS
 	};
 
-	enum class SharpenMode {
-		None,
-		FSR
-	};
-
 	// Some shared shader constants.
 	static const unsigned int VisualizationModeFinal = 0;
 	static const unsigned int VisualizationModeShadingPosition = 1;
@@ -300,6 +295,22 @@ namespace RT64 {
 		rowWidth = width * stride;
 		rowPadding = (rowWidth % RowMultiple) ? RowMultiple - (rowWidth % RowMultiple) : 0;
 		rowWidth += rowPadding;
+	}
+
+	inline float HaltonSequence(int i, int b) {
+		float f = 1.0;
+		float r = 0.0;
+		while (i > 0) {
+			f = f / float(b);
+			r = r + f * float(i % b);
+			i = i / b;
+		}
+
+		return r;
+	}
+
+	inline RT64_VECTOR2 HaltonJitter(int frame, int phases) {
+		return { HaltonSequence(frame % phases + 1, 2) - 0.5f, HaltonSequence(frame % phases + 1, 3) - 0.5f };
 	}
 #endif
 };

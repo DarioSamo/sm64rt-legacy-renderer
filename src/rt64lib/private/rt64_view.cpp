@@ -67,9 +67,9 @@ RT64::View::View(Scene *scene) {
 	rtWidth = 0;
 	rtHeight = 0;
 	maxReflections = 2;
-	rtScale = 1.0f;
 	rtUpscaleActive = false;
 	rtSharpenActive = false;
+	rtRecreateBuffers = false;
 	resolutionScale = 1.0f;
 	sharpenAttenuation = 0.25f;
 	denoiserEnabled = false;
@@ -85,6 +85,10 @@ RT64::View::View(Scene *scene) {
 	viewportApplied = false;
 
 	dlss = new DLSS(scene->getDevice());
+	dlssQuality = DLSS::QualityMode::Balanced;
+	dlssSharpness = 0.0f;
+	dlssAutoExposure = false;
+	dlssResolutionOverride = false;
 
 	createOutputBuffers();
 	createGlobalParamsBuffer();
@@ -112,14 +116,38 @@ void RT64::View::createOutputBuffers() {
 	outputRtvDescriptorSize = scene->getDevice()->getD3D12Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	int screenWidth = scene->getDevice()->getWidth();
 	int screenHeight = scene->getDevice()->getHeight();
-	rtWidth = lround(screenWidth * rtScale);
-	rtHeight = lround(screenHeight * rtScale);
+	if ((rtUpscaleMode == UpscaleMode::DLSS) && dlss->isInitialized()) {
+		int dlssWidth, dlssHeight;
+		DLSS::QualityMode setQuality = DLSS::QualityMode::Balanced;
+		float unusedSharpness;
+		if (dlssResolutionOverride) {
+			rtWidth = lround(screenWidth * resolutionScale);
+			rtHeight = lround(screenHeight * resolutionScale);
+		}
+		else if (dlss->getQualityInformation(dlssQuality, screenWidth, screenHeight, dlssWidth, dlssHeight, unusedSharpness)) {
+			rtWidth = dlssWidth;
+			rtHeight = dlssHeight;
+			setQuality = dlssQuality;
+		}
+		else {
+			rtWidth = screenWidth;
+			rtHeight = screenHeight;
+		}
+
+		dlss->set(setQuality, rtWidth, rtHeight, screenWidth, screenHeight, dlssAutoExposure);
+	}
+	else {
+		rtWidth = lround(screenWidth * resolutionScale);
+		rtHeight = lround(screenHeight * resolutionScale);
+	}
+
+	rtUpscaleActive = (rtUpscaleMode != UpscaleMode::Bilinear);
+	rtSharpenActive = (rtUpscaleMode == UpscaleMode::FSR);
+
 	globalParamsBufferData.resolution.x = (float)(rtWidth);
 	globalParamsBufferData.resolution.y = (float)(rtHeight);
 	globalParamsBufferData.resolution.z = (float)(screenWidth);
 	globalParamsBufferData.resolution.w = (float)(screenHeight);
-
-	dlss->set(rtWidth, rtHeight, screenWidth, screenHeight);
 
 	D3D12_CLEAR_VALUE clearValue = { };
 	clearValue.Color[0] = 0.0f;
@@ -890,33 +918,11 @@ void RT64::View::updateSharpenParamsBuffer() {
 
 void RT64::View::update() {
 	RT64_LOG_PRINTF("Started view update");
-	bool recreateBuffers = false;
-
-	// Check upscale.
-	int screenWidth = scene->getDevice()->getWidth();
-	int screenHeight = scene->getDevice()->getHeight();
-	bool upscale = (rtUpscaleMode != UpscaleMode::Bilinear) && ((rtWidth < screenWidth) || (rtHeight < screenHeight));
-	if (rtUpscaleActive != upscale) {
-		rtUpscaleActive = upscale;
-		recreateBuffers = true;
-	}
-
-	// Check sharpen.
-	bool sharpen = (rtSharpenMode != SharpenMode::None);
-	if (rtSharpenActive != sharpen) {
-		rtSharpenActive = sharpen;
-	}
-
-	// Check resolution scale.
-	if (rtScale != resolutionScale) {
-		rtScale = std::max(std::min(resolutionScale, 2.0f), 0.01f);
-		resolutionScale = rtScale;
-		recreateBuffers = true;
-	}
 
 	// Recreate buffers if necessary for next frame.
-	if (recreateBuffers) {
+	if (rtRecreateBuffers) {
 		createOutputBuffers();
+		rtRecreateBuffers = false;
 	}
 
 	auto getTextureIndex = [this](Texture *texture) {
@@ -1037,26 +1043,6 @@ void RT64::View::update() {
 	RT64_LOG_PRINTF("Finished view update");
 }
 
-float halton(int i, int b) {
-	/* Creates a halton sequence of values between 0 and 1.
-	https://en.wikipedia.org/wiki/Halton_sequence
-	Used for jittering based on a constant set of 2D points. */
-	float f = 1.0;
-	float r = 0.0;
-	while (i > 0)
-	{
-		f = f / float(b);
-		r = r + f * float(i % b);
-		i = i / b;
-	}
-	return r;
-}
-
-// Halton<2, 3> 16
-RT64_VECTOR2 jitter(int frame) {
-	return { halton(frame % 32 + 1, 2) - 0.5f, halton(frame % 32 + 1, 3) - 0.5f };
-}
-
 void RT64::View::render() {
 	RT64_LOG_PRINTF("Started view render");
 
@@ -1151,7 +1137,8 @@ void RT64::View::render() {
 		// Only use jitter when DLSS is active.
 		bool jitterActive = rtUpscaleActive && (rtUpscaleMode == UpscaleMode::DLSS);
 		if (jitterActive) {
-			globalParamsBufferData.pixelJitter = jitter(globalParamsBufferData.frameCount);
+			const int PhaseCount = 64;
+			globalParamsBufferData.pixelJitter = HaltonJitter(globalParamsBufferData.frameCount, PhaseCount);
 		}
 		else {
 			globalParamsBufferData.pixelJitter = { 0.0f, 0.0f };
@@ -1402,7 +1389,17 @@ void RT64::View::render() {
 				d3dCommandList->ResourceBarrier(1, &beforeDlssBarrier);
 
 				// Execute DLSS.
-				dlss->upscale(0, 0, rtWidth, rtHeight, rtOutputCur, rtOutputUpscaled.Get(), rtFlow.Get(), rtDepth.Get(), false, -globalParamsBufferData.pixelJitter.x, -globalParamsBufferData.pixelJitter.y);
+				DLSS::UpscaleParameters params;
+				params.inRect = { 0, 0, rtWidth, rtHeight };
+				params.inColor = rtOutputCur;
+				params.inFlow = rtFlow.Get();
+				params.inDepth = rtDepth.Get();
+				params.outColor = rtOutputUpscaled.Get();
+				params.resetAccumulation = false; // TODO: Make this configurable via the API.
+				params.sharpness = dlssSharpness;
+				params.jitterX = -globalParamsBufferData.pixelJitter.x;
+				params.jitterY = -globalParamsBufferData.pixelJitter.y;
+				dlss->upscale(params);
 
 				// Switch output to shader resource.
 				CD3DX12_RESOURCE_BARRIER afterDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -1414,7 +1411,7 @@ void RT64::View::render() {
 		}
 
 		if (rtSharpenActive) {
-			if (rtSharpenMode == SharpenMode::FSR) {
+			if (rtUpscaleMode == UpscaleMode::FSR) {
 				RT64_LOG_PRINTF("Sharpening frame");
 
 				// Switch output to UAV.
@@ -1690,7 +1687,10 @@ int RT64::View::getVisualizationMode() const {
 }
 
 void RT64::View::setResolutionScale(float v) {
-	resolutionScale = v;
+	if (resolutionScale != v) {
+		resolutionScale = v;
+		rtRecreateBuffers = true;
+	}
 }
 
 float RT64::View::getResolutionScale() const {
@@ -1746,19 +1746,59 @@ bool RT64::View::getDenoiserTemporalMode() const {
 }
 
 void RT64::View::setUpscaleMode(UpscaleMode v) {
-	rtUpscaleMode = v;
+	if (rtUpscaleMode != v) {
+		rtUpscaleMode = v;
+		rtRecreateBuffers = true;
+	}
 }
 
 RT64::UpscaleMode RT64::View::getUpscaleMode() const {
 	return rtUpscaleMode;
 }
 
-void RT64::View::setSharpenMode(SharpenMode v) {
-	rtSharpenMode = v;
+void RT64::View::setDlssQualityMode(RT64::DLSS::QualityMode v) {
+	if (dlssQuality != v) {
+		dlssQuality = v;
+		rtRecreateBuffers = true;
+	}
 }
 
-RT64::SharpenMode RT64::View::getSharpenMode() const {
-	return rtSharpenMode;
+RT64::DLSS::QualityMode RT64::View::getDlssQualityMode() {
+	return dlssQuality;
+}
+
+void RT64::View::setDlssSharpness(float v) {
+	dlssSharpness = v;
+}
+
+float RT64::View::getDlssSharpness() const {
+	return dlssSharpness;
+}
+
+void RT64::View::setDlssResolutionOverride(bool v) {
+	if (dlssResolutionOverride != v) {
+		dlssResolutionOverride = v;
+		rtRecreateBuffers = true;
+	}
+}
+
+bool RT64::View::getDlssResolutionOverride() const {
+	return dlssResolutionOverride;
+}
+
+void RT64::View::setDlssAutoExposure(bool v) {
+	if (dlssAutoExposure != v) {
+		dlssAutoExposure = v;
+		rtRecreateBuffers = true;
+	}
+}
+
+bool RT64::View::getDlssAutoExposure() const {
+	return dlssAutoExposure;
+}
+
+bool RT64::View::getDlssInitialized() const {
+	return dlss->isInitialized();
 }
 
 void RT64::View::setSkyPlaneTexture(Texture *texture) {
@@ -1777,7 +1817,10 @@ RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {
 RT64_INSTANCE *RT64::View::getRaytracedInstanceAt(int x, int y) {
 	// TODO: This doesn't handle cases properly when nothing was hit at the target pixel and returns
 	// the first instance instead. We need to determine what's the best solution for that.
+	// TODO: This is broken on deferred renderer at the moment.
+	return nullptr;
 
+	/*
 	// Copy instance id resource to readback if necessary.
 	if (!rtHitInstanceIdReadbackUpdated) {
 		auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
@@ -1813,10 +1856,11 @@ RT64_INSTANCE *RT64::View::getRaytracedInstanceAt(int x, int y) {
 	}
 	
 	return (RT64_INSTANCE *)(rtInstances[instanceId].instance);
+	*/
 }
 
 void RT64::View::resize() {
-	createOutputBuffers();
+	rtRecreateBuffers = true;
 }
 
 int RT64::View::getWidth() const {
