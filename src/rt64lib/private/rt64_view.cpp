@@ -1148,7 +1148,15 @@ void RT64::View::render() {
 			rtViewport = viewport;
 		}
 
-		globalParamsBufferData.pixelJitter = jitter(globalParamsBufferData.frameCount);
+		// Only use jitter when DLSS is active.
+		bool jitterActive = rtUpscaleActive && (rtUpscaleMode == UpscaleMode::DLSS);
+		if (jitterActive) {
+			globalParamsBufferData.pixelJitter = jitter(globalParamsBufferData.frameCount);
+		}
+		else {
+			globalParamsBufferData.pixelJitter = { 0.0f, 0.0f };
+		}
+
 		globalParamsBufferData.viewport.x = rtViewport.TopLeftX;
 		globalParamsBufferData.viewport.y = rtViewport.TopLeftY;
 		globalParamsBufferData.viewport.z = rtViewport.Width;
@@ -1217,13 +1225,14 @@ void RT64::View::render() {
 
 		// Make sure all these buffers are usable as UAVs.
 		CD3DX12_RESOURCE_BARRIER preDispatchBarriers[] = {
-			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDiffuse.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtReflection.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(preDispatchBarriers), preDispatchBarriers);
@@ -1354,9 +1363,13 @@ void RT64::View::render() {
 			resetViewport();
 		}
 
-		// Transition the motion vector texture to a shader resource.
-		CD3DX12_RESOURCE_BARRIER flowBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		d3dCommandList->ResourceBarrier(1, &flowBarrier);
+		// Transition the motion vectors and depth buffer to shader resources.
+		CD3DX12_RESOURCE_BARRIER beforeFiltersBarriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+		};
+
+		d3dCommandList->ResourceBarrier(_countof(beforeFiltersBarriers), beforeFiltersBarriers);
 
 		if (rtUpscaleActive) {
 			if (rtUpscaleMode == UpscaleMode::FSR) {
@@ -1388,24 +1401,12 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER beforeDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				d3dCommandList->ResourceBarrier(1, &beforeDlssBarrier);
 
-				// Execute everything until now.
-				scene->getDevice()->submitCommandList();
-				scene->getDevice()->waitForGPU();
-				scene->getDevice()->resetCommandList();
-
 				// Execute DLSS.
 				dlss->upscale(0, 0, rtWidth, rtHeight, rtOutputCur, rtOutputUpscaled.Get(), rtFlow.Get(), rtDepth.Get(), false, -globalParamsBufferData.pixelJitter.x, -globalParamsBufferData.pixelJitter.y);
 
 				// Switch output to shader resource.
 				CD3DX12_RESOURCE_BARRIER afterDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				d3dCommandList->ResourceBarrier(1, &afterDlssBarrier);
-
-				// Reset the command list.
-				scene->getDevice()->submitCommandList();
-				scene->getDevice()->waitForGPU();
-				scene->getDevice()->resetCommandList();
-				resetScissor();
-				resetViewport();
 			}
 			else {
 				assert(false && "Unimplemented upscaling mode.");
