@@ -86,10 +86,12 @@ RT64::Device::Device(HWND hwnd) {
 }
 
 RT64::Device::~Device() {
+#ifndef RT64_MINIMAL
 	auto scenesCopy = scenes;
 	for (Scene *scene : scenesCopy) {
 		delete scene;
 	}
+#endif
 
 	RT64_LOG_CLOSE();
 }
