@@ -160,6 +160,8 @@ void RT64::View::createOutputBuffers() {
 	globalParamsBufferData.resolution.z = (float)(screenWidth);
 	globalParamsBufferData.resolution.w = (float)(screenHeight);
 
+	fprintf(stdout, "Render buffer: %dX%d\n", rtWidth, rtHeight);
+
 	D3D12_CLEAR_VALUE clearValue = { };
 	clearValue.Color[0] = 0.0f;
 	clearValue.Color[1] = 0.0f;
