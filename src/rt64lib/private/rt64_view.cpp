@@ -597,7 +597,10 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(activeInstancesBufferMaterials.Get(), &srvDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// Add the texture SRV.
+		// Add the texture SRVs.
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Texture2D.MipLevels = -1;
+
 		for (size_t i = 0; i < usedTextures.size(); i++) {
 			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(usedTextures[i]->getTexture(), &textureSRVDesc, handle);
 			usedTextures[i]->setCurrentIndex(-1);

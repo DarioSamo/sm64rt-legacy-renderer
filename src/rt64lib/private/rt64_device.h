@@ -18,6 +18,7 @@ namespace RT64 {
 	class Shader;
 	class Inspector;
 	class Texture;
+	class Mipmaps;
 
 	class Device {
 	private:
@@ -38,6 +39,7 @@ namespace RT64 {
 		std::vector<Scene *> scenes;
 		std::vector<Shader *> shaders;
 		std::vector<Inspector *> inspectors;
+		Mipmaps *mipmaps;
 
 		CD3DX12_VIEWPORT d3dViewport;
 		CD3DX12_RECT d3dScissorRect;
@@ -146,6 +148,7 @@ namespace RT64 {
 		void *getShadowMissID() const;
 		IDxcCompiler *getDxcCompiler() const;
 		IDxcLibrary *getDxcLibrary() const;
+		Mipmaps *getMipmaps() const;
 		CD3DX12_VIEWPORT getD3D12Viewport() const;
 		CD3DX12_RECT getD3D12ScissorRect() const;
 		AllocatedResource allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue, bool committed = false, bool shared = false);

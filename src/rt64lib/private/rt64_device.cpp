@@ -11,6 +11,7 @@
 #include "rt64_device.h"
 
 #ifndef RT64_MINIMAL
+#include "rt64_mipmaps.h"
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
 #include "rt64_shader.h"
@@ -91,6 +92,8 @@ RT64::Device::~Device() {
 	for (Scene *scene : scenesCopy) {
 		delete scene;
 	}
+
+	// TODO: Actually delete stuff instead of just leaking everything.
 #endif
 
 	RT64_LOG_CLOSE();
@@ -381,6 +384,10 @@ IDxcCompiler *RT64::Device::getDxcCompiler() const {
 
 IDxcLibrary *RT64::Device::getDxcLibrary() const {
 	return d3dDxcLibrary;
+}
+
+RT64::Mipmaps *RT64::Device::getMipmaps() const {
+	return mipmaps;
 }
 
 CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() const {
@@ -760,6 +767,8 @@ void RT64::Device::loadAssets() {
 
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dFsrRcasPipelineState)));
 	}
+
+	mipmaps = new RT64::Mipmaps(this);
 
 	RT64_LOG_PRINTF("Creating the command list");
 
