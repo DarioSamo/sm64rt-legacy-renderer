@@ -14,7 +14,7 @@ namespace RT64 {
 		Device *device;
 		ID3D12RootSignature *d3dRootSignature;
 		ID3D12PipelineState *d3dPipelineState;
-		ID3D12DescriptorHeap *d3dDescriptorHeaps[8];
+		ID3D12DescriptorHeap *d3dDescriptorHeaps[16];
 	public:
 		Mipmaps(Device *device);
 		void generate(ID3D12Resource *sourceTexture);

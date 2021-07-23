@@ -104,8 +104,8 @@ void RT64::Mipmaps::generate(ID3D12Resource *resource) {
 		auto allocationInfo = d3dDevice->GetResourceAllocationInfo(0, _countof(resourceDescs), resourceDescs);
 
 		D3D12_HEAP_DESC heapDesc = {};
-		heapDesc.SizeInBytes = allocationInfo.SizeInBytes;
-		heapDesc.Alignment = allocationInfo.Alignment;
+		heapDesc.SizeInBytes = std::max(allocationInfo.SizeInBytes, (UINT64)(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT));
+		heapDesc.Alignment = std::max(allocationInfo.Alignment, (UINT64)(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT));
 		heapDesc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
 		heapDesc.Properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 		heapDesc.Properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
@@ -116,11 +116,9 @@ void RT64::Mipmaps::generate(ID3D12Resource *resource) {
 		// Create a placed resource that matches the description of the original resource.
 		// This resource is used to copy the original texture to the UAV compatible resource.
 		D3D12_CHECK(d3dDevice->CreatePlacedResource(aliasHeap, 0, &aliasDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&aliasResource)));
-		aliasResource->SetName(L"aliasResource");
 
 		// Create a UAV compatible resource in the same heap as the alias resource.
 		D3D12_CHECK(d3dDevice->CreatePlacedResource(aliasHeap, 0, &uavDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&uavResource)));
-		uavResource->SetName(L"uavResource");
 
 		// Copy the resource into the alias resource.
 		CD3DX12_RESOURCE_BARRIER beforeCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);

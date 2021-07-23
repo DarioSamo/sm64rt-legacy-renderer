@@ -35,7 +35,6 @@ RT64::Texture::Texture(Device *device, const void *bytes, int width, int height,
 
 		// Create the texture resource
 		texture = device->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
-		texture.Get()->SetName(L"texture");
 
 		// Describe the resource
 		D3D12_RESOURCE_DESC resourceDesc = {};

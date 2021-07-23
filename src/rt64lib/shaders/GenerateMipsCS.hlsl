@@ -86,11 +86,16 @@ float4 PackColor(float4 x)
     }
 }
 
+float2 BorderUV(float2 UV) {
+    UV *= step(TexelSize, UV);
+    return lerp(1.0, UV, step(UV, 1.0 - TexelSize));
+}
+
 [numthreads(BLOCK_SIZE, BLOCK_SIZE, 1)]
 void mainCS(ComputeShaderInput IN)
 {
     float4 Src1 = (float4)0;
-
+    
     // One bilinear sample is insufficient when scaling down by more than 2x.
     // You will slightly undersample in the case where the source dimension
     // is odd.  This is why it's a really good idea to only generate mips on
@@ -110,7 +115,7 @@ void mainCS(ComputeShaderInput IN)
         {
             float2 UV = TexelSize * (IN.DispatchThreadID.xy + 0.5);
 
-            Src1 = SrcMip.SampleLevel(LinearClampSampler, UV, SrcMipLevel);
+            Src1 = SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV), SrcMipLevel);
         }
         break;
     case WIDTH_ODD_HEIGHT_EVEN:
@@ -121,8 +126,8 @@ void mainCS(ComputeShaderInput IN)
             float2 UV1 = TexelSize * (IN.DispatchThreadID.xy + float2(0.25, 0.5));
             float2 Off = TexelSize * float2(0.5, 0.0);
 
-            Src1 = 0.5 * (SrcMip.SampleLevel(LinearClampSampler, UV1, SrcMipLevel) +
-                SrcMip.SampleLevel(LinearClampSampler, UV1 + Off, SrcMipLevel));
+            Src1 = 0.5 * (SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1), SrcMipLevel) +
+                SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1 + Off), SrcMipLevel));
         }
         break;
     case WIDTH_EVEN_HEIGHT_ODD:
@@ -133,8 +138,8 @@ void mainCS(ComputeShaderInput IN)
             float2 UV1 = TexelSize * (IN.DispatchThreadID.xy + float2(0.5, 0.25));
             float2 Off = TexelSize * float2(0.0, 0.5);
 
-            Src1 = 0.5 * (SrcMip.SampleLevel(LinearClampSampler, UV1, SrcMipLevel) +
-                SrcMip.SampleLevel(LinearClampSampler, UV1 + Off, SrcMipLevel));
+            Src1 = 0.5 * (SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1), SrcMipLevel) +
+                SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1 + Off), SrcMipLevel));
         }
         break;
     case WIDTH_HEIGHT_ODD:
@@ -145,10 +150,10 @@ void mainCS(ComputeShaderInput IN)
             float2 UV1 = TexelSize * (IN.DispatchThreadID.xy + float2(0.25, 0.25));
             float2 Off = TexelSize * 0.5;
 
-            Src1 = SrcMip.SampleLevel(LinearClampSampler, UV1, SrcMipLevel);
-            Src1 += SrcMip.SampleLevel(LinearClampSampler, UV1 + float2(Off.x, 0.0), SrcMipLevel);
-            Src1 += SrcMip.SampleLevel(LinearClampSampler, UV1 + float2(0.0, Off.y), SrcMipLevel);
-            Src1 += SrcMip.SampleLevel(LinearClampSampler, UV1 + float2(Off.x, Off.y), SrcMipLevel);
+            Src1 = SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1), SrcMipLevel);
+            Src1 += SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1 + float2(Off.x, 0.0)), SrcMipLevel);
+            Src1 += SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1 + float2(0.0, Off.y)), SrcMipLevel);
+            Src1 += SrcMip.SampleLevel(LinearClampSampler, BorderUV(UV1 + float2(Off.x, Off.y)), SrcMipLevel);
             Src1 *= 0.25;
         }
         break;
@@ -169,14 +174,29 @@ void mainCS(ComputeShaderInput IN)
     // write instructions.)
     GroupMemoryBarrierWithGroupSync();
 
+    // Weights for left and top border.
+    float Src2WA = (IN.DispatchThreadID.x == 0) ? 0.0 : 1.0;
+    float Src3WA = (IN.DispatchThreadID.y == 0) ? 0.0 : 1.0;
+    float Src4WA = (IN.DispatchThreadID.x == 0) || (IN.DispatchThreadID.y == 0) ? 0.0 : 1.0;
+    float2 TexUV = TexelSize * IN.DispatchThreadID.xy;
+
     // With low three bits for X and high three bits for Y, this bit mask
     // (binary: 001001) checks that X and Y are even.
     if ((IN.GroupIndex & 0x9) == 0)
     {
-        float4 Src2 = LoadColor(IN.GroupIndex + 0x01);
-        float4 Src3 = LoadColor(IN.GroupIndex + 0x08);
-        float4 Src4 = LoadColor(IN.GroupIndex + 0x09);
-        Src1 = 0.25 * (Src1 + Src2 + Src3 + Src4);
+        // Weights for right and bottom border.
+        float Src1WB = step(TexUV.x, 1.0 - TexelSize.x * 3.0) * step(TexUV.y, 1.0 - TexelSize.y * 3.0);
+        float Src2WB = step(TexUV.y, 1.0 - TexelSize.y * 3.0);
+        float Src3WB = step(TexUV.x, 1.0 - TexelSize.x * 3.0);
+        float TotalWeight = Src1WB;
+        float4 Src2 = LoadColor(IN.GroupIndex + 0x01); TotalWeight += Src2WA * Src2WB;
+        float4 Src3 = LoadColor(IN.GroupIndex + 0x08); TotalWeight += Src3WA * Src3WB;
+        float4 Src4 = LoadColor(IN.GroupIndex + 0x09); TotalWeight += Src4WA;
+        Src1 = (
+            Src1 * Src1WB +
+            Src2 * Src2WA * Src2WB +
+            Src3 * Src3WA * Src3WB +
+            Src4 * Src4WA) / TotalWeight;
 
         OutMip2[IN.DispatchThreadID.xy / 2] = PackColor(Src1);
         StoreColor(IN.GroupIndex, Src1);
@@ -190,10 +210,18 @@ void mainCS(ComputeShaderInput IN)
     // This bit mask (binary: 011011) checks that X and Y are multiples of four.
     if ((IN.GroupIndex & 0x1B) == 0)
     {
-        float4 Src2 = LoadColor(IN.GroupIndex + 0x02);
-        float4 Src3 = LoadColor(IN.GroupIndex + 0x10);
-        float4 Src4 = LoadColor(IN.GroupIndex + 0x12);
-        Src1 = 0.25 * (Src1 + Src2 + Src3 + Src4);
+        float Src1WB = step(TexUV.x, 1.0 - TexelSize.x * 6.0) * step(TexUV.y, 1.0 - TexelSize.y * 6.0);
+        float Src2WB = step(TexUV.y, 1.0 - TexelSize.y * 6.0);
+        float Src3WB = step(TexUV.x, 1.0 - TexelSize.x * 6.0);
+        float TotalWeight = Src1WB;
+        float4 Src2 = LoadColor(IN.GroupIndex + 0x02); TotalWeight += Src2WA * Src2WB;
+        float4 Src3 = LoadColor(IN.GroupIndex + 0x10); TotalWeight += Src3WA * Src3WB;
+        float4 Src4 = LoadColor(IN.GroupIndex + 0x12); TotalWeight += Src4WA;
+        Src1 = (
+            Src1 * Src1WB +
+            Src2 * Src2WA * Src2WB +
+            Src3 * Src3WA * Src3WB +
+            Src4 * Src4WA) / TotalWeight;
 
         OutMip3[IN.DispatchThreadID.xy / 4] = PackColor(Src1);
         StoreColor(IN.GroupIndex, Src1);
@@ -208,10 +236,18 @@ void mainCS(ComputeShaderInput IN)
     // thread fits that criteria.
     if (IN.GroupIndex == 0)
     {
-        float4 Src2 = LoadColor(IN.GroupIndex + 0x04);
-        float4 Src3 = LoadColor(IN.GroupIndex + 0x20);
-        float4 Src4 = LoadColor(IN.GroupIndex + 0x24);
-        Src1 = 0.25 * (Src1 + Src2 + Src3 + Src4);
+        float Src1WB = step(TexUV.x, 1.0 - TexelSize.x * 12.0) * step(TexUV.y, 1.0 - TexelSize.y * 12.0);
+        float Src2WB = step(TexUV.y, 1.0 - TexelSize.y * 12.0);
+        float Src3WB = step(TexUV.x, 1.0 - TexelSize.x * 12.0);
+        float TotalWeight = Src1WB;
+        float4 Src2 = LoadColor(IN.GroupIndex + 0x04); TotalWeight += Src2WA * Src2WB;
+        float4 Src3 = LoadColor(IN.GroupIndex + 0x20); TotalWeight += Src3WA * Src3WB;
+        float4 Src4 = LoadColor(IN.GroupIndex + 0x24); TotalWeight += Src4WA;
+        Src1 = (
+            Src1 * Src1WB +
+            Src2 * Src2WA * Src2WB +
+            Src3 * Src3WA * Src3WB +
+            Src4 * Src4WA) / TotalWeight;
 
         OutMip4[IN.DispatchThreadID.xy / 8] = PackColor(Src1);
     }
