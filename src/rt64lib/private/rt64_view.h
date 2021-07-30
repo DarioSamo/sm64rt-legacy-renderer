@@ -59,6 +59,7 @@ namespace RT64 {
 			float giDiffuseStrength;
 			float giSkyStrength;
 			float motionBlurStrength;
+			float mipLevelBias;
 			int skyPlaneTexIndex;
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
@@ -201,6 +202,8 @@ namespace RT64 {
 		float getMotionBlurStrength() const;
 		void setMotionBlurSamples(int v);
 		int getMotionBlurSamples() const;
+		void setMipLevelBias(float v);
+		float getMipLevelBias() const;
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;
 		void setResolutionScale(float v);

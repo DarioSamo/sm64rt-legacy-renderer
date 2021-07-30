@@ -60,6 +60,7 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.giBounces = 0;
 	globalParamsBufferData.maxLightSamples = 12;
 	globalParamsBufferData.motionBlurSamples = 32;
+	globalParamsBufferData.mipLevelBias = 0.0f;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
 	globalParamsBufferSize = 0;
@@ -1698,6 +1699,14 @@ void RT64::View::setMotionBlurSamples(int v) {
 
 int RT64::View::getMotionBlurSamples() const {
 	return globalParamsBufferData.motionBlurSamples;
+}
+
+void RT64::View::setMipLevelBias(float v) {
+	globalParamsBufferData.mipLevelBias = v;
+}
+
+float RT64::View::getMipLevelBias() const {
+	return globalParamsBufferData.mipLevelBias;
 }
 
 void RT64::View::setVisualizationMode(int v) {

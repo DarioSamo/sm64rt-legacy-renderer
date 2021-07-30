@@ -121,6 +121,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     int maxLightSamples = view->getMaxLightSamples();
     int maxReflections = view->getMaxReflections();
     float motionBlurStrength = view->getMotionBlurStrength();
+    float mipLevelBias = view->getMipLevelBias();
     int motionBlurSamples = view->getMotionBlurSamples();
     int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
@@ -134,6 +135,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
+    ImGui::DragFloat("Mip level bias", &mipLevelBias, 0.1f, -12.0f, 12.0f);
     ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
 
 #ifdef RT64_DLSS
@@ -205,6 +207,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setMaxReflections(maxReflections);
     view->setMotionBlurStrength(motionBlurStrength);
     view->setMotionBlurSamples(motionBlurSamples);
+    view->setMipLevelBias(mipLevelBias);
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
     view->setUpscaleMode((UpscaleMode)(upscaleMode));

@@ -12,6 +12,8 @@
 
 // Private
 
+#define TEXTURE_EDGE_ENABLED
+
 enum {
 	SHADER_0,
 	SHADER_INPUT_1,
@@ -394,7 +396,7 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 
 	if (cc.useTextures[0]) {
 		SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
-		SS("    float4 texVal0 = gTextures[diffuseTexIndex].SampleLevel(gTextureSampler, vertexUV, 0);");
+		SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].SampleLevel(gTextureSampler, vertexUV, 0);");
 	}
 
 	if (cc.useTextures[1]) {
@@ -496,7 +498,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 
 	if (cc.useTextures[0]) {
 		SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
-		SS("    float4 texVal0 = gTextures[diffuseTexIndex].SampleLevel(gTextureSampler, vertexUV, 0);");
+		SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].SampleLevel(gTextureSampler, vertexUV, mipLevelBias);");
 		SS("    texVal0.rgb = lerp(texVal0.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));");
 	}
 
@@ -518,6 +520,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	// Apply the solid alpha multiplier.
 	SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);");
 
+#ifdef TEXTURE_EDGE_ENABLED
 	if (cc.opt_texture_edge) {
 		SS("    if (resultColor.a > 0.3f) {");
 		SS("      resultColor.a = 1.0f;");
@@ -526,6 +529,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("      IgnoreHit();");
 		SS("    }");
 	}
+#endif
 
 	if (cc.opt_noise) {
 		SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
@@ -536,7 +540,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
 		SS("    if (normalTexIndex >= 0) {");
 		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-		SS("        float3 normalColor = gTextures[normalTexIndex].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, 0).xyz;");
+		SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, mipLevelBias).xyz;");
 		SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
 		SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
 		SS("        vertexNormal = newNormal;");
@@ -554,7 +558,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
 		SS("    if (specularTexIndex >= 0) {");
 		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-		SS("        vertexSpecular = gTextures[specularTexIndex].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, 0).rgb;");
+		SS("        vertexSpecular = gTextures[NonUniformResourceIndex(specularTexIndex)].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, mipLevelBias).rgb;");
 		SS("    }");
 	}
 
@@ -633,7 +637,7 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 
 		if (cc.useTextures[0]) {
 			SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
-			SS("    float4 texVal0 = gTextures[diffuseTexIndex].SampleLevel(gTextureSampler, vertexUV, 0);");
+			SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].SampleLevel(gTextureSampler, vertexUV, 0);");
 		}
 
 		if (cc.useTextures[1]) {
@@ -650,6 +654,7 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 
 		SS("    resultAlpha = clamp(resultAlpha * instanceMaterials[instanceId].shadowAlphaMultiplier, 0.0f, 1.0f);");
 
+#ifdef TEXTURE_EDGE_ENABLED
 		if (cc.opt_texture_edge) {
 			SS("    if (resultAlpha > 0.3f) {");
 			SS("      resultAlpha = 1.0f;");
@@ -658,6 +663,7 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 			SS("      IgnoreHit();");
 			SS("    }");
 		}
+#endif
 
 		if (cc.opt_noise) {
 			SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
