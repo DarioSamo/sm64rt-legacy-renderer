@@ -9,6 +9,7 @@
 #include "rt64_texture.h"
 
 #include "rt64_device.h"
+#include "rt64_mipmaps.h"
 
 // Private
 
@@ -26,7 +27,7 @@ RT64::Texture::Texture(Device *device, const void *bytes, int width, int height,
 		D3D12_RESOURCE_DESC textureDesc = {};
 		textureDesc.Width = width;
 		textureDesc.Height = height;
-		textureDesc.MipLevels = 1;
+		textureDesc.MipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 		textureDesc.DepthOrArraySize = 1;
 		textureDesc.SampleDesc.Count = 1;
 		textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -78,7 +79,6 @@ RT64::Texture::Texture(Device *device, const void *bytes, int width, int height,
 
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
 		footprint.Offset = 0;
-		//footprint.Offset = texture.offset;
 		footprint.Footprint = subresource;
 		
 		D3D12_TEXTURE_COPY_LOCATION source = {};
@@ -105,8 +105,10 @@ RT64::Texture::Texture(Device *device, const void *bytes, int width, int height,
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		device->setLastCopyQueueBarrier(barrier);
+		d3dCommandList->ResourceBarrier(1, &barrier);
 	}
+
+	device->getMipmaps()->generate(texture.Get());
 }
 
 RT64::Texture::~Texture() {

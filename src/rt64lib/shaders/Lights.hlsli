@@ -20,7 +20,7 @@ struct LightInfo {
 
 StructuredBuffer<LightInfo> SceneLights : register(t4);
 
-#define MAX_LIGHTS 32
+#define MAX_LIGHTS 16
 
 float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float rayMaxDist) {
 	RayDesc ray;

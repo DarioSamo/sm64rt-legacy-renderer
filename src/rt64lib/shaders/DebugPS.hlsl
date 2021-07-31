@@ -91,6 +91,11 @@ float4 getTransparent(float2 pos) {
     return float4(gTransparent[pos].rgb, 1.0f);
 }
 
+float4 getDepth(float2 pos) {
+    float d = gDepth[pos].r;
+    return float4(d, d, d, 1.0f);
+}
+
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     switch (visualizationMode) {
     case VISUALIZATION_MODE_SHADING_POSITION:
@@ -115,6 +120,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getTransparent(uv * resolution.xy);
     case VISUALIZATION_MODE_FLOW:
         return getMotionVector(uv * resolution.xy);
+    case VISUALIZATION_MODE_DEPTH:
+        return getDepth(uv * resolution.xy);
     default:
         return float4(0.5f, 0.5f, 0.5f, 1.0f);
     }

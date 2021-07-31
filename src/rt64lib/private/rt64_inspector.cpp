@@ -121,11 +121,11 @@ void RT64::Inspector::renderViewParams(View *view) {
     int maxLightSamples = view->getMaxLightSamples();
     int maxReflections = view->getMaxReflections();
     float motionBlurStrength = view->getMotionBlurStrength();
+    float mipLevelBias = view->getMipLevelBias();
     int motionBlurSamples = view->getMotionBlurSamples();
     int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
     int upscaleMode = (int)(view->getUpscaleMode());
-    int sharpenMode = (int)(view->getSharpenMode());
     bool denoiser = view->getDenoiserEnabled();
     bool temporal = view->getDenoiserTemporalMode();
 
@@ -135,10 +135,52 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light\0Reflection\0Refraction\0Transparent\0Motion vectors\0");
-    ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
-    ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0");
-    ImGui::Combo("Sharpen Mode", &sharpenMode, "None\0AMD FidelityFX Super Resolution 1.0\0");
+    ImGui::DragFloat("Mip level bias", &mipLevelBias, 0.1f, -12.0f, 12.0f);
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
+
+#ifdef RT64_DLSS
+    // Only show DLSS option if supported by the hardware.
+    // FIXME: Concatenating these strings can be annoying due to the \0 characters, so just write out the two possible strings instead.
+    bool dlssInitialized = view->getDlssInitialized();
+    if (dlssInitialized) 
+    {
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0NVIDIA DLSS 2.2\0");
+    }
+    else
+#endif
+    {
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0");
+    }
+
+#ifdef RT64_DLSS
+    if ((RT64::UpscaleMode)(upscaleMode) == RT64::UpscaleMode::DLSS) 
+    {
+        int dlssQualityMode = (int)(view->getDlssQualityMode());
+        float dlssSharpness = view->getDlssSharpness();
+        bool dlssResolutionOverride = view->getDlssResolutionOverride();
+        bool dlssAutoExposure = view->getDlssAutoExposure();
+
+        ImGui::Combo("DLSS Quality", &dlssQualityMode, "Ultra Performance\0Max Performance\0Balanced\0Max Quality\0");
+        ImGui::DragFloat("DLSS Sharpness", &dlssSharpness, 0.01f, -1.0f, 1.0f);
+        ImGui::Checkbox("DLSS Auto Exposure", &dlssAutoExposure);
+        ImGui::Checkbox("DLSS Resolution Override", &dlssResolutionOverride);
+
+        if (dlssResolutionOverride) {
+            ImGui::SameLine();
+            ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+        }
+
+        view->setDlssQualityMode((DLSS::QualityMode)(dlssQualityMode));
+        view->setDlssSharpness(dlssSharpness);
+        view->setDlssAutoExposure(dlssAutoExposure);
+        view->setDlssResolutionOverride(dlssResolutionOverride);
+    }
+    else
+#endif
+    {
+        ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+    }
+
     ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
 
     if (denoiser) {
@@ -165,10 +207,10 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setMaxReflections(maxReflections);
     view->setMotionBlurStrength(motionBlurStrength);
     view->setMotionBlurSamples(motionBlurSamples);
+    view->setMipLevelBias(mipLevelBias);
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
     view->setUpscaleMode((UpscaleMode)(upscaleMode));
-    view->setSharpenMode((SharpenMode)(sharpenMode));
     view->setDenoiserEnabled(denoiser);
     view->setDenoiserTemporalMode(temporal);
 

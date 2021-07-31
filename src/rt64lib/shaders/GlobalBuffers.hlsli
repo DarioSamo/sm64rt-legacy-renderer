@@ -14,5 +14,6 @@ RWTexture2D<float4> gReflection : register(u8);
 RWTexture2D<float4> gRefraction : register(u9);
 RWTexture2D<float4> gTransparent : register(u10);
 RWTexture2D<float4> gFlow : register(u11);
+RWTexture2D<float4> gDepth : register(u12);
 
 Texture2D<float4> gBackground : register(t1);

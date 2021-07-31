@@ -11,6 +11,7 @@
 #include "rt64_device.h"
 
 #ifndef RT64_MINIMAL
+#include "rt64_mipmaps.h"
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
 #include "rt64_shader.h"
@@ -86,13 +87,16 @@ RT64::Device::Device(HWND hwnd) {
 }
 
 RT64::Device::~Device() {
-	RT64_LOG_CLOSE();
-
-	/* TODO: Re-enable once resources are properly released.
-	if (d3dAllocator != nullptr) {
-		d3dAllocator->Release();
+#ifndef RT64_MINIMAL
+	auto scenesCopy = scenes;
+	for (Scene *scene : scenesCopy) {
+		delete scene;
 	}
-	*/
+
+	// TODO: Actually delete stuff instead of just leaking everything.
+#endif
+
+	RT64_LOG_CLOSE();
 }
 
 void RT64::Device::createDXGIFactory() {
@@ -382,6 +386,10 @@ IDxcLibrary *RT64::Device::getDxcLibrary() const {
 	return d3dDxcLibrary;
 }
 
+RT64::Mipmaps *RT64::Device::getMipmaps() const {
+	return mipmaps;
+}
+
 CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() const {
 	return d3dViewport;
 }
@@ -668,7 +676,6 @@ void RT64::Device::loadAssets() {
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
-			{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
 			{ UAV_INDEX(gShadingPosition), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingPosition) },
 			{ UAV_INDEX(gShadingNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingNormal) },
 			{ UAV_INDEX(gShadingSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingSpecular) },
@@ -679,6 +686,8 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
 			{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 			{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
+			{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
+			{ UAV_INDEX(gDepth), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDepth) },
 			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) }
 		});
 
@@ -758,6 +767,8 @@ void RT64::Device::loadAssets() {
 
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dFsrRcasPipelineState)));
 	}
+
+	mipmaps = new RT64::Mipmaps(this);
 
 	RT64_LOG_PRINTF("Creating the command list");
 
@@ -918,6 +929,7 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 		{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
 		{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
+		{ UAV_INDEX(gDepth), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDepth) },
 		{ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },

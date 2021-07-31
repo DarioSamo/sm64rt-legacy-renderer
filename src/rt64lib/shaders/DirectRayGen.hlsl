@@ -21,14 +21,14 @@ void DirectRayGen() {
 	}
 
 	uint2 launchDims = DispatchRaysDimensions().xy;
-	float2 d = (((launchIndex.xy + 0.5f) / float2(launchDims)) * 2.f - 1.f);
+	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
 	uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
 	float4 position = gShadingPosition[launchIndex];
 	float4 normal = gShadingNormal[launchIndex];
 	float4 specular = gShadingSpecular[launchIndex];
-	float3 directLight = ComputeLightsRandom(rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, 1, true, seed);
+	float3 directLight = ComputeLightsRandom(rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLightSamples, true, seed);
 	directLight += instanceMaterials[instanceId].selfLight;
 
 	// Add the eye light.
