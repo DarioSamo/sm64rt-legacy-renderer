@@ -342,7 +342,7 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 	std::stringstream ss;
 	SS(INCLUDE_HLSLI(MaterialsHLSLI));
 	SS(INCLUDE_HLSLI(InstancesHLSLI));
-	SS("int instanceIndex : register(b0);");
+	SS("int instanceId : register(b0);");
 
 	unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 	if (cc.useTextures[0]) {
@@ -392,7 +392,6 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 	}
 	SS("    out float4 resultColor : SV_TARGET");
 	SS(") {");
-	SS("    int instanceId = NonUniformResourceIndex(instanceIndex);");
 
 	if (cc.useTextures[0]) {
 		SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
@@ -488,7 +487,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 
 	SS("[shader(\"anyhit\")]");
 	SS("void " << anyHitName << "(inout HitInfo payload, Attributes attrib) {");
-	SS("    uint instanceId = NonUniformResourceIndex(InstanceIndex());");
+	SS("    uint instanceId = InstanceIndex();");
 	SS("    uint triangleIndex = PrimitiveIndex();");
 	SS("    float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);");
 	SS("    float4 diffuseColorMix = instanceMaterials[instanceId].diffuseColorMix;");
@@ -629,7 +628,7 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 	SS("[shader(\"anyhit\")]");
 	SS("void " << anyHitName << "(inout ShadowHitInfo payload, Attributes attrib) {");
 	if (cc.opt_alpha) {
-		SS("    uint instanceId = NonUniformResourceIndex(InstanceIndex());");
+		SS("    uint instanceId = InstanceIndex();");
 		SS("    uint triangleIndex = PrimitiveIndex();");
 		SS("    float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);");
 
