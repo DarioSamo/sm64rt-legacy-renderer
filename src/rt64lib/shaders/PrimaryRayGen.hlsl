@@ -94,7 +94,7 @@ void PrimaryRayGen() {
 	RayDiff rayDiff;
 	rayDiff.dOdx = float3(0.0f, 0.0f, 0.0f);
 	rayDiff.dOdy = float3(0.0f, 0.0f, 0.0f);
-	computeRayDiffs(nonNormRayDir, cameraU.xyz, cameraV.xyz, launchDims, rayDiff.dDdx, rayDiff.dDdy);
+	computeRayDiffs(nonNormRayDir, cameraU.xyz, cameraV.xyz, resolution.zw, rayDiff.dDdx, rayDiff.dDdy);
 
 	// Trace.
 	RayDesc ray;

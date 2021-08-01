@@ -193,7 +193,7 @@ public:
         D3D12DlssEvalParams.InJitterOffsetY = p.jitterY;
         D3D12DlssEvalParams.Feature.InSharpness = p.sharpness;
         D3D12DlssEvalParams.InReset = Reset;
-        D3D12DlssEvalParams.InMVScaleX = 1.0f;
+        D3D12DlssEvalParams.InMVScaleX = -1.0f;
         D3D12DlssEvalParams.InMVScaleY = 1.0f;
         D3D12DlssEvalParams.InColorSubrectBase = renderingOffset;
         D3D12DlssEvalParams.InDepthSubrectBase = renderingOffset;
