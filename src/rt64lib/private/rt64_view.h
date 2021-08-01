@@ -46,6 +46,9 @@ namespace RT64 {
 			XMMATRIX projectionI;
 			XMMATRIX viewProj;
 			XMMATRIX prevViewProj;
+			RT64_VECTOR4 cameraU;
+			RT64_VECTOR4 cameraV;
+			RT64_VECTOR4 cameraW;
 			RT64_VECTOR4 viewport;
 			RT64_VECTOR4 resolution;
 			RT64_VECTOR4 ambientBaseColor;

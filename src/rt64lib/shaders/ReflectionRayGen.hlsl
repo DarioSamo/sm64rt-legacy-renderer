@@ -57,7 +57,7 @@ void ReflectionRayGen() {
 	if ((instanceId < 0) || (reflectionAlpha <= EPSILON)) {
 		return;
 	}
-
+	
 	// Grab the ray origin and direction from the buffers.
 	float3 shadingPosition = gShadingPosition[launchIndex].xyz;
 	float3 viewDirection = gViewDirection[launchIndex].xyz;
@@ -70,6 +70,13 @@ void ReflectionRayGen() {
 	float4 skyColor = SampleSkyPlane(rayDirection);
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
+	// Ray differential.
+	RayDiff rayDiff;
+	rayDiff.dOdx = float3(0.0f, 0.0f, 0.0f);
+	rayDiff.dOdy = float3(0.0f, 0.0f, 0.0f);
+	rayDiff.dDdx = float3(0.0f, 0.0f, 0.0f);
+	rayDiff.dDdy = float3(0.0f, 0.0f, 0.0f);
+
 	// Trace.
 	RayDesc ray;
 	ray.Origin = shadingPosition;
@@ -78,7 +85,7 @@ void ReflectionRayGen() {
 	ray.TMax = RAY_MAX_DISTANCE;
 	HitInfo payload;
 	payload.nhits = 0;
-	payload.ohits = 0;
+	payload.rayDiff = rayDiff;
 	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
 	// Process hits.

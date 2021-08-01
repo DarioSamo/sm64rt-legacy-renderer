@@ -70,6 +70,7 @@ void PrimaryRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 launchDims = DispatchRaysDimensions().xy;
 	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
+	float3 nonNormRayDir = d.x * cameraU.xyz + d.y * cameraV.xyz + cameraW.xyz;
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
@@ -89,6 +90,12 @@ void PrimaryRayGen() {
 	float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
+	// Compute ray differentials.
+	RayDiff rayDiff;
+	rayDiff.dOdx = float3(0.0f, 0.0f, 0.0f);
+	rayDiff.dOdy = float3(0.0f, 0.0f, 0.0f);
+	computeRayDiffs(nonNormRayDir, cameraU.xyz, cameraV.xyz, launchDims, rayDiff.dDdx, rayDiff.dDdy);
+
 	// Trace.
 	RayDesc ray;
 	ray.Origin = rayOrigin;
@@ -97,7 +104,8 @@ void PrimaryRayGen() {
 	ray.TMax = RAY_MAX_DISTANCE;
 	HitInfo payload;
 	payload.nhits = 0;
-	payload.ohits = 0;
+	payload.rayDiff = rayDiff;
+
 	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
 	// Process hits.

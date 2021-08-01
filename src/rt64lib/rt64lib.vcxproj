@@ -159,7 +159,6 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
     </CustomBuild>
-    <None Include="shaders\RayDiffs.hlsli" />
     <None Include="shaders\SkyPlaneUV.hlsli" />
     <None Include="shaders\Textures.hlsli" />
     <None Include="shaders\GlobalParams.hlsli" />

@@ -882,6 +882,25 @@ void RT64::View::updateGlobalParamsBuffer() {
 		globalParamsBufferData.prevViewProj = globalParamsBufferData.viewProj;
 	}
 
+	// Pinhole camera vectors to generate non-normalized ray direction.
+	// TODO: Make a fake target and focal distance at the midpoint of the near/far planes
+	// until the game sends that data in some way in the future.
+	const float FocalDistance = (nearDist + farDist) / 2.0f;
+	const float AspectRatio = scene->getDevice()->getAspectRatio();
+	const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
+	const RT64_VECTOR3 Pos = getViewPosition();
+	const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
+	RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
+	RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
+	RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
+	const float ulen = FocalDistance * std::tan(fovRadians * 0.5f) * AspectRatio;
+	const float vlen = FocalDistance * std::tan(fovRadians * 0.5f);
+	cameraU = cameraU * ulen;
+	cameraV = cameraV * vlen;
+	globalParamsBufferData.cameraU = ToVector4(cameraU, 0.0f);
+	globalParamsBufferData.cameraV = ToVector4(cameraV, 0.0f);
+	globalParamsBufferData.cameraW = ToVector4(cameraW, 0.0f);
+
 	// Use the total frame count as the random seed.
 	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
 	

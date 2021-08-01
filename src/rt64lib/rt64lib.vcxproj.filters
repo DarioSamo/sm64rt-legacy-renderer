@@ -244,9 +244,6 @@
     <None Include="shaders\SkyPlaneUV.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
-    <None Include="shaders\RayDiffs.hlsli">
-      <Filter>shaders\Includes</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Im3DPS.hlsl">

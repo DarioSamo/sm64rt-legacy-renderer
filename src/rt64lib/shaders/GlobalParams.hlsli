@@ -13,6 +13,9 @@ cbuffer gParams : register(b0) {
 	float4x4 projectionI;
 	float4x4 viewProj;
 	float4x4 prevViewProj;
+	float4 cameraU;
+	float4 cameraV;
+	float4 cameraW;
 	float4 viewport;
 	float4 resolution;
 	float4 ambientBaseColor;

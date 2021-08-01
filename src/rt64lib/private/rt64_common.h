@@ -263,23 +263,44 @@ namespace RT64 {
 		}
 	};
 
-	inline float Length(const RT64_VECTOR3 &a) {
-		float sqrLength = a.x * a.x + a.y * a.y + a.z * a.z;
-		return sqrt(sqrLength);
-	}
-
 	inline void operator+=(RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
 		a.x += b.x;
 		a.y += b.y;
 		a.z += b.z;
 	}
 
-	inline RT64_VECTOR3 operator+(RT64_VECTOR3& a, const RT64_VECTOR3& b) {
+	inline RT64_VECTOR3 operator+(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
 		return { a.x + b.x, a.y + b.y, a.z + b.z };
+	}
+
+	inline RT64_VECTOR3 operator-(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
+		return { a.x - b.x, a.y - b.y, a.z - b.z };
+	}
+
+	inline RT64_VECTOR3 operator*(const RT64_VECTOR3 &a, const float v) {
+		return { a.x * v, a.y * v, a.z * v };
 	}
 
 	inline RT64_VECTOR3 operator/(const RT64_VECTOR3 &a, const float v) {
 		return { a.x / v, a.y / v, a.z / v };
+	}
+
+	inline float Length(const RT64_VECTOR3 &a) {
+		float sqrLength = a.x * a.x + a.y * a.y + a.z * a.z;
+		return sqrt(sqrLength);
+	}
+
+	inline RT64_VECTOR3 Normalize(const RT64_VECTOR3 &a) {
+		float l = Length(a);
+		return (l > 0.0f) ? (a / l) : a;
+	}
+
+	inline RT64_VECTOR3 Cross(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
+		return {
+			a.y * b.z - b.y * a.z,
+			a.z * b.x - b.z * a.x,
+			a.x * b.y - b.x * a.y
+		};
 	}
 
 	inline RT64_VECTOR3 DirectionFromTo(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {

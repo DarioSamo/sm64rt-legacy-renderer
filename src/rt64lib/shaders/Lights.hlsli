@@ -29,8 +29,15 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	ray.TMin = rayMinDist;
 	ray.TMax = rayMaxDist;
 
+	RayDiff rayDiff;
+	rayDiff.dOdx = float3(0.0f, 0.0f, 0.0f);
+	rayDiff.dOdy = float3(0.0f, 0.0f, 0.0f);
+	rayDiff.dDdx = float3(0.0f, 0.0f, 0.0f);
+	rayDiff.dDdy = float3(0.0f, 0.0f, 0.0f);
+
 	ShadowHitInfo shadowPayload;
 	shadowPayload.shadowHit = 1.0f;
+	shadowPayload.rayDiff = rayDiff;
 
 	uint flags = RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER;
 

@@ -87,7 +87,7 @@ public:
     state[0] = s0; state[1] = s1; state[2] = s2; state[3] = s3;
 
     // copy remainder to temporary buffer
-    bufferSize = stop - data;
+    bufferSize = (unsigned int)(stop - data);
     for (unsigned int i = 0; i < bufferSize; i++)
       buffer[i] = data[i];
 

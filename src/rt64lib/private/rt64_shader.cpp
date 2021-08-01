@@ -161,6 +161,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 	if (vertexPosition) {
 		for (int i = 0; i < 3; i++) {
 			SS("float3 pos" + std::to_string(i) + " = asfloat(vertexBuffer.Load3(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.positionOffset) + "));");
+			SS("float3 posW" + std::to_string(i) + " = mul(instanceTransforms[instanceId].objectToWorld, float4(pos" + std::to_string(i) + ", 1.0f)).xyz; ");
 		}
 
 		SS("float3 vertexPosition = pos0 * barycentrics[0] + pos1 * barycentrics[1] + pos2 * barycentrics[2];");
@@ -174,6 +175,9 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 		SS("float3 vertexNormal = norm0 * barycentrics[0] + norm1 * barycentrics[1] + norm2 * barycentrics[2];");
 		SS("float3 triangleNormal = -cross(pos2 - pos0, pos1 - pos0);");
 		SS("vertexNormal = any(vertexNormal) ? normalize(vertexNormal) : triangleNormal;");
+
+		// Transform the triangle normal.
+		SS("triangleNormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(triangleNormal, 0.f)).xyz);");
 	}
 
 	if (vertexUV) {
@@ -223,7 +227,6 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 
 void transformVertexNormal(std::stringstream &ss) {
 	SS("vertexNormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexNormal, 0.f)).xyz);");
-	SS("triangleNormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(triangleNormal, 0.f)).xyz);");
 	SS("bool isBackFacing = dot(triangleNormal, WorldRayDirection()) > 0.0f;");
 	SS("if (isBackFacing) { vertexNormal = -vertexNormal; }");
 }
@@ -395,7 +398,7 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 
 	if (cc.useTextures[0]) {
 		SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
-		SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].SampleLevel(gTextureSampler, vertexUV, 0);");
+		SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].Sample(gTextureSampler, vertexUV);");
 	}
 
 	if (cc.useTextures[1]) {
@@ -496,8 +499,13 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	getVertexData(ss, true, true, vertexUV, cc.inputCount, cc.opt_alpha, vertexUV && normalMapEnabled);
 
 	if (cc.useTextures[0]) {
+		SS("	float2 ddx, ddy;");
+		SS("	RayDiff propRayDiff = propagateRayDiffs(payload.rayDiff, WorldRayDirection(), RayTCurrent(), triangleNormal);");
+		SS("	float2 dBarydx, dBarydy;");
+		SS("	computeBarycentricDifferentials(propRayDiff, WorldRayDirection(), posW1 - posW0, posW2 - posW0, triangleNormal, dBarydx, dBarydy);");
+		SS("	computeTextureDifferentials(dBarydx, dBarydy, uv0, uv1, uv2, ddx, ddy);");
 		SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
-		SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].SampleLevel(gTextureSampler, vertexUV, mipLevelBias);");
+		SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].SampleGrad(gTextureSampler, vertexUV, ddx, ddy);");
 		SS("    texVal0.rgb = lerp(texVal0.rgb, diffuseColorMix.rgb, max(-diffuseColorMix.a, 0.0f));");
 	}
 
@@ -539,7 +547,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
 		SS("    if (normalTexIndex >= 0) {");
 		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-		SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, mipLevelBias).xyz;");
+		SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
 		SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
 		SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
 		SS("        vertexNormal = newNormal;");
@@ -557,7 +565,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
 		SS("    if (specularTexIndex >= 0) {");
 		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-		SS("        vertexSpecular = gTextures[NonUniformResourceIndex(specularTexIndex)].SampleLevel(gTextureSampler, vertexUV * uvDetailScale, mipLevelBias).rgb;");
+		SS("        vertexSpecular = gTextures[NonUniformResourceIndex(specularTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).rgb;");
 		SS("    }");
 	}
 
@@ -569,7 +577,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	// This can likely be implemented as an instance property at some point to control depth sorting.
 	SS("    float tval = WithDistanceBias(RayTCurrent(), instanceId);");
 	SS("    uint hi = getHitBufferIndex(min(payload.nhits, MAX_HIT_QUERIES), pixelIdx, pixelDims);");
-	SS("    uint minHi = getHitBufferIndex(payload.ohits, pixelIdx, pixelDims);");
+	SS("    uint minHi = getHitBufferIndex(0, pixelIdx, pixelDims);");
 	SS("    uint lo = hi - hitStride;");
 	SS("    while ((hi > minHi) && (tval < gHitDistAndFlow[lo].x)) {");
 	SS("        gHitDistAndFlow[hi] = gHitDistAndFlow[lo];");
