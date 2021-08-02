@@ -67,6 +67,17 @@
 #define RT64_LIGHT_GROUP_DEFAULT				0x1
 #define RT64_LIGHT_MAX_SAMPLES					128
 
+// View attributes.
+#define RT64_DLSS_MODE_OFF						0x0
+#define RT64_DLSS_MODE_AUTO						0x1
+#define RT64_DLSS_MODE_MAX_QUALITY				0x2
+#define RT64_DLSS_MODE_BALANCED					0x3
+#define RT64_DLSS_MODE_MAX_PERFORMANCE			0x4
+#define RT64_DLSS_MODE_ULTRA_PERFORMANCE		0x5
+
+// Feature codes.
+#define RT64_FEATURE_DLSS						0x1
+
 // Forward declaration of types.
 typedef struct RT64_DEVICE RT64_DEVICE;
 typedef struct RT64_VIEW RT64_VIEW;
@@ -156,6 +167,7 @@ typedef struct {
 	unsigned int maxLightSamples;
 	unsigned int softLightSamples;
 	unsigned int giBounces;
+	unsigned char dlssMode;
 	bool denoiserEnabled;
 } RT64_VIEW_DESC;
 
@@ -238,18 +250,19 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 // Internal function pointer types.
 typedef const char *(*GetLastErrorPtr)();
 typedef RT64_DEVICE* (*CreateDevicePtr)(void *hwnd);
-typedef void(*DestroyDevicePtr)(RT64_DEVICE* device);
-typedef void(*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval);
+typedef void (*DestroyDevicePtr)(RT64_DEVICE* device);
+typedef void (*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval);
 typedef RT64_VIEW* (*CreateViewPtr)(RT64_SCENE* scenePtr);
-typedef void(*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist, bool canReproject);
-typedef void(*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);
-typedef void(*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
+typedef void (*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist, bool canReproject);
+typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);
+typedef void (*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);
-typedef void(*DestroyViewPtr)(RT64_VIEW* viewPtr);
+typedef bool (*GetViewFeatureSupportPtr)(RT64_VIEW *viewPtr, int feature);
+typedef void (*DestroyViewPtr)(RT64_VIEW* viewPtr);
 typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
-typedef void(*SetSceneDescriptionPtr)(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc);
+typedef void (*SetSceneDescriptionPtr)(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc);
 typedef void (*SetSceneLightsPtr)(RT64_SCENE* scenePtr, RT64_LIGHT* lightArray, int lightCount);
-typedef void(*DestroyScenePtr)(RT64_SCENE* scenePtr);
+typedef void (*DestroyScenePtr)(RT64_SCENE* scenePtr);
 typedef RT64_MESH* (*CreateMeshPtr)(RT64_DEVICE* devicePtr, int flags);
 typedef void (*SetMeshPtr)(RT64_MESH* meshPtr, void* vertexArray, int vertexCount, int vertexStride, unsigned int* indexArray, int indexCount);
 typedef void (*DestroyMeshPtr)(RT64_MESH* meshPtr);
@@ -259,15 +272,15 @@ typedef RT64_INSTANCE* (*CreateInstancePtr)(RT64_SCENE* scenePtr);
 typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTANCE_DESC instanceDesc);
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
 typedef RT64_TEXTURE* (*CreateTextureFromRGBA8Ptr)(RT64_DEVICE* devicePtr, const void* bytes, int width, int height, int stride);
-typedef void(*DestroyTexturePtr)(RT64_TEXTURE* texture);
+typedef void (*DestroyTexturePtr)(RT64_TEXTURE* texture);
 typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
-typedef bool(*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
+typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
 typedef void (*SetSceneInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc);
 typedef void (*SetMaterialInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char *materialName);
-typedef void(*SetLightsInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
-typedef void(*PrintClearInspectorPtr)(RT64_INSPECTOR *inspectorPtr);
-typedef void(*PrintMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
-typedef void(*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
+typedef void (*SetLightsInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
+typedef void (*PrintClearInspectorPtr)(RT64_INSPECTOR *inspectorPtr);
+typedef void (*PrintMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
+typedef void (*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
 
 // Stores all the function pointers used in the RT64 library.
 typedef struct {
@@ -282,6 +295,7 @@ typedef struct {
 	SetViewDescriptionPtr SetViewDescription;
 	SetViewSkyPlanePtr SetViewSkyPlane;
 	GetViewRaytracedInstanceAtPtr GetViewRaytracedInstanceAt;
+	GetViewFeatureSupportPtr GetViewFeatureSupport;
 	DestroyViewPtr DestroyView;
 	CreateScenePtr CreateScene;
 	SetSceneDescriptionPtr SetSceneDescription;
@@ -333,6 +347,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetViewDescription = (SetViewDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetViewDescription"));
 		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
+		lib.GetViewFeatureSupport = (GetViewFeatureSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewFeatureSupport"));
 		lib.DestroyView = (DestroyViewPtr)(GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(GetProcAddress(lib.handle, "RT64_CreateScene"));
 		lib.SetSceneDescription = (SetSceneDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetSceneDescription"));

@@ -60,7 +60,6 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.giBounces = 0;
 	globalParamsBufferData.maxLightSamples = 12;
 	globalParamsBufferData.motionBlurSamples = 32;
-	globalParamsBufferData.mipLevelBias = 0.0f;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
 	globalParamsBufferSize = 0;
@@ -1730,14 +1729,6 @@ int RT64::View::getMotionBlurSamples() const {
 	return globalParamsBufferData.motionBlurSamples;
 }
 
-void RT64::View::setMipLevelBias(float v) {
-	globalParamsBufferData.mipLevelBias = v;
-}
-
-float RT64::View::getMipLevelBias() const {
-	return globalParamsBufferData.mipLevelBias;
-}
-
 void RT64::View::setVisualizationMode(int v) {
 	globalParamsBufferData.visualizationMode = v;
 }
@@ -1957,6 +1948,26 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setSoftLightSamples(viewDesc.softLightSamples);
 	view->setGIBounces(viewDesc.giBounces);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
+#ifdef RT64_DLSS
+	view->setUpscaleMode((viewDesc.dlssMode != RT64_DLSS_MODE_OFF) ? RT64::UpscaleMode::DLSS : RT64::UpscaleMode::Bilinear);
+	switch (viewDesc.dlssMode) {
+	case RT64_DLSS_MODE_AUTO:
+		view->setDlssQualityMode(RT64::DLSS::QualityMode::Auto);
+		break;
+	case RT64_DLSS_MODE_MAX_QUALITY:
+		view->setDlssQualityMode(RT64::DLSS::QualityMode::MaxQuality);
+		break;
+	case RT64_DLSS_MODE_BALANCED:
+		view->setDlssQualityMode(RT64::DLSS::QualityMode::Balanced);
+		break;
+	case RT64_DLSS_MODE_MAX_PERFORMANCE:
+		view->setDlssQualityMode(RT64::DLSS::QualityMode::MaxPerformance);
+		break;
+	case RT64_DLSS_MODE_ULTRA_PERFORMANCE:
+		view->setDlssQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
+		break;
+	}
+#endif
 }
 
 DLLEXPORT void RT64_SetViewSkyPlane(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr) {
@@ -1970,6 +1981,17 @@ DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	return view->getRaytracedInstanceAt(x, y);
+}
+
+DLLEXPORT bool RT64_GetViewFeatureSupport(RT64_VIEW *viewPtr, int feature) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	switch (feature) {
+	case RT64_FEATURE_DLSS:
+		return view->getDlssInitialized();
+	}
+
+	return false;
 }
 
 DLLEXPORT void RT64_DestroyView(RT64_VIEW *viewPtr) {

@@ -93,6 +93,10 @@ public:
     }
 
     bool set(QualityMode quality, int renderWidth, int renderHeight, int displayWidth, int displayHeight, bool autoExposure) {
+        if (quality == QualityMode::Auto) {
+            quality = getQualityAuto(displayWidth, displayHeight);
+        }
+
         release();
 
         unsigned int CreationNodeMask = 1;
@@ -143,7 +147,34 @@ public:
         dlssFeature = nullptr;
     }
 
+    QualityMode getQualityAuto(int displayWidth, int displayHeight) {
+        assert(displayWidth > 0);
+        assert(displayHeight > 0);
+
+        // Get the most appropriate quality level for the target resolution.
+        const uint64_t PixelsDisplay = displayWidth * displayHeight;
+        const int Pixels1080p = 1920 * 1080;
+        const int Pixels1440p = 2560 * 1440;
+        const int Pixels4K = 3840 * 2160;
+        if (PixelsDisplay <= Pixels1080p) {
+            return QualityMode::MaxQuality;
+        }
+        else if (PixelsDisplay <= Pixels1440p) {
+            return QualityMode::Balanced;
+        }
+        else if (PixelsDisplay <= Pixels4K) {
+            return QualityMode::MaxPerformance;
+        }
+        else {
+            return QualityMode::UltraPerformance;
+        }
+    }
+
     bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight, float &sharpness) {
+        if (quality == QualityMode::Auto) {
+            quality = getQualityAuto(displayWidth, displayHeight);
+        }
+
         unsigned int renderOptimalWidth = 0, renderOptimalHeight = 0;
         unsigned int renderMaxWidth = 0, renderMaxHeight = 0;
         unsigned int renderMinWidth = 0, renderMinHeight = 0;

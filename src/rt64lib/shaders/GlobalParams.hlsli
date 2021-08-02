@@ -29,7 +29,6 @@ cbuffer gParams : register(b0) {
 	float giDiffuseStrength;
 	float giSkyStrength;
 	float motionBlurStrength;
-	float mipLevelBias;
 	int skyPlaneTexIndex;
 	uint randomSeed;
 	uint softLightSamples;
