@@ -429,7 +429,7 @@ void RT64::View::createTopLevelAS(const std::vector<RenderInstance>& rtInstances
 }
 
 void RT64::View::createShaderResourceHeap() {
-	assert(usedTextures.size() <= 512);
+	assert(usedTextures.size() <= SRV_TEXTURES_MAX);
 
 	const UINT handleIncrement = scene->getDevice()->getD3D12Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
@@ -437,6 +437,7 @@ void RT64::View::createShaderResourceHeap() {
 		uint32_t entryCount = ((uint32_t)(HeapIndices::MAX)-1) + (uint32_t)(usedTextures.size());
 
 		// Recreate descriptor heap to be bigger if necessary.
+		bool fillWithNull = false;
 		if (descriptorHeapEntryCount < entryCount) {
 			if (descriptorHeap != nullptr) {
 				descriptorHeap->Release();
@@ -445,6 +446,7 @@ void RT64::View::createShaderResourceHeap() {
 
 			descriptorHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), entryCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 			descriptorHeapEntryCount = entryCount;
+			fillWithNull = true;
 		}
 
 		// Get a handle to the heap memory on the CPU side, to be able to write the
@@ -606,6 +608,14 @@ void RT64::View::createShaderResourceHeap() {
 			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(usedTextures[i]->getTexture(), &textureSRVDesc, handle);
 			usedTextures[i]->setCurrentIndex(-1);
 			handle.ptr += handleIncrement;
+		}
+
+		// Fill with null SRVs if the heap was just created.
+		if (fillWithNull) {
+			for (size_t i = usedTextures.size(); i < SRV_TEXTURES_MAX; i++) {
+				scene->getDevice()->getD3D12Device()->CreateShaderResourceView(nullptr, &textureSRVDesc, handle);
+				handle.ptr += handleIncrement;
+			}
 		}
 	}
 
@@ -977,7 +987,7 @@ void RT64::View::update() {
 	};
 
 	usedTextures.clear();
-	usedTextures.reserve(512);
+	usedTextures.reserve(SRV_TEXTURES_MAX);
 	globalParamsBufferData.skyPlaneTexIndex = getTextureIndex(skyPlaneTexture);
 
 	if (!scene->getInstances().empty()) {

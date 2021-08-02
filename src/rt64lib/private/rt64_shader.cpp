@@ -720,7 +720,7 @@ ID3D12RootSignature *RT64::Shader::generateRasterRootSignature(Filter filter, Ad
 	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS, 0);
 	heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
 	heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
-	heapRanges.push_back({ SRV_INDEX(gTextures), 512, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
+	heapRanges.push_back({ SRV_INDEX(gTextures), SRV_TEXTURES_MAX, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
 	rsc.AddHeapRangesParameter(heapRanges);
 
 	D3D12_STATIC_SAMPLER_DESC samplerDesc;
@@ -744,7 +744,7 @@ ID3D12RootSignature *RT64::Shader::generateHitRootSignature(Filter filter, Addre
 
 	heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
 	heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
-	heapRanges.push_back({ SRV_INDEX(gTextures), 512, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
+	heapRanges.push_back({ SRV_INDEX(gTextures), SRV_TEXTURES_MAX, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
 	heapRanges.push_back({ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) });
 	rsc.AddHeapRangesParameter(heapRanges);
 
