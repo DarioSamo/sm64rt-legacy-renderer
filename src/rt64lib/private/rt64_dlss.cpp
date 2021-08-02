@@ -153,9 +153,9 @@ public:
 
         // Get the most appropriate quality level for the target resolution.
         const uint64_t PixelsDisplay = displayWidth * displayHeight;
-        const int Pixels1080p = 1920 * 1080;
-        const int Pixels1440p = 2560 * 1440;
-        const int Pixels4K = 3840 * 2160;
+        const uint64_t Pixels1080p = 1920 * 1080;
+        const uint64_t Pixels1440p = 2560 * 1440;
+        const uint64_t Pixels4K = 3840 * 2160;
         if (PixelsDisplay <= Pixels1080p) {
             return QualityMode::MaxQuality;
         }
