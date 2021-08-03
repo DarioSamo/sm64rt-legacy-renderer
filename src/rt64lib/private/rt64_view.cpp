@@ -144,16 +144,23 @@ void RT64::View::createOutputBuffers() {
 		}
 
 		dlss->set(setQuality, rtWidth, rtHeight, screenWidth, screenHeight, dlssAutoExposure);
+
+		rtUpscaleActive = true;
+		rtSharpenActive = false;
 	}
 	else
 #endif
+	if (rtUpscaleMode == UpscaleMode::FSR) {
+		rtUpscaleActive = true;
+		rtSharpenActive = true;
+	}
+	else
 	{
 		rtWidth = lround(screenWidth * resolutionScale);
 		rtHeight = lround(screenHeight * resolutionScale);
+		rtUpscaleActive = false;
+		rtSharpenActive = false;
 	}
-
-	rtUpscaleActive = (rtUpscaleMode != UpscaleMode::Bilinear);
-	rtSharpenActive = (rtUpscaleMode == UpscaleMode::FSR);
 
 	globalParamsBufferData.resolution.x = (float)(rtWidth);
 	globalParamsBufferData.resolution.y = (float)(rtHeight);
