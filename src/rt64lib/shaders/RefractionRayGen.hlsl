@@ -13,34 +13,8 @@
 #include "Random.hlsli"
 #include "Textures.hlsli"
 #include "Lights.hlsli"
-
-SamplerState gBackgroundSampler : register(s0);
-
-float2 FakeEnvMapUV(float3 rayDirection, float yawOffset) {
-	float yaw = fmod(yawOffset + atan2(rayDirection.x, -rayDirection.z) + M_PI, M_TWO_PI);
-	float pitch = fmod(atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z)) + M_PI, M_TWO_PI);
-	return float2(yaw / M_TWO_PI, pitch / M_TWO_PI);
-}
-
-float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
-	return gBackground.SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, 0.0f), 0).rgb;
-}
-
-float4 SampleSkyPlane(float3 rayDirection) {
-	if (skyPlaneTexIndex >= 0) {
-		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, skyYawOffset), 0);
-		skyColor.rgb *= skyDiffuseMultiplier.rgb;
-
-		if (any(skyHSLModifier)) {
-			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.rgb);
-		}
-
-		return skyColor;
-	}
-	else {
-		return float4(0.0f, 0.0f, 0.0f, 0.0f);
-	}
-}
+#include "Fog.hlsli"
+#include "BgSky.hlsli"
 
 [shader("raygeneration")]
 void RefractionRayGen() {
@@ -61,8 +35,9 @@ void RefractionRayGen() {
 	float newRefractionAlpha = 0.0f;
 
 	// Mix background and sky color together.
-	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
-	float4 skyColor = SampleSkyPlane(rayDirection);
+	float2 screenUV = (float2)(launchIndex) / (float2)(launchDims);
+	float3 bgColor = SampleBackground2D(screenUV);
+	float4 skyColor = SampleSky2D(screenUV);
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 	// Ray differential.
@@ -88,23 +63,39 @@ void RefractionRayGen() {
 	float3 resNormal = float3(0.0f, 0.0f, 0.0f);
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
 	int resInstanceId = -1;
-	float4 resColor = float4(0, 0, 0, 1);
+	float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint hitInstanceId = gHitInstanceId[hitBufferIndex];
+			bool usesLighting = (instanceMaterials[hitInstanceId].lightGroupMaskBits > 0);
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, hitInstanceId);
-			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
-			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
-			float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
-			resColor.rgb += hitColor.rgb * alphaContrib;
+
+			// Calculate the fog for the resulting color using the camera data if the option is enabled.
+			if (instanceMaterials[hitInstanceId].fogEnabled) {
+				float4 fogColor = ComputeFogFromCamera(hitInstanceId, vertexPosition);
+				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
+				alphaContrib *= (1.0f - fogColor.a);
+			}
+
+			if (usesLighting) {
+				float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+				float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+				float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
+				resColor.rgb += hitColor.rgb * alphaContrib;
+				resPosition = vertexPosition;
+				resNormal = vertexNormal;
+				resSpecular = specular;
+				resInstanceId = hitInstanceId;
+			}
+			else {
+				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
+			}
+
 			resColor.a *= (1.0 - hitColor.a);
-			resPosition = vertexPosition;
-			resNormal = vertexNormal;
-			resSpecular = specular;
-			resInstanceId = hitInstanceId;
 		}
 
 		if (resColor.a <= EPSILON) {
@@ -119,7 +110,7 @@ void RefractionRayGen() {
 	}
 
 	// Blend with the background.
-	resColor.rgb += bgColor * resColor.a;
+	resColor.rgb += bgColor * resColor.a + resTransparent;
 	resColor.a = 1.0f;
 
 	// Add refraction result.

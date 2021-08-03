@@ -427,6 +427,10 @@ int main(int argc, char *argv[]) {
 	// Setup scene in RT64.
 	setupRT64Scene();
 
+#ifndef NDEBUG
+	fprintf(stdout, "RT64_FEATURE_DLSS: %d\n", RT64.lib.GetViewFeatureSupport(RT64.view, RT64_FEATURE_DLSS));
+#endif
+
 	// Window message loop.
 	MSG msg = {};
 	while (msg.message != WM_QUIT) {

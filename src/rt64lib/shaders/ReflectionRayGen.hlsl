@@ -13,34 +13,8 @@
 #include "Random.hlsli"
 #include "Textures.hlsli"
 #include "Lights.hlsli"
-
-SamplerState gBackgroundSampler : register(s0);
-
-float2 FakeEnvMapUV(float3 rayDirection, float yawOffset) {
-	float yaw = fmod(yawOffset + atan2(rayDirection.x, -rayDirection.z) + M_PI, M_TWO_PI);
-	float pitch = fmod(atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z)) + M_PI, M_TWO_PI);
-	return float2(yaw / M_TWO_PI, pitch / M_TWO_PI);
-}
-
-float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
-	return gBackground.SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, 0.0f), 0).rgb;
-}
-
-float4 SampleSkyPlane(float3 rayDirection) {
-	if (skyPlaneTexIndex >= 0) {
-		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, skyYawOffset), 0);
-		skyColor.rgb *= skyDiffuseMultiplier.rgb;
-
-		if (any(skyHSLModifier)) {
-			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.rgb);
-		}
-
-		return skyColor;
-	}
-	else {
-		return float4(0.0f, 0.0f, 0.0f, 0.0f);
-	}
-}
+#include "Fog.hlsli"
+#include "BgSky.hlsli"
 
 float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
 	// TODO: Probably use a more accurate approximation than this.
@@ -93,14 +67,24 @@ void ReflectionRayGen() {
 	float3 resNormal = float3(0.0f, 0.0f, 0.0f);
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
 	int resInstanceId = -1;
-	float4 resColor = float4(0, 0, 0, 1);
+	float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint hitInstanceId = gHitInstanceId[hitBufferIndex];
+			bool usesLighting = (instanceMaterials[hitInstanceId].lightGroupMaskBits > 0);
 			float3 vertexPosition = shadingPosition + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, hitInstanceId);
+
+			// Calculate the fog for the resulting color using the camera data if the option is enabled.
+			if (instanceMaterials[hitInstanceId].fogEnabled) {
+				float4 fogColor = ComputeFogFromOrigin(hitInstanceId, vertexPosition, shadingPosition);
+				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
+				alphaContrib *= (1.0f - fogColor.a);
+			}
+
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 			float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
@@ -111,12 +95,18 @@ void ReflectionRayGen() {
 				newReflectionAlpha += fresnelAmount * alphaContrib * reflectionAlpha;
 			}
 
-			resColor.rgb += hitColor.rgb * alphaContrib;
-			resColor.a *= (1.0 - hitColor.a);
+			if (usesLighting) {
+				resColor.rgb += hitColor.rgb * alphaContrib;
+			}
+			else {
+				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
+			}
+
 			resPosition = vertexPosition;
 			resNormal = vertexNormal;
 			resSpecular = specular;
 			resInstanceId = hitInstanceId;
+			resColor.a *= (1.0 - hitColor.a);
 		}
 
 		if (resColor.a <= EPSILON) {
@@ -135,7 +125,7 @@ void ReflectionRayGen() {
 	}
 
 	// Blend with the background.
-	resColor.rgb += bgColor * resColor.a;
+	resColor.rgb += bgColor * resColor.a + resTransparent;
 	resColor.a = 1.0f;
 
 	// Artificial shine factor.

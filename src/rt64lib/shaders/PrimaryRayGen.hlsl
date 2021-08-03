@@ -11,11 +11,10 @@
 #include "Instances.hlsli"
 #include "Random.hlsli"
 #include "Ray.hlsli"
-#include "SkyPlaneUV.hlsli"
 #include "Textures.hlsli"
+#include "BgSky.hlsli"
 #include "Lights.hlsli"
-
-SamplerState gBackgroundSampler : register(s0);
+#include "Fog.hlsli"
 
 float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
 	float4 clipSpace = mul(viewProj, float4(worldPos, 1.0f));
@@ -23,46 +22,10 @@ float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
 	return (0.5f + NDC.xy / 2.0f);
 }
 
-float3 SampleBackground2D(float2 screenUV) {
-	return gBackground.SampleLevel(gBackgroundSampler, screenUV, 0).rgb;
-}
-
-float4 SampleSky2D(float2 screenUV) {
-	if (skyPlaneTexIndex >= 0) {
-		float2 skyUV = ComputeSkyPlaneUV(screenUV, viewI, viewport.zw, skyYawOffset);
-		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, skyUV, 0);
-		skyColor.rgb *= skyDiffuseMultiplier.rgb;
-
-		if (any(skyHSLModifier)) {
-			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.rgb);
-		}
-
-		return skyColor;
-	}
-	else {
-		return float4(0.0f, 0.0f, 0.0f, 0.0f);
-	}
-}
-
 float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
 	// TODO: Probably use a more accurate approximation than this.
 	float ret = pow(clamp(1.0f + dot(normal, incident), EPSILON, 1.0f), 5.0f);
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
-}
-
-float4 ComputeFog(uint instanceId, float3 position) {
-	float4 fogColor = float4(instanceMaterials[instanceId].fogColor, 0.0f);
-	float fogMul = instanceMaterials[instanceId].fogMul;
-	float fogOffset = instanceMaterials[instanceId].fogOffset;
-	float4 clipPos = mul(mul(projection, view), float4(position.xyz, 1.0f));
-
-	// Values from the game are designed around -1 to 1 space.
-	clipPos.z = clipPos.z * 2.0f - clipPos.w;
-
-	float winv = 1.0f / max(clipPos.w, 0.001f);
-	const float DivisionFactor = 255.0f;
-	fogColor.a = min(max((clipPos.z * winv * fogMul + fogOffset) / DivisionFactor, 0.0f), 1.0f);
-	return fogColor;
 }
 
 [shader("raygeneration")]
@@ -137,7 +100,7 @@ void PrimaryRayGen() {
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			bool storeHit = false;
 			if (instanceMaterials[instanceId].fogEnabled) {
-				float4 fogColor = ComputeFog(instanceId, vertexPosition);
+				float4 fogColor = ComputeFogFromCamera(instanceId, vertexPosition);
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);
 			}

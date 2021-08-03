@@ -13,34 +13,7 @@
 #include "Random.hlsli"
 #include "Textures.hlsli"
 #include "Lights.hlsli"
-
-SamplerState gBackgroundSampler : register(s0);
-
-float2 FakeEnvMapUV(float3 rayDirection, float yawOffset) {
-	float yaw = fmod(yawOffset + atan2(rayDirection.x, -rayDirection.z) + M_PI, M_TWO_PI);
-	float pitch = fmod(atan2(-rayDirection.y, sqrt(rayDirection.x * rayDirection.x + rayDirection.z * rayDirection.z)) + M_PI, M_TWO_PI);
-	return float2(yaw / M_TWO_PI, pitch / M_TWO_PI);
-}
-
-float3 SampleBackgroundAsEnvMap(float3 rayDirection) {
-	return gBackground.SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, 0.0f), 0).rgb;
-}
-
-float4 SampleSkyPlane(float3 rayDirection) {
-	if (skyPlaneTexIndex >= 0) {
-		float4 skyColor = gTextures[skyPlaneTexIndex].SampleLevel(gBackgroundSampler, FakeEnvMapUV(rayDirection, skyYawOffset), 0);
-		skyColor.rgb *= skyDiffuseMultiplier.rgb;
-
-		if (any(skyHSLModifier)) {
-			skyColor.rgb = ModRGBWithHSL(skyColor.rgb, skyHSLModifier.rgb);
-		}
-
-		return skyColor;
-	}
-	else {
-		return float4(0.0f, 0.0f, 0.0f, 0.0f);
-	}
-}
+#include "BgSky.hlsli"
 
 [shader("raygeneration")]
 void IndirectRayGen() {

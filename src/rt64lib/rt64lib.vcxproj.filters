@@ -241,7 +241,10 @@
     <None Include="shaders\Color.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
-    <None Include="shaders\SkyPlaneUV.hlsli">
+    <None Include="shaders\BgSky.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Fog.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
   </ItemGroup>
