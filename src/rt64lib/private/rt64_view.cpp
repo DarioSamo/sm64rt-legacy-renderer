@@ -440,7 +440,7 @@ void RT64::View::createShaderResourceHeap() {
 	const UINT handleIncrement = scene->getDevice()->getD3D12Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	{
-		uint32_t entryCount = ((uint32_t)(HeapIndices::MAX)-1) + (uint32_t)(usedTextures.size());
+		uint32_t entryCount = ((uint32_t)(HeapIndices::MAX)-1) + SRV_TEXTURES_MAX;
 
 		// Recreate descriptor heap to be bigger if necessary.
 		bool fillWithNull = false;
@@ -1994,11 +1994,14 @@ DLLEXPORT bool RT64_GetViewFeatureSupport(RT64_VIEW *viewPtr, int feature) {
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	switch (feature) {
+#ifdef RT64_DLSS
 	case RT64_FEATURE_DLSS:
 		return view->getDlssInitialized();
+#endif
+	case 0:
+	default:
+		return false;
 	}
-
-	return false;
 }
 
 DLLEXPORT void RT64_DestroyView(RT64_VIEW *viewPtr) {
