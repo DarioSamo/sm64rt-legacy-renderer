@@ -133,6 +133,7 @@ void RT64::Texture::setDDS(const void *bytes, int byteCount) {
 	std::vector<D3D12_SUBRESOURCE_DATA> subresourceData;
 	D3D12MA::Allocation *textureAllocation = nullptr;
 	D3D12_CHECK(LoadDDSTextureFromMemory(device->getD3D12Device(), (const uint8_t *)(bytes), byteCount, device->getD3D12Allocator(), &textureAllocation, subresourceData));
+
 	texture = AllocatedResource(textureAllocation);
 	D3D12_RESOURCE_DESC textureDesc = texture.Get()->GetDesc();
 	format = textureDesc.Format;
@@ -192,16 +193,24 @@ DLLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_
 	assert(devicePtr != nullptr);
 	RT64::Device *device = (RT64::Device *)(devicePtr);
 	RT64::Texture *texture = new RT64::Texture(device);
-	switch (textureDesc.format) {
-	case RT64_TEXTURE_FORMAT_RGBA8:
-		texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch);
-		break;
-	case RT64_TEXTURE_FORMAT_DDS:
-		texture->setDDS(textureDesc.bytes, textureDesc.byteCount);
-		break;
-	}
 
-	return (RT64_TEXTURE *)(texture);
+	// Try to load the texture data.
+	try {
+		switch (textureDesc.format) {
+		case RT64_TEXTURE_FORMAT_RGBA8:
+			texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch);
+			break;
+		case RT64_TEXTURE_FORMAT_DDS:
+			texture->setDDS(textureDesc.bytes, textureDesc.byteCount);
+			break;
+		}
+
+		return (RT64_TEXTURE *)(texture);
+	}
+	RT64_CATCH_EXCEPTION();
+
+	delete texture;
+	return nullptr;
 }
 
 DLLEXPORT void RT64_DestroyTexture(RT64_TEXTURE *texturePtr) {

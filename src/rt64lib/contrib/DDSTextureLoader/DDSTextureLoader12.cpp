@@ -248,162 +248,6 @@ namespace
         return S_OK;
     }
 
-
-    //--------------------------------------------------------------------------------------
-    HRESULT LoadTextureDataFromFile(
-        _In_z_ const wchar_t* fileName,
-        std::unique_ptr<uint8_t[]>& ddsData,
-        const DDS_HEADER** header,
-        const uint8_t** bitData,
-        size_t* bitSize) noexcept
-    {
-        if (!header || !bitData || !bitSize)
-        {
-            return E_POINTER;
-        }
-
-        *bitSize = 0;
-
-#ifdef WIN32
-        // open the file
-        ScopedHandle hFile(safe_handle(CreateFile2(fileName,
-            GENERIC_READ,
-            FILE_SHARE_READ,
-            OPEN_EXISTING,
-            nullptr)));
-
-        if (!hFile)
-        {
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
-
-        // Get the file size
-        FILE_STANDARD_INFO fileInfo;
-        if (!GetFileInformationByHandleEx(hFile.get(), FileStandardInfo, &fileInfo, sizeof(fileInfo)))
-        {
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
-
-        // File is too big for 32-bit allocation, so reject read
-        if (fileInfo.EndOfFile.HighPart > 0)
-        {
-            return E_FAIL;
-        }
-
-        // Need at least enough data to fill the header and magic number to be a valid DDS
-        if (fileInfo.EndOfFile.LowPart < (sizeof(uint32_t) + sizeof(DDS_HEADER)))
-        {
-            return E_FAIL;
-        }
-
-        // create enough space for the file data
-        ddsData.reset(new (std::nothrow) uint8_t[fileInfo.EndOfFile.LowPart]);
-        if (!ddsData)
-        {
-            return E_OUTOFMEMORY;
-        }
-
-        // read the data in
-        DWORD bytesRead = 0;
-        if (!ReadFile(hFile.get(),
-            ddsData.get(),
-            fileInfo.EndOfFile.LowPart,
-            &bytesRead,
-            nullptr
-        ))
-        {
-            ddsData.reset();
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
-
-        if (bytesRead < fileInfo.EndOfFile.LowPart)
-        {
-            ddsData.reset();
-            return E_FAIL;
-        }
-
-        size_t len = fileInfo.EndOfFile.LowPart;
-
-#else // !WIN32
-        std::ifstream inFile(std::filesystem::path(fileName), std::ios::in | std::ios::binary | std::ios::ate);
-        if (!inFile)
-            return E_FAIL;
-
-        std::streampos fileLen = inFile.tellg();
-        if (!inFile)
-            return E_FAIL;
-
-        // Need at least enough data to fill the header and magic number to be a valid DDS
-        if (fileLen < (sizeof(uint32_t) + sizeof(DDS_HEADER)))
-            return E_FAIL;
-
-        ddsData.reset(new (std::nothrow) uint8_t[size_t(fileLen)]);
-        if (!ddsData)
-            return E_OUTOFMEMORY;
-
-        inFile.seekg(0, std::ios::beg);
-        if (!inFile)
-        {
-            ddsData.reset();
-            return E_FAIL;
-        }
-
-       inFile.read(reinterpret_cast<char*>(ddsData.get()), fileLen);
-       if (!inFile)
-       {
-           ddsData.reset();
-           return E_FAIL;
-       }
-
-       inFile.close();
-
-       size_t len = fileLen;
-#endif
-
-        // DDS files always start with the same magic number ("DDS ")
-        auto dwMagicNumber = *reinterpret_cast<const uint32_t*>(ddsData.get());
-        if (dwMagicNumber != DDS_MAGIC)
-        {
-            ddsData.reset();
-            return E_FAIL;
-        }
-
-        auto hdr = reinterpret_cast<const DDS_HEADER*>(ddsData.get() + sizeof(uint32_t));
-
-        // Verify header to validate DDS file
-        if (hdr->size != sizeof(DDS_HEADER) ||
-            hdr->ddspf.size != sizeof(DDS_PIXELFORMAT))
-        {
-            ddsData.reset();
-            return E_FAIL;
-        }
-
-        // Check for DX10 extension
-        bool bDXT10Header = false;
-        if ((hdr->ddspf.flags & DDS_FOURCC) &&
-            (MAKEFOURCC('D', 'X', '1', '0') == hdr->ddspf.fourCC))
-        {
-            // Must be long enough for both headers and magic value
-            if (len < (sizeof(uint32_t) + sizeof(DDS_HEADER) + sizeof(DDS_HEADER_DXT10)))
-            {
-                ddsData.reset();
-                return E_FAIL;
-            }
-
-            bDXT10Header = true;
-        }
-
-        // setup the pointers in the process request
-        *header = hdr;
-        auto offset = sizeof(uint32_t) + sizeof(DDS_HEADER)
-            + (bDXT10Header ? sizeof(DDS_HEADER_DXT10) : 0);
-        *bitData = ddsData.get() + offset;
-        *bitSize = len - offset;
-
-        return S_OK;
-    }
-
-
     //--------------------------------------------------------------------------------------
     // Return the BPP for a particular format
     //--------------------------------------------------------------------------------------
@@ -672,8 +516,10 @@ namespace
         else
         {
             size_t bpp = BitsPerPixel(fmt);
-            if (!bpp)
+            if (!bpp) {
+                fprintf(stderr, "Invalid bpp\n");
                 return E_INVALIDARG;
+            }
 
             rowBytes = (uint64_t(width) * bpp + 7u) / 8u; // round up to nearest byte
             numRows = uint64_t(height);
@@ -1119,8 +965,10 @@ namespace
                 for (size_t i = 0; i < mipCount; i++)
                 {
                     HRESULT hr = GetSurfaceInfo(w, h, format, &NumBytes, &RowBytes, nullptr);
-                    if (FAILED(hr))
+                    if (FAILED(hr)) {
+                        fprintf(stderr, "Invalid surface #%llu info.\n", i);
                         return hr;
+                    }
 
                     if (NumBytes > UINT32_MAX || RowBytes > UINT32_MAX)
                         return HRESULT_E_ARITHMETIC_OVERFLOW;
@@ -1237,6 +1085,13 @@ namespace
             _Analysis_assume_(textureAllocation != nullptr && *textureAllocation != nullptr);
 
             SetDebugObjectName((*textureAllocation)->GetResource(), L"DDSTextureLoader");
+        }
+        else 
+        {
+            fprintf(stderr, "Failed to create resource %lluX%u\n", desc.Width, desc.Height);
+            if ((desc.Width & 0x3) || (desc.Height & 0x3)) {
+                fprintf(stderr, "The width or height are not multiples of four.\n");
+            }
         }
 
         return hr;
@@ -1424,8 +1279,10 @@ namespace
         }
 
         UINT numberOfPlanes = D3D12GetFormatPlaneCount(d3dDevice, format);
-        if (!numberOfPlanes)
+        if (!numberOfPlanes) {
+            fprintf(stderr, "Invalid number of planes\n");
             return E_INVALIDARG;
+        }
 
         if ((numberOfPlanes > 1) && IsDepthStencil(format))
         {
@@ -1444,8 +1301,10 @@ namespace
         numberOfResources *= mipCount;
         numberOfResources *= numberOfPlanes;
 
-        if (numberOfResources > D3D12_REQ_SUBRESOURCES)
+        if (numberOfResources > D3D12_REQ_SUBRESOURCES) {
+            fprintf(stderr, "Number of resources %llu is higher than required number %d\n", numberOfResources, D3D12_REQ_SUBRESOURCES);
             return E_INVALIDARG;
+        }
 
         subresources.reserve(numberOfResources);
 
@@ -1494,6 +1353,7 @@ namespace
         if (FAILED(hr))
         {
             subresources.clear();
+            fprintf(stderr, "Failed to fill init data\n");
         }
 
         return hr;
@@ -1616,6 +1476,7 @@ HRESULT DirectX::LoadDDSTextureFromMemoryEx(
 
     if (!d3dDevice || !ddsData || !textureAllocation)
     {
+        fprintf(stderr, "nullptr parameters.\n");
         return E_INVALIDARG;
     }
 
