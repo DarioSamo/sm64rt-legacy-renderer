@@ -120,6 +120,7 @@ namespace RT64 {
 		void removeInspector(Inspector* inspector);
 		HWND getHwnd() const;
 		ID3D12Device8 *getD3D12Device() const;
+		D3D12MA::Allocator *getD3D12Allocator() const;
 		ID3D12GraphicsCommandList4 *getD3D12CommandList() const;
 		ID3D12StateObject *getD3D12RtStateObject() const;
 		ID3D12StateObjectProperties *getD3D12RtStateObjectProperties() const;

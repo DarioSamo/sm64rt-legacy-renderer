@@ -13,12 +13,15 @@ namespace RT64 {
 	private:
 		Device *device;
 		AllocatedResource texture;
-		AllocatedResource textureUpload;
+		DXGI_FORMAT format;
 		int currentIndex;
 	public:
-		Texture(Device *device, const void *bytes, int width, int height, int stride);
+		Texture(Device *device);
 		virtual ~Texture();
-		ID3D12Resource *getTexture();
+		void setRGBA8(const void *bytes, int byteCount, int width, int height, int rowPitch);
+		void setDDS(const void *bytes, int byteCount);
+		ID3D12Resource *getTexture() const;
+		DXGI_FORMAT getFormat() const;
 		void setCurrentIndex(int v);
 		int getCurrentIndex() const;
 	};

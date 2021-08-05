@@ -78,6 +78,10 @@
 // Feature codes.
 #define RT64_FEATURE_DLSS						0x1
 
+// Texture formats.
+#define RT64_TEXTURE_FORMAT_RGBA8				0x1
+#define RT64_TEXTURE_FORMAT_DDS					0x2
+
 // Forward declaration of types.
 typedef struct RT64_DEVICE RT64_DEVICE;
 typedef struct RT64_VIEW RT64_VIEW;
@@ -185,6 +189,15 @@ typedef struct {
 	unsigned int flags;
 } RT64_INSTANCE_DESC;
 
+typedef struct {
+	const void *bytes;
+	int byteCount;
+	int format;
+	int width;
+	int height;
+	int rowPitch;
+} RT64_TEXTURE_DESC;
+
 inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src) {
 	if (src->enabledAttributes & RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR) {
 		dst->ignoreNormalFactor = src->ignoreNormalFactor;
@@ -271,7 +284,7 @@ typedef void (*DestroyShaderPtr)(RT64_SHADER *shaderPtr);
 typedef RT64_INSTANCE* (*CreateInstancePtr)(RT64_SCENE* scenePtr);
 typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTANCE_DESC instanceDesc);
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
-typedef RT64_TEXTURE* (*CreateTextureFromRGBA8Ptr)(RT64_DEVICE* devicePtr, const void* bytes, int width, int height, int stride);
+typedef RT64_TEXTURE* (*CreateTexturePtr)(RT64_DEVICE* devicePtr, RT64_TEXTURE_DESC textureDesc);
 typedef void (*DestroyTexturePtr)(RT64_TEXTURE* texture);
 typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
 typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -309,7 +322,7 @@ typedef struct {
 	CreateInstancePtr CreateInstance;
 	SetInstanceDescriptionPtr SetInstanceDescription;
 	DestroyInstancePtr DestroyInstance;
-	CreateTextureFromRGBA8Ptr CreateTextureFromRGBA8;
+	CreateTexturePtr CreateTexture;
 	DestroyTexturePtr DestroyTexture;
 	CreateInspectorPtr CreateInspector;
 	HandleMessageInspectorPtr HandleMessageInspector;
@@ -361,7 +374,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.CreateInstance = (CreateInstancePtr)(GetProcAddress(lib.handle, "RT64_CreateInstance"));
 		lib.SetInstanceDescription = (SetInstanceDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetInstanceDescription"));
 		lib.DestroyInstance = (DestroyInstancePtr)(GetProcAddress(lib.handle, "RT64_DestroyInstance"));
-		lib.CreateTextureFromRGBA8 = (CreateTextureFromRGBA8Ptr)(GetProcAddress(lib.handle, "RT64_CreateTextureFromRGBA8"));
+		lib.CreateTexture = (CreateTexturePtr)(GetProcAddress(lib.handle, "RT64_CreateTexture"));
 		lib.DestroyTexture = (DestroyTexturePtr)(GetProcAddress(lib.handle, "RT64_DestroyTexture"));
 		lib.CreateInspector = (CreateInspectorPtr)(GetProcAddress(lib.handle, "RT64_CreateInspector"));
 		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));

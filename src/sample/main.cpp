@@ -147,6 +147,46 @@ bool createRT64(HWND hwnd) {
 	return true;
 }
 
+RT64_TEXTURE *loadTexturePNG(const char *path) {
+	RT64_TEXTURE_DESC texDesc;
+	int texChannels;
+	texDesc.format = RT64_TEXTURE_FORMAT_RGBA8;
+	texDesc.bytes = stbi_load(path, &texDesc.width, &texDesc.height, &texChannels, STBI_rgb_alpha);
+	texDesc.rowPitch = texDesc.width * 4;
+	texDesc.byteCount = texDesc.rowPitch * texDesc.height;
+	RT64_TEXTURE *texture = RT64.lib.CreateTexture(RT64.device, texDesc);
+	stbi_image_free((void *)(texDesc.bytes));
+	return texture;
+}
+
+RT64_TEXTURE *loadTextureDDS(const char *path) {
+	RT64_TEXTURE *texture = nullptr;
+	FILE *ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
+	if (ddsFp != nullptr) {
+		fseek(ddsFp, 0, SEEK_END);
+		int ddsDataSize = ftell(ddsFp);
+		fseek(ddsFp, 0, SEEK_SET);
+		if (ddsDataSize > 0) {
+			void *ddsData = malloc(ddsDataSize);
+			fread(ddsData, ddsDataSize, 1, ddsFp);
+			fclose(ddsFp);
+
+			RT64_TEXTURE_DESC texDesc;
+			texDesc.bytes = ddsData;
+			texDesc.byteCount = ddsDataSize;
+			texDesc.format = RT64_TEXTURE_FORMAT_DDS;
+			texDesc.width = texDesc.height = texDesc.rowPitch = -1;
+			texture = RT64.lib.CreateTexture(RT64.device, texDesc);
+			free(ddsData);
+		}
+		else {
+			fclose(ddsFp);
+		}
+	}
+
+	return texture;
+}
+
 void setupRT64Scene() {
 	// Setup scene.
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
@@ -182,24 +222,12 @@ void setupRT64Scene() {
 	// Setup view.
 	RT64.view = RT64.lib.CreateView(RT64.scene);
 
-	// Load texture.
-	int texWidth, texHeight, texChannels;
-	stbi_uc *texBytes = stbi_load("res/grass_dif.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64.textureDif = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/grass_nrm.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64.textureNrm = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/grass_spc.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64.textureSpc = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/clouds.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64_TEXTURE *textureSky = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
+	// Load textures.
+	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
+	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
+	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
+	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
-	stbi_image_free(texBytes);
 
 	// Make initial transform with a 0.1f scale.
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
@@ -286,18 +314,9 @@ void setupRT64Scene() {
 	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
-
-	texBytes = stbi_load("res/tiles_dif.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64_TEXTURE *altTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/tiles_nrm.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64_TEXTURE* normalTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/tiles_spc.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64_TEXTURE* specularTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
+	RT64_TEXTURE *altTexture = loadTexturePNG("res/tiles_dif.png");
+	RT64_TEXTURE* normalTexture = loadTexturePNG("res/tiles_nrm.png");
+	RT64_TEXTURE* specularTexture = loadTexturePNG("res/tiles_spc.png");
 
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));

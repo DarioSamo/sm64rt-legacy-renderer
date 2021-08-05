@@ -25,6 +25,7 @@
   <ItemGroup>
     <ClInclude Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.h" />
     <ClInclude Include="contrib\d3dx12.h" />
+    <ClInclude Include="contrib\DDSTextureLoader\DDSTextureLoader12.h" />
     <ClInclude Include="contrib\im3d\im3d.h" />
     <ClInclude Include="contrib\im3d\im3d_config.h" />
     <ClInclude Include="contrib\im3d\im3d_math.h" />
@@ -58,6 +59,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.cpp" />
+    <ClCompile Include="contrib\DDSTextureLoader\DDSTextureLoader12.cpp" />
     <ClCompile Include="contrib\im3d\im3d.cpp" />
     <ClCompile Include="contrib\imgui\imgui.cpp" />
     <ClCompile Include="contrib\imgui\imgui_demo.cpp" />

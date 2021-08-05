@@ -28,6 +28,9 @@
     <Filter Include="contrib\nv_helpers_dx12">
       <UniqueIdentifier>{cc7d3886-bac3-4ec3-b22e-069a27f07a2b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="contrib\DDSTextureLoader">
+      <UniqueIdentifier>{a43f2a56-9d0a-4282-b33c-902b98bdec34}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="private\rt64_device.h">
@@ -126,6 +129,9 @@
     <ClInclude Include="private\rt64_mipmaps.h">
       <Filter>private</Filter>
     </ClInclude>
+    <ClInclude Include="contrib\DDSTextureLoader\DDSTextureLoader12.h">
+      <Filter>contrib\DDSTextureLoader</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">
@@ -202,6 +208,9 @@
     </ClCompile>
     <ClCompile Include="private\rt64_mipmaps.cpp">
       <Filter>private</Filter>
+    </ClCompile>
+    <ClCompile Include="contrib\DDSTextureLoader\DDSTextureLoader12.cpp">
+      <Filter>contrib\DDSTextureLoader</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

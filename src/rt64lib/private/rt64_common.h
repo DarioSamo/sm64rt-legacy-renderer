@@ -314,9 +314,9 @@ namespace RT64 {
 		return { a.x, a.y, a.z, w };
 	}
 
-	inline void CalculateTextureRowWidthPadding(int width, int stride, UINT &rowWidth, UINT &rowPadding) {
+	inline void CalculateTextureRowWidthPadding(UINT rowPitch, UINT &rowWidth, UINT &rowPadding) {
 		const int RowMultiple = 256;
-		rowWidth = width * stride;
+		rowWidth = rowPitch;
 		rowPadding = (rowWidth % RowMultiple) ? RowMultiple - (rowWidth % RowMultiple) : 0;
 		rowWidth += rowPadding;
 	}

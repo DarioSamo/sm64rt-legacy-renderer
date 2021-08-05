@@ -252,7 +252,7 @@ void RT64::Device::createRTVs() {
 
 	// Create the resource for render target readback.
 	UINT rowPadding;
-	CalculateTextureRowWidthPadding(width, 4, d3dRenderTargetReadbackRowWidth, rowPadding);
+	CalculateTextureRowWidthPadding(width * 4, d3dRenderTargetReadbackRowWidth, rowPadding);
 
 	D3D12_RESOURCE_DESC resDesc = { };
 	resDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -272,6 +272,10 @@ HWND RT64::Device::getHwnd() const {
 
 ID3D12Device8 *RT64::Device::getD3D12Device() const {
 	return d3dDevice;
+}
+
+D3D12MA::Allocator *RT64::Device::getD3D12Allocator() const {
+	return d3dAllocator;
 }
 
 ID3D12GraphicsCommandList4 *RT64::Device::getD3D12CommandList() const {
