@@ -18,6 +18,9 @@
 [shader("raygeneration")]
 void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
+	gIndirectLight[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 1.0f);
+
+	/*
 	int instanceId = gInstanceId[launchIndex];
 	if (instanceId < 0) {
 		gIndirectLight[launchIndex] = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -103,4 +106,5 @@ void IndirectRayGen() {
 	}
 
 	gIndirectLight[launchIndex] = float4(ambientBaseColor.rgb + indirectResult / giBounces, 1.0f);
+	*/
 }
