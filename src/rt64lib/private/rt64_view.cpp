@@ -47,6 +47,7 @@ RT64::View::View(Scene *scene) {
 	descriptorHeap = nullptr;
 	descriptorHeapEntryCount = 0;
 	composeHeap = nullptr;
+	samplerHeap = nullptr;
 	upscaleHeap = nullptr;
 	sharpenHeap = nullptr;
 	postProcessHeap = nullptr;
@@ -627,6 +628,44 @@ void RT64::View::createShaderResourceHeap() {
 	}
 
 	{
+		// Create the heap for the samplers.
+		// Unlike the others, this one only needs to be created once.
+		// TODO: Maybe move this to initialization instead.
+		if (samplerHeap == nullptr) {
+			const UINT samplerHandleIncrement = scene->getDevice()->getD3D12Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+			uint32_t handleCount = 18;
+			samplerHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, true);
+
+			D3D12_CPU_DESCRIPTOR_HANDLE handle = samplerHeap->GetCPUDescriptorHandleForHeapStart();
+
+			// Add the texture samplers.
+			D3D12_SAMPLER_DESC samplerDesc;
+			samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+			samplerDesc.MinLOD = 0;
+			samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+			samplerDesc.MipLODBias = 0.0f;
+			samplerDesc.MaxAnisotropy = 1;
+			samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+			samplerDesc.BorderColor[0] = 0.0f;
+			samplerDesc.BorderColor[1] = 0.0f;
+			samplerDesc.BorderColor[2] = 0.0f;
+			samplerDesc.BorderColor[3] = 0.0f;
+
+			for (int filter = 0; filter < 2; filter++) {
+				samplerDesc.Filter = filter ? D3D12_FILTER_MIN_MAG_MIP_LINEAR : D3D12_FILTER_MIN_MAG_MIP_POINT;
+				for (int hAddr = 0; hAddr < 3; hAddr++) {
+					for (int vAddr = 0; vAddr < 3; vAddr++) {
+						samplerDesc.AddressU = (hAddr == 2) ? D3D12_TEXTURE_ADDRESS_MODE_CLAMP : (hAddr == 1) ? D3D12_TEXTURE_ADDRESS_MODE_MIRROR : D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+						samplerDesc.AddressV = (vAddr == 2) ? D3D12_TEXTURE_ADDRESS_MODE_CLAMP : (vAddr == 1) ? D3D12_TEXTURE_ADDRESS_MODE_MIRROR : D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+						scene->getDevice()->getD3D12Device()->CreateSampler(&samplerDesc, handle);
+						handle.ptr += samplerHandleIncrement;
+					}
+				}
+			}
+		}
+	}
+
+	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
 			uint32_t handleCount = 8;
@@ -813,17 +852,19 @@ void RT64::View::createShaderBindingTable() {
 
 	// The pointer to the beginning of the heap is the only parameter required by shaders without root parameters
 	D3D12_GPU_DESCRIPTOR_HANDLE srvUavHeapHandle = descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+	D3D12_GPU_DESCRIPTOR_HANDLE samplerHeapHandle = samplerHeap->GetGPUDescriptorHandleForHeapStart();
 	
 	// The helper treats both root parameter pointers and heap pointers as void*, while DX12 uses the D3D12_GPU_DESCRIPTOR_HANDLE 
 	// to define heap pointers. The pointer in this struct is a UINT64, which then has to be reinterpreted as a pointer.
-	auto heapPointer = reinterpret_cast<UINT64 *>(srvUavHeapHandle.ptr);
+	auto srvUavPointer = reinterpret_cast<UINT64 *>(srvUavHeapHandle.ptr);
+	auto samplerPointer = reinterpret_cast<UINT64 *>(samplerHeapHandle.ptr);
 
 	// The ray generation only uses heap data.
-	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getPrimaryRayGenID(), { heapPointer });
-	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getDirectRayGenID(), { heapPointer });
-	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getIndirectRayGenID(), { heapPointer });
-	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getReflectionRayGenID(), { heapPointer });
-	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getRefractionRayGenID(), { heapPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getPrimaryRayGenID(), { srvUavPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getDirectRayGenID(), { srvUavPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getIndirectRayGenID(), { srvUavPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getReflectionRayGenID(), { srvUavPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getRefractionRayGenID(), { srvUavPointer });
 	
 	// Miss shaders don't use any external data.
 	sbtHelper.AddMissProgram(scene->getDevice()->getSurfaceMissID(), {});
@@ -835,14 +876,16 @@ void RT64::View::createShaderBindingTable() {
 		sbtHelper.AddHitGroup(surfaceHitGroup.id, {
 			(void *)(rtInstance.vertexBufferView->BufferLocation),
 			(void *)(rtInstance.indexBufferView->BufferLocation),
-			heapPointer
+			srvUavPointer,
+			samplerPointer
 		});
 		
 		const auto &shadowHitGroup = rtInstance.shader->getShadowHitGroup();
 		sbtHelper.AddHitGroup(shadowHitGroup.id, {
 			(void*)(rtInstance.vertexBufferView->BufferLocation),
 			(void*)(rtInstance.indexBufferView->BufferLocation),
-			heapPointer
+			srvUavPointer,
+			samplerPointer
 		});
 	}
 	
@@ -1107,7 +1150,7 @@ void RT64::View::render() {
 	auto scissorRect = scene->getDevice()->getD3D12ScissorRect();
 	auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
 	auto d3d12RenderTarget = scene->getDevice()->getD3D12RenderTarget();
-	std::vector<ID3D12DescriptorHeap *> heaps = { descriptorHeap };
+	std::vector<ID3D12DescriptorHeap *> heaps = { descriptorHeap, samplerHeap };
 
 	// Configure the current viewport.
 	auto resetScissor = [this, d3dCommandList, &scissorRect]() {
@@ -1161,6 +1204,7 @@ void RT64::View::render() {
 			if (j == 0) {
 				d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
 				d3dCommandList->SetGraphicsRootDescriptorTable(1, descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->SetGraphicsRootDescriptorTable(2, samplerHeap->GetGPUDescriptorHandleForHeapStart());
 			}
 
 			d3dCommandList->SetGraphicsRoot32BitConstant(0, baseInstanceIndex + j, 0);

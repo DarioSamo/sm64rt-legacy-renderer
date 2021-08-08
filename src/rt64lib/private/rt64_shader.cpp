@@ -315,28 +315,6 @@ std::string alphaFormula(int c[2][4], int do_single, int do_multiply, int do_mix
 	}
 }
 
-D3D12_FILTER toD3DTexFilter(RT64::Shader::Filter filter) {
-	switch (filter) {
-	case RT64::Shader::Filter::Linear:
-		return D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-	default:
-	case RT64::Shader::Filter::Point:
-		return D3D12_FILTER_MIN_MAG_MIP_POINT;
-	}
-}
-
-D3D12_TEXTURE_ADDRESS_MODE toD3DTexAddr(RT64::Shader::AddressingMode addr) {
-	switch (addr) {
-	case RT64::Shader::AddressingMode::Mirror:
-		return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
-	case RT64::Shader::AddressingMode::Clamp:
-		return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	default:
-	case RT64::Shader::AddressingMode::Wrap:
-		return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	}
-}
-
 void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &vertexShaderName, const std::string &pixelShaderName) {
 	ColorCombinerParams cc(shaderId);
 	bool vertexUV = cc.useTextures[0] || cc.useTextures[1];
@@ -698,59 +676,59 @@ void RT64::Shader::generateShadowHitGroup(unsigned int shaderId, Filter filter, 
 	shadowHitGroup.anyHitName = win32::Utf8ToUtf16(anyHitName);
 }
 
-void RT64::Shader::fillSamplerDesc(D3D12_STATIC_SAMPLER_DESC &desc, Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex) {
-	desc.Filter = toD3DTexFilter(filter);
-	desc.AddressU = toD3DTexAddr(hAddr);
-	desc.AddressV = toD3DTexAddr(vAddr);
-	desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	desc.MinLOD = 0;
-	desc.MaxLOD = D3D12_FLOAT32_MAX;
-	desc.MipLODBias = 0.0f;
-	desc.MaxAnisotropy = 1;
-	desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-	desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	desc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-	desc.ShaderRegister = samplerRegisterIndex;
-	desc.RegisterSpace = 0;
-}
-
 ID3D12RootSignature *RT64::Shader::generateRasterRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex) {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
-	nv_helpers_dx12::RootSignatureGenerator::HeapRanges heapRanges;
 	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS, 0);
-	heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
-	heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
-	heapRanges.push_back({ SRV_INDEX(gTextures), SRV_TEXTURES_MAX, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
-	rsc.AddHeapRangesParameter(heapRanges);
 
-	D3D12_STATIC_SAMPLER_DESC samplerDesc;
-	fillSamplerDesc(samplerDesc, filter, hAddr, vAddr, samplerRegisterIndex);
-	return rsc.Generate(device->getD3D12Device(), false, true, &samplerDesc, 1);
+	{
+		nv_helpers_dx12::RootSignatureGenerator::HeapRanges heapRanges;
+		heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
+		heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
+		heapRanges.push_back({ SRV_INDEX(gTextures), SRV_TEXTURES_MAX, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
+		rsc.AddHeapRangesParameter(heapRanges);
+	}
+
+	{
+		// TODO: A cleaner way to determine the corresponding heap index.
+		nv_helpers_dx12::RootSignatureGenerator::HeapRanges samplerHeapRange;
+		samplerHeapRange.push_back({ samplerRegisterIndex, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, (samplerRegisterIndex - 1) });
+		rsc.AddHeapRangesParameter(samplerHeapRange);
+	}
+
+	return rsc.Generate(device->getD3D12Device(), false, true, nullptr, 0);
 }
 
 ID3D12RootSignature *RT64::Shader::generateHitRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex, bool hitBuffers) {
 	nv_helpers_dx12::RootSignatureGenerator rsc;
-	nv_helpers_dx12::RootSignatureGenerator::HeapRanges heapRanges;
 	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, SRV_INDEX(vertexBuffer));
 	rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, SRV_INDEX(indexBuffer));
 
-	if (hitBuffers) {
-		heapRanges.push_back({ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) });
-		heapRanges.push_back({ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) });
-		heapRanges.push_back({ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) });
-		heapRanges.push_back({ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) });
-		heapRanges.push_back({ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) });
+	{
+		nv_helpers_dx12::RootSignatureGenerator::HeapRanges heapRanges;
+
+		if (hitBuffers) {
+			heapRanges.push_back({ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) });
+			heapRanges.push_back({ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) });
+			heapRanges.push_back({ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) });
+			heapRanges.push_back({ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) });
+			heapRanges.push_back({ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) });
+		}
+
+		heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
+		heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
+		heapRanges.push_back({ SRV_INDEX(gTextures), SRV_TEXTURES_MAX, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
+		heapRanges.push_back({ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) });
+		rsc.AddHeapRangesParameter(heapRanges);
 	}
 
-	heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });
-	heapRanges.push_back({ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) });
-	heapRanges.push_back({ SRV_INDEX(gTextures), SRV_TEXTURES_MAX, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) });
-	heapRanges.push_back({ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) });
-	rsc.AddHeapRangesParameter(heapRanges);
+	{
+		// TODO: A cleaner way to determine the corresponding heap index.
+		nv_helpers_dx12::RootSignatureGenerator::HeapRanges samplerHeapRange;
+		samplerHeapRange.push_back({ samplerRegisterIndex, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, (samplerRegisterIndex - 1) });
+		rsc.AddHeapRangesParameter(samplerHeapRange);
+	}
 
-	D3D12_STATIC_SAMPLER_DESC samplerDesc;
-	fillSamplerDesc(samplerDesc, filter, hAddr, vAddr, samplerRegisterIndex);
-	return rsc.Generate(device->getD3D12Device(), true, false, &samplerDesc, 1);
+	return rsc.Generate(device->getD3D12Device(), true, false, nullptr, 0);
 }
 
 void RT64::Shader::compileShaderCode(const std::string &shaderCode, const std::wstring &entryName, const std::wstring &profile, IDxcBlob **shaderBlob) {

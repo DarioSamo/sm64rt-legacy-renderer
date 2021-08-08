@@ -124,6 +124,7 @@ namespace RT64 {
 		UINT outputRtvDescriptorSize;
 		ID3D12DescriptorHeap *descriptorHeap;
 		UINT descriptorHeapEntryCount;
+		ID3D12DescriptorHeap *samplerHeap;
 		ID3D12DescriptorHeap *composeHeap;
 		ID3D12DescriptorHeap *upscaleHeap;
 		ID3D12DescriptorHeap *sharpenHeap;
