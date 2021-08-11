@@ -49,7 +49,7 @@ float4 getShadingPosition(float2 pos) {
 }
 
 float4 getShadingNormal(float2 pos) {
-    return float4(gShadingNormal[pos].rgb, 1.0f);
+    return float4((gShadingNormal[pos].rgb + 1.0f) / 2.0f, 1.0f);
 }
 
 float4 getShadingSpecular(float2 pos) {

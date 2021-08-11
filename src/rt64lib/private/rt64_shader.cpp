@@ -225,12 +225,6 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 	}
 }
 
-void transformVertexNormal(std::stringstream &ss) {
-	SS("vertexNormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexNormal, 0.f)).xyz);");
-	SS("bool isBackFacing = dot(triangleNormal, WorldRayDirection()) > 0.0f;");
-	SS("if (isBackFacing) { vertexNormal = -vertexNormal; }");
-}
-
 std::string colorInput(int item, bool with_alpha, bool inputs_have_alpha, bool hint_single_element) {
 	switch (item) {
 	default:
@@ -520,8 +514,14 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
 		SS("    resultColor.a *= round(nextRand(seed));");
 	}
-
+	
+	SS("vertexNormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexNormal, 0.f)).xyz);");
+	SS("float normalSign = (dot(triangleNormal, WorldRayDirection()) <= 0.0f) ? 1.0f : -1.0f;");
+	SS("vertexNormal *= normalSign;");
+	
 	if (vertexUV && normalMapEnabled) {
+		SS("    vertexTangent = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexTangent, 0.f)).xyz) * normalSign;");
+		SS("    vertexBinormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexBinormal, 0.f)).xyz) * normalSign;");
 		SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
 		SS("    if (normalTexIndex >= 0) {");
 		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
@@ -535,9 +535,6 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f));");
 	SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f));");
 	SS("	float3 vertexFlow = curWorldPos - prevWorldPos;");
-
-	transformVertexNormal(ss);
-
 	SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
 	if (vertexUV && specularMapEnabled) {
 		SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
