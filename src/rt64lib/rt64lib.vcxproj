@@ -56,6 +56,8 @@
     <ClInclude Include="private\rt64_texture.h" />
     <ClInclude Include="private\rt64_view.h" />
     <ClInclude Include="public\rt64.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="res\bluenoise\LDR_64_64_64_RGB1.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.cpp" />
@@ -86,6 +88,7 @@
     <ClCompile Include="private\rt64_view.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="shaders\BlueNoise.hlsli" />
     <None Include="shaders\Color.hlsli" />
     <None Include="shaders\Constants.hlsli" />
     <CustomBuild Include="shaders\DirectRayGen.hlsl">

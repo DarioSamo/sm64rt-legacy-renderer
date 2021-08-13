@@ -60,6 +60,7 @@ namespace RT64 {
 		SceneLights,
 		instanceTransforms,
 		instanceMaterials,
+		gBlueNoise,
 		gTextures,
 		MAX
 	};
@@ -94,6 +95,7 @@ namespace RT64 {
 		SceneLights,
 		instanceTransforms,
 		instanceMaterials,
+		gBlueNoise,
 		gTextures
 	};
 

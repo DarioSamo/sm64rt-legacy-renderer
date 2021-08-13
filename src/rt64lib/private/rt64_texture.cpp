@@ -25,13 +25,12 @@ RT64::Texture::~Texture() {
 	texture.Release();
 }
 
-void RT64::Texture::setRGBA8(const void *bytes, int byteCount, int width, int height, int rowPitch) {
+void RT64::Texture::setRawWithFormat(DXGI_FORMAT format, const void *bytes, int byteCount, int width, int height, int rowPitch, bool generateMipmaps) {
 	assert(bytes != nullptr);
+	this->format = format;
 
-	// Determine the texture format.
 	AllocatedResource textureUpload;
-	UINT16 mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
-	format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	UINT16 mipLevels = generateMipmaps ? (static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1) : 1;
 
 	// Calculate the minimum row width required to store the texture.
 	UINT rowWidth, rowPadding;
@@ -123,9 +122,20 @@ void RT64::Texture::setRGBA8(const void *bytes, int byteCount, int width, int he
 		d3dCommandList->DiscardResource(textureUpload.Get(), nullptr);
 	}
 
-	device->getMipmaps()->generate(texture.Get());
+	if (generateMipmaps) {
+		device->getMipmaps()->generate(texture.Get());
+	}
+	else {
+		device->submitCommandList();
+		device->waitForGPU();
+		device->resetCommandList();
+	}
 
 	textureUpload.Release();
+}
+
+void RT64::Texture::setRGBA8(const void *bytes, int byteCount, int width, int height, int rowPitch, bool generateMipmaps) {
+	setRawWithFormat(DXGI_FORMAT_R8G8B8A8_UNORM, bytes, byteCount, width, height, rowPitch, generateMipmaps);
 }
 
 void RT64::Texture::setDDS(const void *bytes, int byteCount) {
@@ -198,7 +208,7 @@ DLLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_
 	try {
 		switch (textureDesc.format) {
 		case RT64_TEXTURE_FORMAT_RGBA8:
-			texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch);
+			texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch, true);
 			break;
 		case RT64_TEXTURE_FORMAT_DDS:
 			texture->setDDS(textureDesc.bytes, textureDesc.byteCount);

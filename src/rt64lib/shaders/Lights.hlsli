@@ -2,6 +2,8 @@
 // RT64
 //
 
+#include "BlueNoise.hlsli"
+
 // Structures
 
 struct LightInfo {
@@ -62,7 +64,7 @@ float CalculateLightIntensitySimple(uint l, float3 position, float3 normal, floa
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLight(uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, const bool checkShadows, uint seed) {
+float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, const bool checkShadows) {
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
 	float shadowRayBias = instanceMaterials[instanceId].shadowRayBias;
@@ -84,7 +86,7 @@ float3 ComputeLight(uint lightIndex, float3 rayDirection, uint instanceId, float
 	float3 lSpecularityFactor = 0.0f;
 	float lShadowFactor = 0.0f;
 	while (samples > 0) {
-		float2 sampleCoordinate = float2(nextRand(seed), nextRand(seed)) * 2.0f - 1.0f;
+		float2 sampleCoordinate = getBlueNoise(launchIndex, frameCount + samples).rg * 2.0f - 1.0f;
 		sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
 
 		float3 samplePosition = lightPosition + perpX * sampleCoordinate.x * lightPointRadius + perpY * sampleCoordinate.y * lightPointRadius;
@@ -110,7 +112,7 @@ float3 ComputeLight(uint lightIndex, float3 rayDirection, uint instanceId, float
 	return (SceneLights[lightIndex].diffuseColor * lLambertFactor + SceneLights[lightIndex].specularColor * lSpecularityFactor) * lShadowFactor;
 }
 
-float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLights, const bool checkShadows, uint seed) {
+float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLights, const bool checkShadows) {
 	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 	uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
@@ -142,7 +144,7 @@ float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position
 		// implemented.
 		bool useProbability = lLightCount == 1;
 		for (uint s = 0; s < lLightCount; s++) {
-			float r = nextRand(seed) * randomRange;
+			float r = getBlueNoise(launchIndex, frameCount + s).r * randomRange;
 			uint chosen = 0;
 			float rLightIntensity = sLightIntensities[chosen];
 			while ((chosen < (sLightCount - 1)) && (r >= rLightIntensity)) {
@@ -158,7 +160,7 @@ float3 ComputeLightsRandom(float3 rayDirection, uint instanceId, float3 position
 			randomRange -= cLightIntensity;
 
 			// Compute and add the light.
-			resultLight += ComputeLight(cLightIndex, rayDirection, instanceId, position, normal, specular, checkShadows, seed + s) * invProbability;
+			resultLight += ComputeLight(launchIndex, cLightIndex, rayDirection, instanceId, position, normal, specular, checkShadows) * invProbability;
 		}
 	}
 

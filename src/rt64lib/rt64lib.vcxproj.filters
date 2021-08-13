@@ -31,6 +31,12 @@
     <Filter Include="contrib\DDSTextureLoader">
       <UniqueIdentifier>{a43f2a56-9d0a-4282-b33c-902b98bdec34}</UniqueIdentifier>
     </Filter>
+    <Filter Include="res">
+      <UniqueIdentifier>{3eb8f145-70a2-4fbc-9a1a-c0d9fcc36994}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="res\bluenoise">
+      <UniqueIdentifier>{6ac8562a-4c82-4628-b9b7-087e3b535c63}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="private\rt64_device.h">
@@ -131,6 +137,10 @@
     </ClInclude>
     <ClInclude Include="contrib\DDSTextureLoader\DDSTextureLoader12.h">
       <Filter>contrib\DDSTextureLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="res\bluenoise\LDR_64_64_64_RGB1.h">
+      <Filter>res\bluenoise</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -254,6 +264,9 @@
       <Filter>shaders\Includes</Filter>
     </None>
     <None Include="shaders\Fog.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\BlueNoise.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
   </ItemGroup>

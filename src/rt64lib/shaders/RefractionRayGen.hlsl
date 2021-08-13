@@ -104,8 +104,7 @@ void RefractionRayGen() {
 	}
 
 	if (resInstanceId >= 0) {
-		uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
-		float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true, seed) + instanceMaterials[resInstanceId].selfLight;
+		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
 		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
 	}
 

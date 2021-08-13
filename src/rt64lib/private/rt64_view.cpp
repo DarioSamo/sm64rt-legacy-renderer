@@ -607,10 +607,15 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(activeInstancesBufferMaterials.Get(), &srvDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// Add the texture SRVs.
+		// Add the blue noise SRV.
+		Texture *blueNoiseTexture = scene->getDevice()->getBlueNoiseTexture();
 		textureSRVDesc.Texture2D.MostDetailedMip = 0;
 		textureSRVDesc.Texture2D.MipLevels = -1;
+		textureSRVDesc.Format = blueNoiseTexture->getFormat();
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(blueNoiseTexture->getTexture(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
 
+		// Add the texture SRVs.
 		for (size_t i = 0; i < usedTextures.size(); i++) {
 			textureSRVDesc.Format = usedTextures[i]->getFormat();
 			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(usedTextures[i]->getTexture(), &textureSRVDesc, handle);

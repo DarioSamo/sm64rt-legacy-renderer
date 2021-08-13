@@ -15,19 +15,32 @@
 #include "Lights.hlsli"
 #include "BgSky.hlsli"
 
+float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 hitNorm) {
+	float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
+
+	// Cosine weighted hemisphere sample from RNG
+	float3 bitangent = getPerpendicularVector(hitNorm);
+	float3 tangent = cross(bitangent, hitNorm);
+	float r = sqrt(randVal.x);
+	float phi = 2.0f * 3.14159265f * randVal.y;
+
+	// Get our cosine-weighted hemisphere lobe sample direction
+	return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
+}
+
 [shader("raygeneration")]
 void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	int instanceId = gInstanceId[launchIndex];
 	if ((instanceId >= 0) && (giBounces > 0)) {
 		uint2 launchDims = DispatchRaysDimensions().xy;
-		uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
 		float3 rayOrigin = gShadingPosition[launchIndex].xyz;
 		float3 shadingNormal = gShadingNormal[launchIndex].xyz;
-		float3 rayDirection = getCosHemisphereSample(seed, shadingNormal);
 		float3 indirectResult = float3(0.0f, 0.0f, 0.0f);
 		uint maxBounces = giBounces;
 		while (maxBounces > 0) {
+			float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxBounces, shadingNormal);
+
 			// Ray differential.
 			RayDiff rayDiff;
 			rayDiff.dOdx = float3(0.0f, 0.0f, 0.0f);
@@ -82,7 +95,7 @@ void IndirectRayGen() {
 
 			// Add diffuse bounce as indirect light.
 			if (resInstanceId >= 0) {
-				float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true, seed) + instanceMaterials[resInstanceId].selfLight;
+				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
 				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
 				indirectResult += indirectLight;
 			}

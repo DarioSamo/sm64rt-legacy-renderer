@@ -115,8 +115,7 @@ void ReflectionRayGen() {
 	}
 
 	if (resInstanceId >= 0) {
-		uint seed = initRand(launchIndex.x + launchIndex.y * launchDims.x, randomSeed, 16);
-		float3 directLight = ComputeLightsRandom(rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, false, seed) + instanceMaterials[resInstanceId].selfLight;
+		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, false) + instanceMaterials[resInstanceId].selfLight;
 		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 		gViewDirection[launchIndex] = float4(rayDirection, 0.0f);

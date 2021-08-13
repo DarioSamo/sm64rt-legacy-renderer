@@ -82,6 +82,7 @@ namespace RT64 {
 		void *refractionRayGenID;
 		void *surfaceMissID;
 		void *shadowMissID;
+		Texture *blueNoise;
 		ID3D12RootSignature *d3dRayGenSignature;
 		ID3D12PipelineState *im3dPipelineStatePoint;
 		ID3D12PipelineState *im3dPipelineStateLine;
@@ -101,6 +102,7 @@ namespace RT64 {
 		void createRTVs();
 		void loadPipeline();
 		void loadAssets();
+		void loadBlueNoise();
 		void createRaytracingPipeline();
 		void createDxcCompiler();
 		ID3D12RootSignature *createRayGenSignature();
@@ -150,6 +152,7 @@ namespace RT64 {
 		IDxcCompiler *getDxcCompiler() const;
 		IDxcLibrary *getDxcLibrary() const;
 		Mipmaps *getMipmaps() const;
+		Texture *getBlueNoiseTexture() const;
 		CD3DX12_VIEWPORT getD3D12Viewport() const;
 		CD3DX12_RECT getD3D12ScissorRect() const;
 		AllocatedResource allocateResource(D3D12_HEAP_TYPE HeapType, _In_  const D3D12_RESOURCE_DESC *pDesc, D3D12_RESOURCE_STATES InitialResourceState, _In_opt_  const D3D12_CLEAR_VALUE *pOptimizedClearValue, bool committed = false, bool shared = false);

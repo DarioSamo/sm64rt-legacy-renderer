@@ -11,6 +11,7 @@
 #include "rt64_device.h"
 
 #ifndef RT64_MINIMAL
+
 #include "rt64_mipmaps.h"
 #include "rt64_inspector.h"
 #include "rt64_scene.h"
@@ -37,8 +38,11 @@
 #include "shaders/Im3DPS.hlsl.h"
 #include "shaders/PostProcessPS.hlsl.h"
 
+#include "res/bluenoise/LDR_64_64_64_RGB1.h"
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
+
 #endif
 
 // Private
@@ -73,6 +77,7 @@ RT64::Device::Device(HWND hwnd) {
 	refractionRayGenID = nullptr;
 	surfaceMissID = nullptr;
 	shadowMissID = nullptr;
+	blueNoise = nullptr;
 	width = 0;
 	height = 0;
 
@@ -392,6 +397,10 @@ IDxcLibrary *RT64::Device::getDxcLibrary() const {
 
 RT64::Mipmaps *RT64::Device::getMipmaps() const {
 	return mipmaps;
+}
+
+RT64::Texture *RT64::Device::getBlueNoiseTexture() const {
+	return blueNoise;
 }
 
 CD3DX12_VIEWPORT RT64::Device::getD3D12Viewport() const {
@@ -792,12 +801,21 @@ void RT64::Device::loadAssets() {
 		D3D12_CHECK(HRESULT_FROM_WIN32(GetLastError()));
 	}
 
+	RT64_LOG_PRINTF("Loading blue noise");
+
+	loadBlueNoise();
+
 	RT64_LOG_PRINTF("Waiting for asset load to finish");
 
 	// Close command list and wait for it to finish.
 	waitForGPU();
 
 	RT64_LOG_PRINTF("Asset load finished");
+}
+
+void RT64::Device::loadBlueNoise() {
+	blueNoise = new RT64::Texture(this);
+	blueNoise->setRGBA8(LDR_64_64_64_RGB1_BGRA8, sizeof(LDR_64_64_64_RGB1_BGRA8), 512, 512, 512 * 4, false);
 }
 
 void RT64::Device::createRaytracingPipeline() {
@@ -944,6 +962,7 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },
 		{ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) },
 		{ SRV_INDEX(instanceMaterials), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceMaterials) },
+		{ SRV_INDEX(gBlueNoise), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBlueNoise) },
 		{ SRV_INDEX(gTextures), SRV_TEXTURES_MAX, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gTextures) },
 		{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) }
 	});
