@@ -4,13 +4,6 @@ configuration:
 - Release
 - Minimal
 platform: x64
-install:
-- cmd: >-
-    appveyor DownloadFile "https://developer.download.nvidia.com/compute/cuda/11.3.0/network_installers/cuda_11.3.0_win10_network.exe" -FileName install_cuda.exe
-
-    install_cuda.exe -s nvcc_11.3 visual_studio_integration_11.3 cudart_11.3
-before_build:
-- cmd: SET CudaToolkitCustomDir=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3
 build:
   verbosity: minimal
 artifacts:
