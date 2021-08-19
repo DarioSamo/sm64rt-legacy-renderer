@@ -14,7 +14,6 @@
 #include "rt64_dlss.h"
 
 namespace RT64 {
-	class Denoiser;
 	class Scene;
 	class Shader;
 	class Inspector;
@@ -91,12 +90,13 @@ namespace RT64 {
 		AllocatedResource rtDiffuse;
 		AllocatedResource rtInstanceId;
 		AllocatedResource rtDirectLight;
-		AllocatedResource rtIndirectLight;
+		AllocatedResource rtIndirectLightAccum[2];
 		AllocatedResource rtReflection;
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
 		AllocatedResource rtFlow;
-		AllocatedResource rtDepth;
+		AllocatedResource rtNormal[2];
+		AllocatedResource rtDepth[2];
 		AllocatedResource rtHitDistAndFlow;
 		AllocatedResource rtHitColor;
 		AllocatedResource rtHitNormal;
@@ -117,8 +117,6 @@ namespace RT64 {
 		UpscaleMode rtUpscaleMode;
 		bool rtRecreateBuffers;
 		bool denoiserEnabled;
-		bool denoiserTemporal;
-		Denoiser *denoiser;
 
 		bool rtHitInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
@@ -178,7 +176,6 @@ namespace RT64 {
 		void updateUpscalingParamsBuffer();
 		void createSharpenParamsBuffer();
 		void updateSharpenParamsBuffer();
-		void checkDenoiser();
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -213,8 +210,6 @@ namespace RT64 {
 		int getMaxReflections() const;
 		void setDenoiserEnabled(bool v);
 		bool getDenoiserEnabled() const;
-		void setDenoiserTemporalMode(bool v);
-		bool getDenoiserTemporalMode() const;
 		void setUpscaleMode(UpscaleMode v);
 		UpscaleMode getUpscaleMode() const;
 		void setSkyPlaneTexture(Texture *texture);

@@ -18,17 +18,17 @@ SamplerState gSampler : register(s0);
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     float4 diffuse = gDiffuse.SampleLevel(gSampler, uv, 0);
     if (diffuse.a > EPSILON) {
-        float4 directLight = gDirectLight.SampleLevel(gSampler, uv, 0);
-        float4 indirectLight = gIndirectLight.SampleLevel(gSampler, uv, 0);
-        float4 reflection = gReflection.SampleLevel(gSampler, uv, 0);
-        float4 refraction = gRefraction.SampleLevel(gSampler, uv, 0);
-        float4 transparent = gTransparent.SampleLevel(gSampler, uv, 0);
+        float3 directLight = gDirectLight.SampleLevel(gSampler, uv, 0).rgb;
+        float3 indirectLight = gIndirectLight.SampleLevel(gSampler, uv, 0).rgb;
+        float3 reflection = gReflection.SampleLevel(gSampler, uv, 0).rgb;
+        float3 refraction = gRefraction.SampleLevel(gSampler, uv, 0).rgb;
+        float3 transparent = gTransparent.SampleLevel(gSampler, uv, 0).rgb;
         float3 result = diffuse.rgb;
-        result *= (directLight.rgb + indirectLight.rgb);
+        result *= (directLight + indirectLight);
         result = lerp(diffuse.rgb, result, diffuse.a);
-        result += reflection.rgb;
-        result += refraction.rgb;
-        result += transparent.rgb;
+        result += reflection;
+        result += refraction;
+        result += transparent;
         return float4(result, 1.0f);
     }
     else {

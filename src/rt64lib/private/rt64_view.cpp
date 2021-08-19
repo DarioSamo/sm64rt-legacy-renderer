@@ -9,7 +9,6 @@
 #include <map>
 #include <set>
 
-#include "rt64_denoiser.h"
 #include "rt64_device.h"
 #include "rt64_dlss.h"
 #include "rt64_instance.h"
@@ -74,9 +73,7 @@ RT64::View::View(Scene *scene) {
 	resolutionScale = 1.0f;
 	sharpenAttenuation = 0.25f;
 	denoiserEnabled = false;
-	denoiserTemporal = false;
 	rtUpscaleMode = UpscaleMode::Bilinear;
-	denoiser = nullptr;
 	perspectiveControlActive = false;
 	perspectiveCanReproject = true;
 	im3dVertexCount = 0;
@@ -108,8 +105,6 @@ RT64::View::~View() {
 #ifdef RT64_DLSS
 	delete dlss;
 #endif
-
-	delete denoiser;
 	
 	scene->removeView(this);
 
@@ -196,23 +191,27 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Height = rtHeight;
 	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-	rtOutput[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
-	rtOutput[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
+	rtOutput[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtOutput[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
-	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, true, true);
-	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, true, true);
+	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtNormal[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtNormal[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	rtDepth = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtDepth[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtDepth[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	rtViewDirection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtShadingSpecular = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtDirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	rtIndirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtIndirectLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtIndirectLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -250,14 +249,18 @@ void RT64::View::createOutputBuffers() {
 	rtShadingNormal.SetName(L"rtShadingNormal");
 	rtShadingSpecular.SetName(L"rtShadingSpecular");
 	rtDiffuse.SetName(L"rtDiffuse");
+	rtNormal[0].SetName(L"rtNormal[0]");
+	rtNormal[1].SetName(L"rtNormal[1]");
 	rtInstanceId.SetName(L"rtInstanceId");
 	rtDirectLight.SetName(L"rtDirectLight");
-	rtIndirectLight.SetName(L"rtIndirectLight");
+	rtIndirectLightAccum[0].SetName(L"rtIndirectLight[0]");
+	rtIndirectLightAccum[1].SetName(L"rtIndirectLight[1]");
 	rtReflection.SetName(L"rtReflection");
 	rtRefraction.SetName(L"rtRefraction");
 	rtTransparent.SetName(L"rtTransparent");
 	rtFlow.SetName(L"rtFlow");
-	rtDepth.SetName(L"rtDepth");
+	rtDepth[0].SetName(L"rtDepth[0]");
+	rtDepth[1].SetName(L"rtDepth[1]");
 	rtHitDistAndFlow.SetName(L"rtHitDistAndFlow");
 	rtHitColor.SetName(L"rtHitColor");
 	rtHitNormal.SetName(L"rtHitNormal");
@@ -284,11 +287,6 @@ void RT64::View::createOutputBuffers() {
 		scene->getDevice()->getD3D12Device()->CreateRenderTargetView(rtOutput[i].Get(), nullptr, rtvOutHandle);
 	}
 
-	if (denoiserEnabled) {
-		ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
-		denoiser->set(rtWidth, rtHeight, rtOutputArray, rtDiffuse.Get(), rtShadingNormal.Get(), rtFlow.Get());
-	}
-
 	RT64_LOG_PRINTF("Finished output buffer creation");
 }
 
@@ -301,14 +299,18 @@ void RT64::View::releaseOutputBuffers() {
 	rtShadingNormal.Release();
 	rtShadingSpecular.Release();
 	rtDiffuse.Release();
+	rtNormal[0].Release();
+	rtNormal[1].Release();
 	rtInstanceId.Release();
 	rtDirectLight.Release();
-	rtIndirectLight.Release();
+	rtIndirectLightAccum[0].Release();
+	rtIndirectLightAccum[1].Release();
 	rtReflection.Release();
 	rtRefraction.Release();
 	rtTransparent.Release();
 	rtFlow.Release();
-	rtDepth.Release();
+	rtDepth[0].Release();
+	rtDepth[1].Release();
 	rtHitDistAndFlow.Release();
 	rtHitColor.Release();
 	rtHitNormal.Release();
@@ -491,7 +493,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 
 		// UAV for indirect light buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtIndirectLight.Get(), nullptr, &uavDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for reflection buffer.
@@ -510,8 +512,24 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFlow.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// UAV for first hit normal buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtNormal[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// UAV for depth buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDepth.Get(), nullptr, &uavDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDepth[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for previous first hit normal buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtNormal[rtSwap ? 0 : 1].Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for previous depth buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDepth[rtSwap ? 0 : 1].Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for previous indirect light buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtIndirectLightAccum[rtSwap ? 0 : 1].Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for hit distance and world flow buffer.
@@ -702,7 +720,7 @@ void RT64::View::createShaderResourceHeap() {
 
 		// SRV for indirect light buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtIndirectLight.Get(), &textureSRVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for reflection buffer.
@@ -1323,9 +1341,8 @@ void RT64::View::render() {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(preDispatchBarriers), preDispatchBarriers);
@@ -1344,7 +1361,8 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtRefraction.Get()),
-				CD3DX12_RESOURCE_BARRIER::UAV(rtInstanceId.Get())
+				CD3DX12_RESOURCE_BARRIER::UAV(rtInstanceId.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal[rtSwap ? 1 : 0].Get()),
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(shadingBarriers), shadingBarriers);
@@ -1362,7 +1380,7 @@ void RT64::View::render() {
 		// Wait until indirect light is done before dispatching reflection or refraction rays.
 		// TODO: This is only required to prevent simultaneous usage of the anyhit buffers.
 		// This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
-		CD3DX12_RESOURCE_BARRIER indirectBarrier = CD3DX12_RESOURCE_BARRIER::UAV(rtIndirectLight.Get());
+		CD3DX12_RESOURCE_BARRIER indirectBarrier = CD3DX12_RESOURCE_BARRIER::UAV(rtIndirectLightAccum[rtSwap ? 1 : 0].Get());
 		d3dCommandList->ResourceBarrier(1, &indirectBarrier);
 
 		// Dispatch rays for refraction.
@@ -1406,10 +1424,10 @@ void RT64::View::render() {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDiffuse.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtReflection.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(afterDispatchBarriers), afterDispatchBarriers);
@@ -1434,32 +1452,22 @@ void RT64::View::render() {
 		d3dCommandList->DrawInstanced(3, 1, 0, 0);
 
 		// Switch output to a pixel shader resource.
-		CD3DX12_RESOURCE_BARRIER afterComposeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		d3dCommandList->ResourceBarrier(1, &afterComposeBarrier);
+		CD3DX12_RESOURCE_BARRIER afterComposeBarriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+		};
+
+		d3dCommandList->ResourceBarrier(_countof(afterComposeBarriers), afterComposeBarriers);
 
 		// Denoise if enabled.
-		if (denoiserEnabled && (denoiser != nullptr)) {
-			RT64_LOG_PRINTF("Submitting frame to denoiser");
-
-			// Wait for the raytracing step to be finished.
-			// TODO: Maybe use a fence for this instead so we don't need to wait on all of the GPU operations.
-			scene->getDevice()->submitCommandList();
-			scene->getDevice()->waitForGPU();
-			scene->getDevice()->resetCommandList();
-
-			// Execute the denoiser.
-			denoiser->denoise(rtSwap);
-			rtSwap = !rtSwap;
-
-			// Reset the scissor and the viewport since the command list was reset.
-			resetScissor();
-			resetViewport();
+		if (denoiserEnabled) {
+			// TODO: Denoising passes.
 		}
 
 		// Transition the motion vectors and depth buffer to shader resources.
 		CD3DX12_RESOURCE_BARRIER beforeFiltersBarriers[] = {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(beforeFiltersBarriers), beforeFiltersBarriers);
@@ -1500,7 +1508,7 @@ void RT64::View::render() {
 				params.inRect = { 0, 0, rtWidth, rtHeight };
 				params.inColor = rtOutputCur;
 				params.inFlow = rtFlow.Get();
-				params.inDepth = rtDepth.Get();
+				params.inDepth = rtDepth[rtSwap ? 1 : 0].Get();
 				params.outColor = rtOutputUpscaled.Get();
 				params.resetAccumulation = false; // TODO: Make this configurable via the API.
 				params.sharpness = dlssSharpness;
@@ -1591,7 +1599,8 @@ void RT64::View::render() {
 	resetViewport();
 	drawInstances(rasterFgInstances, (UINT)(rasterBgInstances.size() + rtInstances.size()), true);
 
-	// Clear flags.
+	// End the frame.
+	rtSwap = !rtSwap;
 	rtHitInstanceIdReadbackUpdated = false;
 	globalParamsBufferData.frameCount++;
 
@@ -1813,44 +1822,12 @@ int RT64::View::getMaxReflections() const {
 	return maxReflections;
 }
 
-void RT64::View::checkDenoiser() {
-	// Create the denoiser if it wasn't created yet.
-	if (denoiser == nullptr) {
-		denoiser = new RT64::Denoiser(scene->getDevice(), denoiserTemporal);
-	}
-
-	// Update the buffer sizes since they might've changed since the last time the denoiser was enabled.
-	ID3D12Resource *rtOutputArray[2] = { rtOutput[0].Get(), rtOutput[1].Get() };
-	denoiser->set(rtWidth, rtHeight, rtOutputArray, rtDiffuse.Get(), rtShadingNormal.Get(), rtFlow.Get());
-}
-
 void RT64::View::setDenoiserEnabled(bool v) {
-	if (!denoiserEnabled && v) {
-		checkDenoiser();
-	}
-
 	denoiserEnabled = v;
 }
 
 bool RT64::View::getDenoiserEnabled() const {
 	return denoiserEnabled;
-}
-
-void RT64::View::setDenoiserTemporalMode(bool v) {
-	if (denoiserTemporal != v) {
-		denoiserTemporal = v;
-
-		// Recreate the denoiser.
-		if (denoiser != nullptr) {
-			delete denoiser;
-			denoiser = nullptr;
-			checkDenoiser();
-		}
-	}
-}
-
-bool RT64::View::getDenoiserTemporalMode() const {
-	return denoiserTemporal;
 }
 
 void RT64::View::setUpscaleMode(UpscaleMode v) {

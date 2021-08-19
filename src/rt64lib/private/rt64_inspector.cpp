@@ -126,7 +126,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     int resScale = lround(view->getResolutionScale() * 100.0f);
     int upscaleMode = (int)(view->getUpscaleMode());
     bool denoiser = view->getDenoiserEnabled();
-    bool temporal = view->getDenoiserTemporalMode();
 
     ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI bounces", &giBounces, 0.1f, 0, 32);
@@ -179,11 +178,7 @@ void RT64::Inspector::renderViewParams(View *view) {
         ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     }
 
-    ImGui::Checkbox("NVIDIA OptiX Denoiser", &denoiser);
-
-    if (denoiser) {
-        ImGui::Checkbox("Temporal Mode", &temporal);
-    }
+    ImGui::Checkbox("Denoiser", &denoiser);
 
     // Dumping toggle.
     bool isDumping = !dumpPath.empty();
@@ -209,7 +204,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setResolutionScale(resScale / 100.0f);
     view->setUpscaleMode((UpscaleMode)(upscaleMode));
     view->setDenoiserEnabled(denoiser);
-    view->setDenoiserTemporalMode(temporal);
 
     ImGui::End();
 }

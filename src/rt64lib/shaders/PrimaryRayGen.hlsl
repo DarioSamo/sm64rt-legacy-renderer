@@ -177,7 +177,8 @@ void PrimaryRayGen() {
 	gDiffuse[launchIndex] = resColor;
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
-	gFlow[launchIndex] = float4(resFlow, 0.0f, 0.0f);
+	gFlow[launchIndex] = float4(-resFlow.x, resFlow.y, 0.0f, 0.0f);
+	gNormal[launchIndex] = float4(resNormal, 0.0f);
 	gDepth[launchIndex] = resDepth;
 }
 

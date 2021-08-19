@@ -76,7 +76,7 @@ float4 getDirectLight(float2 pos) {
 }
 
 float4 getIndirectLight(float2 pos) {
-    return float4(gIndirectLight[pos].rgb, 1.0f);
+    return float4(gIndirectLightAccum[pos].rgb, 1.0f);
 }
 
 float4 getReflection(float2 pos) {

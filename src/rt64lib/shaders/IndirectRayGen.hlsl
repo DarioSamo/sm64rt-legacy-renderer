@@ -105,10 +105,22 @@ void IndirectRayGen() {
 
 			maxBounces--;
 		}
-
-		gIndirectLight[launchIndex] = float4(ambientBaseColor.rgb + indirectResult / giBounces, 1.0f);
+		
+		// Accumulate indirect light.
+		float2 flow = gFlow[launchIndex].xy;
+		int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
+		float prevDepth = gPrevDepth[prevIndex];
+		float3 prevNormal = gPrevNormal[prevIndex].xyz;
+		float4 prevIndirectAccum = gPrevIndirectLightAccum[prevIndex];
+		float depth = gDepth[launchIndex];
+		const float DepthWeightThreshold = 0.01f;
+		float weightDepth = max(1.0f - (abs(depth - prevDepth) / DepthWeightThreshold), 0.0f);
+		float weightNormal = max(0.0f, dot(prevNormal, shadingNormal));
+		float historyWeight = weightDepth * weightNormal;
+		float historyLength = min(prevIndirectAccum.a * historyWeight + 1.0f, 64.0f);
+		gIndirectLightAccum[launchIndex] = float4(lerp(prevIndirectAccum.rgb, ambientBaseColor.rgb + indirectResult, 1.0f / historyLength), historyLength);
 	}
 	else {
-		gIndirectLight[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 1.0f);
+		gIndirectLightAccum[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 0.0f);
 	}
 }
