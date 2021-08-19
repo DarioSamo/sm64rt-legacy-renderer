@@ -195,12 +195,18 @@ void RT64::View::createOutputBuffers() {
 	rtOutput[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
+	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
+	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	rtNormal[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtNormal[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+
+	resDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	rtDepth[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -704,12 +710,12 @@ void RT64::View::createShaderResourceHeap() {
 		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 		// SRV for motion vector texture.
-		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFlow.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for diffuse buffer.
-		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtDiffuse.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
@@ -856,7 +862,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 
 		// SRV for flow buffer.
-		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFlow.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 

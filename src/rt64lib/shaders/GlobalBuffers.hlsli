@@ -13,7 +13,7 @@ RWTexture2D<float4> gIndirectLightAccum : register(u7);
 RWTexture2D<float4> gReflection : register(u8);
 RWTexture2D<float4> gRefraction : register(u9);
 RWTexture2D<float4> gTransparent : register(u10);
-RWTexture2D<float4> gFlow : register(u11);
+RWTexture2D<float2> gFlow : register(u11);
 RWTexture2D<float4> gNormal : register(u12);
 RWTexture2D<float> gDepth : register(u13);
 RWTexture2D<float4> gPrevNormal : register(u14);
