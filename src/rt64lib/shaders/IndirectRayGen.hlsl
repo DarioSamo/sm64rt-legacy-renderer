@@ -36,10 +36,25 @@ void IndirectRayGen() {
 		uint2 launchDims = DispatchRaysDimensions().xy;
 		float3 rayOrigin = gShadingPosition[launchIndex].xyz;
 		float3 shadingNormal = gShadingNormal[launchIndex].xyz;
-		float3 indirectResult = float3(0.0f, 0.0f, 0.0f);
+
+		// Reproject previous indirect.
+		float2 flow = gFlow[launchIndex].xy;
+		int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
+		float prevDepth = gPrevDepth[prevIndex];
+		float3 prevNormal = gPrevNormal[prevIndex].xyz;
+		float4 prevIndirectAccum = gPrevIndirectLightAccum[prevIndex];
+		float3 newIndirect = prevIndirectAccum.rgb;
+		float depth = gDepth[launchIndex];
+		float weightDepth = abs(depth - prevDepth) / 0.01f;
+		float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), 128.0f);
+		// TODO: Add Albedo weight.
+		float historyWeight = exp(-weightDepth) * weightNormal;
+		float historyLength = prevIndirectAccum.a * historyWeight;
+
 		uint maxBounces = giBounces;
+		const uint blueNoiseMult = 64 / giBounces;
 		while (maxBounces > 0) {
-			float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxBounces, shadingNormal);
+			float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxBounces * blueNoiseMult, shadingNormal);
 
 			// Ray differential.
 			RayDiff rayDiff;
@@ -94,31 +109,23 @@ void IndirectRayGen() {
 			}
 
 			// Add diffuse bounce as indirect light.
+			float3 resIndirect = ambientBaseColor.rgb;
 			if (resInstanceId >= 0) {
 				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
 				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
-				indirectResult += indirectLight;
+				resIndirect += indirectLight;
 			}
 
-			// Add sky as indirect light.
-			indirectResult += bgColor * giSkyStrength * resColor.a;
+			resIndirect += bgColor * giSkyStrength * resColor.a;
+
+			// Accumulate sample on history.
+			historyLength = min(historyLength + 1.0f, 64.0f);
+			newIndirect = lerp(newIndirect.rgb, resIndirect, 1.0f / historyLength);
 
 			maxBounces--;
 		}
 		
-		// Accumulate indirect light.
-		float2 flow = gFlow[launchIndex].xy;
-		int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
-		float prevDepth = gPrevDepth[prevIndex];
-		float3 prevNormal = gPrevNormal[prevIndex].xyz;
-		float4 prevIndirectAccum = gPrevIndirectLightAccum[prevIndex];
-		float depth = gDepth[launchIndex];
-		const float DepthWeightThreshold = 0.01f;
-		float weightDepth = max(1.0f - (abs(depth - prevDepth) / DepthWeightThreshold), 0.0f);
-		float weightNormal = max(0.0f, dot(prevNormal, shadingNormal));
-		float historyWeight = weightDepth * weightNormal;
-		float historyLength = min(prevIndirectAccum.a * historyWeight + 1.0f, 64.0f);
-		gIndirectLightAccum[launchIndex] = float4(lerp(prevIndirectAccum.rgb, ambientBaseColor.rgb + indirectResult, 1.0f / historyLength), historyLength);
+		gIndirectLightAccum[launchIndex] = float4(newIndirect, historyLength);
 	}
 	else {
 		gIndirectLightAccum[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 0.0f);
