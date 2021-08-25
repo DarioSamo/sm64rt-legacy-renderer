@@ -65,6 +65,8 @@ namespace RT64 {
 		ID3D12PipelineState *d3dFsrEasuPipelineState;
 		ID3D12RootSignature *d3dFsrRcasRootSignature;
 		ID3D12PipelineState *d3dFsrRcasPipelineState;
+		ID3D12RootSignature *d3dGaussianFilterRGB3x3RootSignature;
+		ID3D12PipelineState *d3dGaussianFilterRGB3x3PipelineState;
 		ID3D12RootSignature *d3dDebugRootSignature;
 		ID3D12PipelineState *d3dDebugPipelineState;
 		UINT d3dRtvDescriptorSize;
@@ -136,6 +138,8 @@ namespace RT64 {
 		ID3D12PipelineState *getFsrEasuPipelineState() const;
 		ID3D12RootSignature *getFsrRcasRootSignature() const;
 		ID3D12PipelineState *getFsrRcasPipelineState() const;
+		ID3D12RootSignature *getGaussianFilterRGB3x3RootSignature() const;
+		ID3D12PipelineState *getGaussianFilterRGB3x3PipelineState() const;
 		ID3D12RootSignature *getDebugRootSignature() const;
 		ID3D12PipelineState *getDebugPipelineState() const;
 		ID3D12RootSignature *getIm3dRootSignature() const;

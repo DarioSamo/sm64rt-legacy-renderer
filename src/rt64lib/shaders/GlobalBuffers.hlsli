@@ -19,5 +19,6 @@ RWTexture2D<float> gDepth : register(u13);
 RWTexture2D<float4> gPrevNormal : register(u14);
 RWTexture2D<float> gPrevDepth : register(u15);
 RWTexture2D<float4> gPrevIndirectLightAccum : register(u16);
+RWTexture2D<float4> gFilteredIndirectLight : register(u17);
 
 Texture2D<float4> gBackground : register(t1);

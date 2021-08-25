@@ -313,5 +313,8 @@
     <CustomBuild Include="shaders\GenerateMipsCS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="shaders\GaussianFilterRGB3x3CS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

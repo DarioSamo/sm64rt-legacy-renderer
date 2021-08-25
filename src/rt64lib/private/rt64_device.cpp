@@ -26,6 +26,7 @@
 
 #include "shaders/FsrEasuPassCS.hlsl.h"
 #include "shaders/FsrRcasPassCS.hlsl.h"
+#include "shaders/GaussianFilterRGB3x3CS.hlsl.h"
 
 #include "shaders/FullScreenVS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
@@ -333,6 +334,14 @@ ID3D12RootSignature *RT64::Device::getFsrRcasRootSignature() const {
 
 ID3D12PipelineState *RT64::Device::getFsrRcasPipelineState() const {
 	return d3dFsrRcasPipelineState;
+}
+
+ID3D12RootSignature *RT64::Device::getGaussianFilterRGB3x3RootSignature() const {
+	return d3dGaussianFilterRGB3x3RootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getGaussianFilterRGB3x3PipelineState() const {
+	return d3dGaussianFilterRGB3x3PipelineState;
 }
 
 ID3D12RootSignature *RT64::Device::getDebugRootSignature() const {
@@ -696,6 +705,7 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gInstanceId) },
 			{ UAV_INDEX(gDirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDirectLight) },
 			{ UAV_INDEX(gIndirectLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gIndirectLightAccum) },
+			{ UAV_INDEX(gFilteredIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredIndirectLight) },
 			{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
 			{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 			{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
@@ -779,6 +789,37 @@ void RT64::Device::loadAssets() {
 		psoDesc.NodeMask = 0;
 
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dFsrRcasPipelineState)));
+	}
+
+	RT64_LOG_PRINTF("Creating the gaussian filter RGB 3x3 root signature");
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
+		});
+
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc = { };
+		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.MaxAnisotropy = 1;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+
+		d3dGaussianFilterRGB3x3RootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
+	}
+
+	RT64_LOG_PRINTF("Creating the gaussian filter RGB 3x3 pipeline state");
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+		psoDesc.CS = CD3DX12_SHADER_BYTECODE(GaussianFilterRGB3x3CSBlob, sizeof(GaussianFilterRGB3x3CSBlob));
+		psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		psoDesc.pRootSignature = d3dGaussianFilterRGB3x3RootSignature;
+		psoDesc.NodeMask = 0;
+
+		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dGaussianFilterRGB3x3PipelineState)));
 	}
 
 	mipmaps = new RT64::Mipmaps(this);
@@ -956,6 +997,7 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ UAV_INDEX(gPrevNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gPrevNormal) },
 		{ UAV_INDEX(gPrevDepth), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gPrevDepth) },
 		{ UAV_INDEX(gPrevIndirectLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gPrevIndirectLightAccum) },
+		{ UAV_INDEX(gFilteredIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredIndirectLight) },
 		{ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },

@@ -38,16 +38,19 @@ void IndirectRayGen() {
 		float3 shadingNormal = gShadingNormal[launchIndex].xyz;
 
 		// Reproject previous indirect.
+		const float WeightNormalExponent = 128.0f;
 		float2 flow = gFlow[launchIndex].xy;
 		int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
 		float prevDepth = gPrevDepth[prevIndex];
 		float3 prevNormal = gPrevNormal[prevIndex].xyz;
 		float4 prevIndirectAccum = gPrevIndirectLightAccum[prevIndex];
 		float3 newIndirect = prevIndirectAccum.rgb;
+		//
+		newIndirect = gFilteredIndirectLight[prevIndex].rgb;
+		//
 		float depth = gDepth[launchIndex];
 		float weightDepth = abs(depth - prevDepth) / 0.01f;
-		float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), 128.0f);
-		// TODO: Add Albedo weight.
+		float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), WeightNormalExponent);
 		float historyWeight = exp(-weightDepth) * weightNormal;
 		float historyLength = prevIndirectAccum.a * historyWeight;
 

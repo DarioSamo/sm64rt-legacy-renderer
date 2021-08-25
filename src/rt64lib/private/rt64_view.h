@@ -91,6 +91,7 @@ namespace RT64 {
 		AllocatedResource rtInstanceId;
 		AllocatedResource rtDirectLight;
 		AllocatedResource rtIndirectLightAccum[2];
+		AllocatedResource rtFilteredIndirectLight;
 		AllocatedResource rtReflection;
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
@@ -127,6 +128,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *upscaleHeap;
 		ID3D12DescriptorHeap *sharpenHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
+		ID3D12DescriptorHeap *indirectFilterHeap;
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;
@@ -137,6 +139,8 @@ namespace RT64 {
 		uint32_t upscalingParamBufferSize;
 		AllocatedResource sharpenParamBufferResource;
 		uint32_t sharpenParamBufferSize;
+		AllocatedResource indirectFilterParamBufferResource;
+		uint32_t indirectFilterParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -176,6 +180,8 @@ namespace RT64 {
 		void updateUpscalingParamsBuffer();
 		void createSharpenParamsBuffer();
 		void updateSharpenParamsBuffer();
+		void createIndirectFilterParamsBuffer();
+		void updateIndirectFilterParamsBuffer();
 	public:
 		View(Scene *scene);
 		virtual ~View();

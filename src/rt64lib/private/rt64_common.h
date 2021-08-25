@@ -53,6 +53,7 @@ namespace RT64 {
 		gPrevNormal,
 		gPrevDepth,
 		gPrevIndirectLightAccum,
+		gFilteredIndirectLight,
 		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
@@ -87,6 +88,7 @@ namespace RT64 {
 		gPrevNormal,
 		gPrevDepth,
 		gPrevIndirectLightAccum,
+		gFilteredIndirectLight,
 		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
@@ -127,12 +129,13 @@ namespace RT64 {
 	static const unsigned int VisualizationModeDiffuse = 4;
 	static const unsigned int VisualizationModeInstanceID = 5;
 	static const unsigned int VisualizationModeDirectLight = 6;
-	static const unsigned int VisualizationModeIndirectLight = 7;
-	static const unsigned int VisualizationModeReflection = 8;
-	static const unsigned int VisualizationModeRefraction = 9;
-	static const unsigned int VisualizationModeTransparent = 9;
-	static const unsigned int VisualizationModeMotionVectors = 11;
-	static const unsigned int VisualizationModeDepth = 12;
+	static const unsigned int VisualizationModeIndirectLightRaw = 7;
+	static const unsigned int VisualizationModeIndirectLightFiltered = 8;
+	static const unsigned int VisualizationModeReflection = 9;
+	static const unsigned int VisualizationModeRefraction = 10;
+	static const unsigned int VisualizationModeTransparent = 11;
+	static const unsigned int VisualizationModeMotionVectors = 12;
+	static const unsigned int VisualizationModeDepth = 13;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
