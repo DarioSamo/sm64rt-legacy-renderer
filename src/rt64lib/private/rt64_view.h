@@ -65,6 +65,7 @@ namespace RT64 {
 			unsigned int randomSeed;
 			unsigned int softLightSamples;
 			unsigned int giBounces;
+			unsigned int giReproject;
 			unsigned int maxLightSamples;
 			unsigned int motionBlurSamples;
 			unsigned int visualizationMode;
@@ -91,7 +92,7 @@ namespace RT64 {
 		AllocatedResource rtInstanceId;
 		AllocatedResource rtDirectLight;
 		AllocatedResource rtIndirectLightAccum[2];
-		AllocatedResource rtFilteredIndirectLight;
+		AllocatedResource rtFilteredIndirectLight[2];
 		AllocatedResource rtReflection;
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
@@ -128,7 +129,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *upscaleHeap;
 		ID3D12DescriptorHeap *sharpenHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
-		ID3D12DescriptorHeap *indirectFilterHeap;
+		ID3D12DescriptorHeap *indirectFilterHeaps[2];
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;

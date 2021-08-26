@@ -50,7 +50,8 @@ RT64::View::View(Scene *scene) {
 	upscaleHeap = nullptr;
 	sharpenHeap = nullptr;
 	postProcessHeap = nullptr;
-	indirectFilterHeap = nullptr;
+	indirectFilterHeaps[0] = nullptr;
+	indirectFilterHeaps[1] = nullptr;
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
@@ -220,7 +221,8 @@ void RT64::View::createOutputBuffers() {
 	rtDirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtIndirectLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtIndirectLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	rtFilteredIndirectLight = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtFilteredIndirectLight[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtFilteredIndirectLight[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -264,7 +266,8 @@ void RT64::View::createOutputBuffers() {
 	rtDirectLight.SetName(L"rtDirectLight");
 	rtIndirectLightAccum[0].SetName(L"rtIndirectLightAccum[0]");
 	rtIndirectLightAccum[1].SetName(L"rtIndirectLightAccum[1]");
-	rtFilteredIndirectLight.SetName(L"rtFilteredIndirectLight");
+	rtFilteredIndirectLight[0].SetName(L"rtFilteredIndirectLight[0]");
+	rtFilteredIndirectLight[1].SetName(L"rtFilteredIndirectLight[1]");
 	rtReflection.SetName(L"rtReflection");
 	rtRefraction.SetName(L"rtRefraction");
 	rtTransparent.SetName(L"rtTransparent");
@@ -315,7 +318,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtDirectLight.Release();
 	rtIndirectLightAccum[0].Release();
 	rtIndirectLightAccum[1].Release();
-	rtFilteredIndirectLight.Release();
+	rtFilteredIndirectLight[0].Release();
+	rtFilteredIndirectLight[1].Release();
 	rtReflection.Release();
 	rtRefraction.Release();
 	rtTransparent.Release();
@@ -544,7 +548,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 
 		// UAV for filtered indirect light buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFilteredIndirectLight.Get(), nullptr, &uavDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFilteredIndirectLight[1].Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for hit distance and world flow buffer.
@@ -735,7 +739,7 @@ void RT64::View::createShaderResourceHeap() {
 
 		// SRV for filtered indirect light buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFilteredIndirectLight.Get(), &textureSRVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFilteredIndirectLight[1].Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for reflection buffer.
@@ -886,35 +890,37 @@ void RT64::View::createShaderResourceHeap() {
 
 	{
 		// Create the heap for indirect filter.
-		if (indirectFilterHeap == nullptr) {
-			uint32_t handleCount = 3;
-			indirectFilterHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		for (int i = 0; i < 2; i++) {
+			if (indirectFilterHeaps[i] == nullptr) {
+				uint32_t handleCount = 3;
+				indirectFilterHeaps[i] = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+			}
+
+			D3D12_CPU_DESCRIPTOR_HANDLE handle = indirectFilterHeaps[i]->GetCPUDescriptorHandleForHeapStart();
+
+			// SRV for input image.
+			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			textureSRVDesc.Texture2D.MipLevels = 1;
+			textureSRVDesc.Texture2D.MostDetailedMip = 0;
+			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFilteredIndirectLight[i ? 1 : 0].Get(), &textureSRVDesc, handle);
+			handle.ptr += handleIncrement;
+
+			// UAV for output image.
+			D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+			scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFilteredIndirectLight[i ? 0 : 1].Get(), nullptr, &uavDesc, handle);
+			handle.ptr += handleIncrement;
+
+			// CBV for sharpen parameters.
+			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+			cbvDesc.BufferLocation = indirectFilterParamBufferResource.Get()->GetGPUVirtualAddress();
+			cbvDesc.SizeInBytes = indirectFilterParamBufferSize;
+			scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+			handle.ptr += handleIncrement;
 		}
-
-		D3D12_CPU_DESCRIPTOR_HANDLE handle = indirectFilterHeap->GetCPUDescriptorHandleForHeapStart();
-
-		// SRV for input image.
-		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
-		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		textureSRVDesc.Texture2D.MipLevels = 1;
-		textureSRVDesc.Texture2D.MostDetailedMip = 0;
-		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for output image.
-		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFilteredIndirectLight.Get(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// CBV for sharpen parameters.
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = indirectFilterParamBufferResource.Get()->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = indirectFilterParamBufferSize;
-		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
-		handle.ptr += handleIncrement;
 	}
 }
 
@@ -1032,6 +1038,9 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.cameraU = ToVector4(cameraU, 0.0f);
 	globalParamsBufferData.cameraV = ToVector4(cameraV, 0.0f);
 	globalParamsBufferData.cameraW = ToVector4(cameraW, 0.0f);
+
+	// Enable indirect light reprojection if denoising is enabled.
+	globalParamsBufferData.giReproject = denoiserEnabled ? 1 : 0;
 
 	// Use the total frame count as the random seed.
 	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
@@ -1493,23 +1502,48 @@ void RT64::View::render() {
 			}
 		}
 
-		// Apply a gaussian filter to the indirect light with a compute shader.
+		// Copy indirect light raw buffer to the first indirect filtered buffer.
+		bool denoiseGI = denoiserEnabled && (globalParamsBufferData.giBounces > 0);
 		{
-			CD3DX12_RESOURCE_BARRIER beforeIndirectBlurBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			d3dCommandList->ResourceBarrier(1, &beforeIndirectBlurBarrier);
+			ID3D12Resource *source = rtIndirectLightAccum[rtSwap ? 1 : 0].Get();
+			ID3D12Resource *dest = rtFilteredIndirectLight[denoiseGI ? 0 : 1].Get();
 
-			std::vector<ID3D12DescriptorHeap *> indirectFilterHeaps = { indirectFilterHeap };
-			const int ThreadGroupWorkCount = 8;
-			int indirectDispatchX = rtWidth / ThreadGroupWorkCount + ((rtWidth % ThreadGroupWorkCount) ? 1 : 0);
-			int indirectDispatchY = rtHeight / ThreadGroupWorkCount + ((rtHeight % ThreadGroupWorkCount) ? 1 : 0);
-			d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
-			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
-			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(indirectFilterHeaps.size()), indirectFilterHeaps.data());
-			d3dCommandList->SetComputeRootDescriptorTable(0, indirectFilterHeap->GetGPUDescriptorHandleForHeapStart());
-			d3dCommandList->Dispatch(indirectDispatchX, indirectDispatchY, 1);
+			CD3DX12_RESOURCE_BARRIER beforeCopyBarriers[] = {
+				CD3DX12_RESOURCE_BARRIER::Transition(source, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
+				CD3DX12_RESOURCE_BARRIER::Transition(dest, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_DEST)
+			};
 
-			CD3DX12_RESOURCE_BARRIER afterIndirectBlurBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			d3dCommandList->ResourceBarrier(1, &afterIndirectBlurBarrier);
+			d3dCommandList->ResourceBarrier(_countof(beforeCopyBarriers), beforeCopyBarriers);
+
+			d3dCommandList->CopyResource(dest, source);
+
+			CD3DX12_RESOURCE_BARRIER afterCopyBarriers[] = {
+				CD3DX12_RESOURCE_BARRIER::Transition(source, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+				CD3DX12_RESOURCE_BARRIER::Transition(dest, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+			};
+
+			d3dCommandList->ResourceBarrier(_countof(afterCopyBarriers), afterCopyBarriers);
+		}
+
+		// Apply a gaussian filter to the indirect light with a compute shader.
+		if (denoiseGI) {
+			for (int i = 0; i < 5; i++) {
+				const int ThreadGroupWorkCount = 8;
+				int indirectDispatchX = rtWidth / ThreadGroupWorkCount + ((rtWidth % ThreadGroupWorkCount) ? 1 : 0);
+				int indirectDispatchY = rtHeight / ThreadGroupWorkCount + ((rtHeight % ThreadGroupWorkCount) ? 1 : 0);
+				d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
+				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
+				d3dCommandList->SetDescriptorHeaps(1, &indirectFilterHeaps[i % 2]);
+				d3dCommandList->SetComputeRootDescriptorTable(0, indirectFilterHeaps[i % 2]->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->Dispatch(indirectDispatchX, indirectDispatchY, 1);
+
+				CD3DX12_RESOURCE_BARRIER afterBlurBarriers[] = {
+					CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight[(i % 2) ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+					CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight[(i % 2) ? 0 : 1].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+				};
+
+				d3dCommandList->ResourceBarrier(_countof(afterBlurBarriers), afterBlurBarriers);
+			}
 		}
 
 		// Compose the output buffer.
@@ -1522,8 +1556,7 @@ void RT64::View::render() {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtReflection.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(afterDispatchBarriers), afterDispatchBarriers);
@@ -1550,7 +1583,7 @@ void RT64::View::render() {
 		// Switch output to a pixel shader resource.
 		CD3DX12_RESOURCE_BARRIER afterComposeBarriers[] = {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(afterComposeBarriers), afterComposeBarriers);

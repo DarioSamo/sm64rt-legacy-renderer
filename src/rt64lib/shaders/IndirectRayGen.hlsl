@@ -36,23 +36,24 @@ void IndirectRayGen() {
 		uint2 launchDims = DispatchRaysDimensions().xy;
 		float3 rayOrigin = gShadingPosition[launchIndex].xyz;
 		float3 shadingNormal = gShadingNormal[launchIndex].xyz;
+		float3 newIndirect = float3(0.0f, 0.0f, 0.0f);
+		float historyLength = 0.0f;
 
 		// Reproject previous indirect.
-		const float WeightNormalExponent = 128.0f;
-		float2 flow = gFlow[launchIndex].xy;
-		int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
-		float prevDepth = gPrevDepth[prevIndex];
-		float3 prevNormal = gPrevNormal[prevIndex].xyz;
-		float4 prevIndirectAccum = gPrevIndirectLightAccum[prevIndex];
-		float3 newIndirect = prevIndirectAccum.rgb;
-		//
-		newIndirect = gFilteredIndirectLight[prevIndex].rgb;
-		//
-		float depth = gDepth[launchIndex];
-		float weightDepth = abs(depth - prevDepth) / 0.01f;
-		float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), WeightNormalExponent);
-		float historyWeight = exp(-weightDepth) * weightNormal;
-		float historyLength = prevIndirectAccum.a * historyWeight;
+		if (giReproject) {
+			const float WeightNormalExponent = 128.0f;
+			float2 flow = gFlow[launchIndex].xy;
+			int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
+			float prevDepth = gPrevDepth[prevIndex];
+			float3 prevNormal = gPrevNormal[prevIndex].xyz;
+			float4 prevIndirectAccum = gPrevIndirectLightAccum[prevIndex];
+			float depth = gDepth[launchIndex];
+			float weightDepth = abs(depth - prevDepth) / 0.01f;
+			float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), WeightNormalExponent);
+			float historyWeight = exp(-weightDepth) * weightNormal;
+			newIndirect = prevIndirectAccum.rgb;
+			historyLength = prevIndirectAccum.a * historyWeight;
+		}
 
 		uint maxBounces = giBounces;
 		const uint blueNoiseMult = 64 / giBounces;
@@ -121,7 +122,7 @@ void IndirectRayGen() {
 
 			resIndirect += bgColor * giSkyStrength * resColor.a;
 
-			// Accumulate sample on history.
+			// Accumulate sample.
 			historyLength = min(historyLength + 1.0f, 64.0f);
 			newIndirect = lerp(newIndirect.rgb, resIndirect, 1.0f / historyLength);
 
