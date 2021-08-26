@@ -72,7 +72,7 @@ float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uin
 	float3 lightDirection = normalize(lightPosition - position);
 	float lightRadius = SceneLights[lightIndex].attenuationRadius;
 	float lightAttenuation = SceneLights[lightIndex].attenuationExponent;
-	float lightPointRadius = (softLightSamples > 0) ? SceneLights[lightIndex].pointRadius : 0.0f;
+	float lightPointRadius = (diSamples > 0) ? SceneLights[lightIndex].pointRadius : 0.0f;
 	float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
 	if (all(perpX == 0.0f)) {
 		perpX.x = 1.0;
@@ -80,7 +80,7 @@ float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uin
 
 	float3 perpY = cross(perpX, -lightDirection);
 	float shadowOffset = SceneLights[lightIndex].shadowOffset;
-	const uint maxSamples = max(softLightSamples, 1);
+	const uint maxSamples = max(diSamples, 1);
 	uint samples = maxSamples;
 	float lLambertFactor = 0.0f;
 	float3 lSpecularityFactor = 0.0f;

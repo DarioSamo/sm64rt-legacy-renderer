@@ -63,8 +63,9 @@ namespace RT64 {
 			float motionBlurStrength;
 			int skyPlaneTexIndex;
 			unsigned int randomSeed;
-			unsigned int softLightSamples;
-			unsigned int giBounces;
+			unsigned int diSamples;
+			unsigned int giSamples;
+			unsigned int diReproject;
 			unsigned int giReproject;
 			unsigned int maxLightSamples;
 			unsigned int motionBlurSamples;
@@ -90,7 +91,8 @@ namespace RT64 {
 		AllocatedResource rtShadingSpecular;
 		AllocatedResource rtDiffuse;
 		AllocatedResource rtInstanceId;
-		AllocatedResource rtDirectLight;
+		AllocatedResource rtDirectLightAccum[2];
+		AllocatedResource rtFilteredDirectLight[2];
 		AllocatedResource rtIndirectLightAccum[2];
 		AllocatedResource rtFilteredIndirectLight[2];
 		AllocatedResource rtReflection;
@@ -129,6 +131,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *upscaleHeap;
 		ID3D12DescriptorHeap *sharpenHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
+		ID3D12DescriptorHeap *directFilterHeaps[2];
 		ID3D12DescriptorHeap *indirectFilterHeaps[2];
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
@@ -140,8 +143,8 @@ namespace RT64 {
 		uint32_t upscalingParamBufferSize;
 		AllocatedResource sharpenParamBufferResource;
 		uint32_t sharpenParamBufferSize;
-		AllocatedResource indirectFilterParamBufferResource;
-		uint32_t indirectFilterParamBufferSize;
+		AllocatedResource filterParamBufferResource;
+		uint32_t filterParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -181,8 +184,8 @@ namespace RT64 {
 		void updateUpscalingParamsBuffer();
 		void createSharpenParamsBuffer();
 		void updateSharpenParamsBuffer();
-		void createIndirectFilterParamsBuffer();
-		void updateIndirectFilterParamsBuffer();
+		void createFilterParamsBuffer();
+		void updateFilterParamsBuffer();
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -199,10 +202,10 @@ namespace RT64 {
 		float getFOVRadians() const;
 		float getNearDistance() const;
 		float getFarDistance() const;
-		void setSoftLightSamples(int v);
-		int getSoftLightSamples() const;
-		void setGIBounces(int v);
-		int getGIBounces() const;
+		void setDISamples(int v);
+		int getDISamples() const;
+		void setGISamples(int v);
+		int getGISamples() const;
 		void setMaxLightSamples(int v);
 		int getMaxLightSamples() const;
 		void setMotionBlurStrength(float v);

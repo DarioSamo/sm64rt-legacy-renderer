@@ -31,8 +31,9 @@ cbuffer gParams : register(b0) {
 	float motionBlurStrength;
 	int skyPlaneTexIndex;
 	uint randomSeed;
-	uint softLightSamples;
-	uint giBounces;
+	uint diSamples;
+	uint giSamples;
+	uint diReproject;
 	uint giReproject;
 	uint maxLightSamples;
 	uint motionBlurSamples;
@@ -46,13 +47,14 @@ cbuffer gParams : register(b0) {
 #define VISUALIZATION_MODE_SHADING_SPECULAR			3
 #define VISUALIZATION_MODE_DIFFUSE					4
 #define VISUALIZATION_MODE_INSTANCE_ID				5
-#define VISUALIZATION_MODE_DIRECT_LIGHT				6
-#define VISUALIZATION_MODE_INDIRECT_LIGHT_RAW		7
-#define VISUALIZATION_MODE_INDIRECT_LIGHT_FILTERED	8
-#define VISUALIZATION_MODE_REFLECTION				9
-#define VISUALIZATION_MODE_REFRACTION				10
-#define VISUALIZATION_MODE_TRANSPARENT				11
-#define VISUALIZATION_MODE_FLOW						12
-#define VISUALIZATION_MODE_DEPTH					13
+#define VISUALIZATION_MODE_DIRECT_LIGHT_RAW			6
+#define VISUALIZATION_MODE_DIRECT_LIGHT_FILTERED	7
+#define VISUALIZATION_MODE_INDIRECT_LIGHT_RAW		8
+#define VISUALIZATION_MODE_INDIRECT_LIGHT_FILTERED	9
+#define VISUALIZATION_MODE_REFLECTION				10
+#define VISUALIZATION_MODE_REFRACTION				11
+#define VISUALIZATION_MODE_TRANSPARENT				12
+#define VISUALIZATION_MODE_FLOW						13
+#define VISUALIZATION_MODE_DEPTH					14
 //)raw"
 #endif

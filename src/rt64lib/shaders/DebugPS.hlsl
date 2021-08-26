@@ -71,8 +71,12 @@ float4 getInstanceId(float2 pos) {
     }
 }
 
-float4 getDirectLight(float2 pos) {
-    return float4(gDirectLight[pos].rgb, 1.0f);
+float4 getDirectLightRaw(float2 pos) {
+    return float4(gDirectLightAccum[pos].rgb, 1.0f);
+}
+
+float4 getDirectLightFiltered(float2 pos) {
+    return float4(gFilteredDirectLight[pos].rgb, 1.0f);
 }
 
 float4 getIndirectLightRaw(float2 pos) {
@@ -112,8 +116,10 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getDiffuse(uv * resolution.xy);
     case VISUALIZATION_MODE_INSTANCE_ID:
         return getInstanceId(uv * resolution.xy);
-    case VISUALIZATION_MODE_DIRECT_LIGHT:
-        return getDirectLight(uv * resolution.xy);
+    case VISUALIZATION_MODE_DIRECT_LIGHT_RAW:
+        return getDirectLightRaw(uv * resolution.xy);
+    case VISUALIZATION_MODE_DIRECT_LIGHT_FILTERED:
+        return getDirectLightFiltered(uv * resolution.xy);
     case VISUALIZATION_MODE_INDIRECT_LIGHT_RAW:
         return getIndirectLightRaw(uv * resolution.xy);
     case VISUALIZATION_MODE_INDIRECT_LIGHT_FILTERED:

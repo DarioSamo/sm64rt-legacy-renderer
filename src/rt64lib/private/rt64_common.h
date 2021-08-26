@@ -42,7 +42,7 @@ namespace RT64 {
 		gShadingSpecular,
 		gDiffuse,
 		gInstanceId,
-		gDirectLight,
+		gDirectLightAccum,
 		gIndirectLightAccum,
 		gReflection,
 		gRefraction,
@@ -52,7 +52,9 @@ namespace RT64 {
 		gDepth,
 		gPrevNormal,
 		gPrevDepth,
+		gPrevDirectLightAccum,
 		gPrevIndirectLightAccum,
+		gFilteredDirectLight,
 		gFilteredIndirectLight,
 		gHitDistAndFlow,
 		gHitColor,
@@ -77,7 +79,7 @@ namespace RT64 {
 		gShadingSpecular,
 		gDiffuse,
 		gInstanceId,
-		gDirectLight,
+		gDirectLightAccum,
 		gIndirectLightAccum,
 		gReflection,
 		gRefraction,
@@ -87,7 +89,9 @@ namespace RT64 {
 		gDepth,
 		gPrevNormal,
 		gPrevDepth,
+		gPrevDirectLightAccum,
 		gPrevIndirectLightAccum,
+		gFilteredDirectLight,
 		gFilteredIndirectLight,
 		gHitDistAndFlow,
 		gHitColor,
@@ -128,14 +132,15 @@ namespace RT64 {
 	static const unsigned int VisualizationModeShadingSpecular = 3;
 	static const unsigned int VisualizationModeDiffuse = 4;
 	static const unsigned int VisualizationModeInstanceID = 5;
-	static const unsigned int VisualizationModeDirectLight = 6;
-	static const unsigned int VisualizationModeIndirectLightRaw = 7;
-	static const unsigned int VisualizationModeIndirectLightFiltered = 8;
-	static const unsigned int VisualizationModeReflection = 9;
-	static const unsigned int VisualizationModeRefraction = 10;
-	static const unsigned int VisualizationModeTransparent = 11;
-	static const unsigned int VisualizationModeMotionVectors = 12;
-	static const unsigned int VisualizationModeDepth = 13;
+	static const unsigned int VisualizationModeDirectLightRaw = 6;
+	static const unsigned int VisualizationModeDirectLightFiltered = 7;
+	static const unsigned int VisualizationModeIndirectLightRaw = 8;
+	static const unsigned int VisualizationModeIndirectLightFiltered = 9;
+	static const unsigned int VisualizationModeReflection = 10;
+	static const unsigned int VisualizationModeRefraction = 11;
+	static const unsigned int VisualizationModeTransparent = 12;
+	static const unsigned int VisualizationModeMotionVectors = 13;
+	static const unsigned int VisualizationModeDepth = 14;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;

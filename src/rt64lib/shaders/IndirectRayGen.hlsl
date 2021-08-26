@@ -32,7 +32,7 @@ float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 h
 void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	int instanceId = gInstanceId[launchIndex];
-	if ((instanceId >= 0) && (giBounces > 0)) {
+	if ((instanceId >= 0) && (giSamples > 0)) {
 		uint2 launchDims = DispatchRaysDimensions().xy;
 		float3 rayOrigin = gShadingPosition[launchIndex].xyz;
 		float3 shadingNormal = gShadingNormal[launchIndex].xyz;
@@ -55,10 +55,10 @@ void IndirectRayGen() {
 			historyLength = prevIndirectAccum.a * historyWeight;
 		}
 
-		uint maxBounces = giBounces;
-		const uint blueNoiseMult = 64 / giBounces;
-		while (maxBounces > 0) {
-			float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxBounces * blueNoiseMult, shadingNormal);
+		uint maxSamples = giSamples;
+		const uint blueNoiseMult = 64 / giSamples;
+		while (maxSamples > 0) {
+			float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxSamples * blueNoiseMult, shadingNormal);
 
 			// Ray differential.
 			RayDiff rayDiff;
@@ -122,11 +122,11 @@ void IndirectRayGen() {
 
 			resIndirect += bgColor * giSkyStrength * resColor.a;
 
-			// Accumulate sample.
+			// Accumulate.
 			historyLength = min(historyLength + 1.0f, 64.0f);
 			newIndirect = lerp(newIndirect.rgb, resIndirect, 1.0f / historyLength);
 
-			maxBounces--;
+			maxSamples--;
 		}
 		
 		gIndirectLightAccum[launchIndex] = float4(newIndirect, historyLength);

@@ -116,8 +116,8 @@ void RT64::Inspector::renderViewParams(View *view) {
     assert(view != nullptr);
 
     ImGui::Begin("View Params Inspector");
-    int softLightSamples = view->getSoftLightSamples();
-    int giBounces = view->getGIBounces();
+    int diSamples = view->getDISamples();
+    int giSamples = view->getGISamples();
     int maxLightSamples = view->getMaxLightSamples();
     int maxReflections = view->getMaxReflections();
     float motionBlurStrength = view->getMotionBlurStrength();
@@ -127,13 +127,13 @@ void RT64::Inspector::renderViewParams(View *view) {
     int upscaleMode = (int)(view->getUpscaleMode());
     bool denoiser = view->getDenoiserEnabled();
 
-    ImGui::DragInt("Light samples", &softLightSamples, 0.1f, 0, 32);
-    ImGui::DragInt("GI bounces", &giBounces, 0.1f, 0, 32);
+    ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
+    ImGui::DragInt("GI samples", &giSamples, 0.1f, 0, 32);
     ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
 
 #ifdef RT64_DLSS
     // Only show DLSS option if supported by the hardware.
@@ -194,8 +194,8 @@ void RT64::Inspector::renderViewParams(View *view) {
     }
 
     // Update viewport parameters.
-    view->setSoftLightSamples(softLightSamples);
-    view->setGIBounces(giBounces);
+    view->setDISamples(diSamples);
+    view->setGISamples(giSamples);
     view->setMaxLightSamples(maxLightSamples);
     view->setMaxReflections(maxReflections);
     view->setMotionBlurStrength(motionBlurStrength);
