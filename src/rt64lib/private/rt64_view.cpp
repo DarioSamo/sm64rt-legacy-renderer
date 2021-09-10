@@ -1093,8 +1093,8 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.cameraW = ToVector4(cameraW, 0.0f);
 
 	// Enable light reprojection if denoising is enabled.
-	globalParamsBufferData.diReproject = denoiserEnabled ? 1 : 0;
-	globalParamsBufferData.giReproject = denoiserEnabled ? 1 : 0;
+	globalParamsBufferData.diReproject = denoiserEnabled && (globalParamsBufferData.diSamples > 0) ? 1 : 0;
+	globalParamsBufferData.giReproject = denoiserEnabled && (globalParamsBufferData.giSamples > 0) ? 1 : 0;
 
 	// Use the total frame count as the random seed.
 	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
@@ -1580,7 +1580,7 @@ void RT64::View::render() {
 
 		// Apply a gaussian filter to the direct light with a compute shader.
 		if (denoiseDI) {
-			for (int i = 0; i < 5; i++) {
+			for (int i = 0; i < 3; i++) {
 				const int ThreadGroupWorkCount = 8;
 				int dispatchX = rtWidth / ThreadGroupWorkCount + ((rtWidth % ThreadGroupWorkCount) ? 1 : 0);
 				int dispatchY = rtHeight / ThreadGroupWorkCount + ((rtHeight % ThreadGroupWorkCount) ? 1 : 0);
