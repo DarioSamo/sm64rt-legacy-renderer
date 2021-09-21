@@ -74,6 +74,7 @@ RT64::View::View(Scene *scene) {
 	rtUpscaleActive = false;
 	rtSharpenActive = false;
 	rtRecreateBuffers = false;
+	rtSkipReprojection = false;
 	resolutionScale = 1.0f;
 	sharpenAttenuation = 0.25f;
 	denoiserEnabled = false;
@@ -1094,11 +1095,11 @@ void RT64::View::updateGlobalParamsBuffer() {
 
 	// Enable light reprojection if denoising is enabled.
 #ifdef DI_REPROJECTION_SUPPORT
-	globalParamsBufferData.diReproject = denoiserEnabled && (globalParamsBufferData.diSamples > 0) ? 1 : 0;
+	globalParamsBufferData.diReproject = !rtSkipReprojection && denoiserEnabled && (globalParamsBufferData.diSamples > 0) ? 1 : 0;
 #else
 	globalParamsBufferData.diReproject = 0;
 #endif
-	globalParamsBufferData.giReproject = denoiserEnabled && (globalParamsBufferData.giSamples > 0) ? 1 : 0;
+	globalParamsBufferData.giReproject = !rtSkipReprojection && denoiserEnabled && (globalParamsBufferData.giSamples > 0) ? 1 : 0;
 
 	// Use the total frame count as the random seed.
 	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
@@ -1180,6 +1181,7 @@ void RT64::View::update() {
 	// Recreate buffers if necessary for next frame.
 	if (rtRecreateBuffers) {
 		createOutputBuffers();
+		rtSkipReprojection = true;
 		rtRecreateBuffers = false;
 	}
 
@@ -1832,6 +1834,7 @@ void RT64::View::render() {
 
 	// End the frame.
 	rtSwap = !rtSwap;
+	rtSkipReprojection = false;
 	rtHitInstanceIdReadbackUpdated = false;
 	globalParamsBufferData.frameCount++;
 

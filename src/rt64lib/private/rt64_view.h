@@ -120,6 +120,7 @@ namespace RT64 {
 		bool rtSharpenActive;
 		UpscaleMode rtUpscaleMode;
 		bool rtRecreateBuffers;
+		bool rtSkipReprojection;
 		bool denoiserEnabled;
 
 		bool rtHitInstanceIdReadbackUpdated;
