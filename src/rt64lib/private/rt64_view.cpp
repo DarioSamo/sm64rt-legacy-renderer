@@ -164,6 +164,8 @@ void RT64::View::createOutputBuffers() {
 		rtSharpenActive = false;
 	}
 
+	rtSkipReprojection = true;
+
 	globalParamsBufferData.resolution.x = (float)(rtWidth);
 	globalParamsBufferData.resolution.y = (float)(rtHeight);
 	globalParamsBufferData.resolution.z = (float)(screenWidth);
@@ -1181,7 +1183,6 @@ void RT64::View::update() {
 	// Recreate buffers if necessary for next frame.
 	if (rtRecreateBuffers) {
 		createOutputBuffers();
-		rtSkipReprojection = true;
 		rtRecreateBuffers = false;
 	}
 
