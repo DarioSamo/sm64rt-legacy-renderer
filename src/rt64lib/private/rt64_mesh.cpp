@@ -127,6 +127,8 @@ void RT64::Mesh::updateBottomLevelAS() {
 
 void RT64::Mesh::createBottomLevelAS(std::vector<std::pair<ID3D12Resource *, uint32_t>> vVertexBuffers, std::vector<std::pair<ID3D12Resource *, uint32_t>> vIndexBuffers) {
 	bool updatable = flags & RT64_MESH_RAYTRACE_UPDATABLE;
+	bool fastTrace = flags & RT64_MESH_RAYTRACE_FAST_TRACE;
+	bool compact = flags & RT64_MESH_RAYTRACE_COMPACT;
 	if (!updatable) {
 		// Release the previously stored AS buffers if there's any.
 		d3dBottomLevelASBuffers.Release();
@@ -145,7 +147,7 @@ void RT64::Mesh::createBottomLevelAS(std::vector<std::pair<ID3D12Resource *, uin
 	UINT64 resultSizeInBytes = 0;
 	UINT64 scratchSizeInBytes = 0;
 	ID3D12Resource *previousResult = d3dBottomLevelASBuffers.result.Get();
-	bottomLevelAS.ComputeASBufferSizes(device->getD3D12Device(), updatable, &scratchSizeInBytes, &resultSizeInBytes);
+	bottomLevelAS.ComputeASBufferSizes(device->getD3D12Device(), updatable, compact, fastTrace, &scratchSizeInBytes, &resultSizeInBytes);
 
 	if (d3dBottomLevelASBuffers.result.IsNull()) {
 		d3dBottomLevelASBuffers.scratch = device->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, scratchSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON);

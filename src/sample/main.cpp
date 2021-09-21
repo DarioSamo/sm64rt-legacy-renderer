@@ -47,6 +47,7 @@ struct {
 	RT64_DEVICE *device = nullptr;
 	RT64_INSPECTOR* inspector = nullptr;
 	RT64_SCENE *scene = nullptr;
+	RT64_SCENE_DESC sceneDesc;
 	RT64_VIEW *view = nullptr;
 	RT64_MATRIX4 viewMatrix;
 	RT64_MESH *mesh = nullptr;
@@ -72,6 +73,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	case WM_CLOSE:
 		PostQuitMessage(0);
 		break;
+	case WM_RBUTTONDOWN: {
+		POINT cursorPos = {};
+		GetCursorPos(&cursorPos);
+		ScreenToClient(hWnd, &cursorPos);
+		RT64_INSTANCE *instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorPos.x, cursorPos.y);
+		fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
+		break;
+	}
 	case WM_KEYDOWN: {
 		if (wParam == VK_F1) {
 			if (RT64.inspector != nullptr) {
@@ -87,10 +96,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	}
 	case WM_PAINT: {
 		if (RT64.view != nullptr) {
-			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 100.0f);
+			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
 
 			if (RT64.inspector != nullptr) {
 				RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+				RT64.lib.SetSceneInspector(RT64.inspector, &RT64.sceneDesc);
+				RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 			}
 
 			RT64.frameMaterial = RT64.baseMaterial;
@@ -105,6 +116,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			instDesc.viewportRect = { 0, 0, 0, 0 };
 			instDesc.mesh = RT64.mesh;
 			instDesc.transform = RT64.transform;
+			instDesc.previousTransform = RT64.transform;
 			instDesc.diffuseTexture = RT64.textureDif;
 			instDesc.normalTexture = RT64.textureNrm;
 			instDesc.specularTexture = RT64.textureSpc;
@@ -143,25 +155,73 @@ bool createRT64(HWND hwnd) {
 	return true;
 }
 
+RT64_TEXTURE *loadTexturePNG(const char *path) {
+	RT64_TEXTURE_DESC texDesc;
+	int texChannels;
+	texDesc.format = RT64_TEXTURE_FORMAT_RGBA8;
+	texDesc.bytes = stbi_load(path, &texDesc.width, &texDesc.height, &texChannels, STBI_rgb_alpha);
+	texDesc.rowPitch = texDesc.width * 4;
+	texDesc.byteCount = texDesc.rowPitch * texDesc.height;
+	RT64_TEXTURE *texture = RT64.lib.CreateTexture(RT64.device, texDesc);
+	stbi_image_free((void *)(texDesc.bytes));
+	return texture;
+}
+
+RT64_TEXTURE *loadTextureDDS(const char *path) {
+	RT64_TEXTURE *texture = nullptr;
+	FILE *ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
+	if (ddsFp != nullptr) {
+		fseek(ddsFp, 0, SEEK_END);
+		int ddsDataSize = ftell(ddsFp);
+		fseek(ddsFp, 0, SEEK_SET);
+		if (ddsDataSize > 0) {
+			void *ddsData = malloc(ddsDataSize);
+			fread(ddsData, ddsDataSize, 1, ddsFp);
+			fclose(ddsFp);
+
+			RT64_TEXTURE_DESC texDesc;
+			texDesc.bytes = ddsData;
+			texDesc.byteCount = ddsDataSize;
+			texDesc.format = RT64_TEXTURE_FORMAT_DDS;
+			texDesc.width = texDesc.height = texDesc.rowPitch = -1;
+			texture = RT64.lib.CreateTexture(RT64.device, texDesc);
+			free(ddsData);
+		}
+		else {
+			fclose(ddsFp);
+		}
+	}
+
+	return texture;
+}
+
 void setupRT64Scene() {
 	// Setup scene.
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
+	RT64.sceneDesc.ambientBaseColor = { 0.1f, 0.1f, 0.1f };
+	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
+	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
+	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
+	RT64.sceneDesc.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
+	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
+	RT64.sceneDesc.skyYawOffset = 0.0f;
+	RT64.sceneDesc.giDiffuseStrength = 0.7f;
+	RT64.sceneDesc.giSkyStrength = 0.35f;
+	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
 	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
-	// Light 0 only needs the diffuse color because it is always the ambient light.
-	RT64.lights[0].diffuseColor = { 0.3f, 0.35f, 0.45f };
-	RT64.lights[1].position = { 15000.0f, 30000.0f, 15000.0f };
-	RT64.lights[1].attenuationRadius = 1e9;
-	RT64.lights[1].pointRadius = 5000.0f;
-	RT64.lights[1].diffuseColor = { 0.8f, 0.75f, 0.65f };
-	RT64.lights[1].specularColor = { 0.8f, 0.75f, 0.65f };
-	RT64.lights[1].shadowOffset = 0.0f;
-	RT64.lights[1].attenuationExponent = 1.0f;
-	RT64.lightCount = 2;
+	RT64.lights[0].position = { 15000.0f, 30000.0f, 15000.0f };
+	RT64.lights[0].attenuationRadius = 1e9;
+	RT64.lights[0].pointRadius = 5000.0f;
+	RT64.lights[0].diffuseColor = { 0.8f, 0.75f, 0.65f };
+	RT64.lights[0].specularColor = { 0.8f, 0.75f, 0.65f };
+	RT64.lights[0].shadowOffset = 0.0f;
+	RT64.lights[0].attenuationExponent = 1.0f;
+	RT64.lightCount = 1;
 
 	for (int i = 0; i < _countof(RT64.lights); i++) {
 		RT64.lights[i].groupBits = RT64_LIGHT_GROUP_DEFAULT;
@@ -170,19 +230,12 @@ void setupRT64Scene() {
 	// Setup view.
 	RT64.view = RT64.lib.CreateView(RT64.scene);
 
-	// Load texture.
-	int texWidth, texHeight, texChannels;
-	stbi_uc *texBytes = stbi_load("res/grass_dif.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64.textureDif = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/grass_nrm.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64.textureNrm = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/grass_spc.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64.textureSpc = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
+	// Load textures.
+	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
+	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
+	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
+	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
+	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
@@ -230,7 +283,7 @@ void setupRT64Scene() {
 		}
 	}
 	
-	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_UPDATABLE);
+	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
 	RT64.lib.SetMesh(RT64.mesh, RT64.objVertices.data(), (int)(RT64.objVertices.size()), sizeof(VERTEX), RT64.objIndices.data(), (int)(RT64.objIndices.size()));
 	
 	// Configure material.
@@ -269,18 +322,9 @@ void setupRT64Scene() {
 	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
-
-	texBytes = stbi_load("res/tiles_dif.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64_TEXTURE *altTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/tiles_nrm.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64_TEXTURE* normalTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
-
-	texBytes = stbi_load("res/tiles_spc.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	RT64_TEXTURE* specularTexture = RT64.lib.CreateTextureFromRGBA8(RT64.device, texBytes, texWidth, texHeight, 4);
-	stbi_image_free(texBytes);
+	RT64_TEXTURE *altTexture = loadTexturePNG("res/tiles_dif.png");
+	RT64_TEXTURE* normalTexture = loadTexturePNG("res/tiles_nrm.png");
+	RT64_TEXTURE* specularTexture = loadTexturePNG("res/tiles_spc.png");
 
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
@@ -297,6 +341,7 @@ void setupRT64Scene() {
 	instDesc.viewportRect = { 0, 0, 0, 0 };
 	instDesc.mesh = altMesh;
 	instDesc.transform = RT64.transform;
+	instDesc.previousTransform = RT64.transform;
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
@@ -353,6 +398,7 @@ void setupRT64Scene() {
 	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = floorMesh;
 	instDesc.transform = floorTransform;
+	instDesc.previousTransform = floorTransform;
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;

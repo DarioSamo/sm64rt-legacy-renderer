@@ -3,7 +3,7 @@
 //
 
 #include "Im3DCommon.hlsli"
-#include "ViewParams.hlsli"
+#include "GlobalParams.hlsli"
 
 struct VS_INPUT {
 	float4 m_positionSize : POSITION_SIZE;

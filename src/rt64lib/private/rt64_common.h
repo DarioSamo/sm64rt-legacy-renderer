@@ -31,37 +31,74 @@ using namespace DirectX;
 #define UAV_INDEX(x) (int)(RT64::UAVIndices::x)
 #define SRV_INDEX(x) (int)(RT64::SRVIndices::x)
 #define CBV_INDEX(x) (int)(RT64::CBVIndices::x)
+#define SRV_TEXTURES_MAX 512
 
 namespace RT64 {
 	// Matches order in heap used in shader binding table.
 	enum class HeapIndices : int {
-		gOutput,
-		gAlbedo,
+		gViewDirection,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gDiffuse,
+		gInstanceId,
+		gDirectLightAccum,
+		gIndirectLightAccum,
+		gReflection,
+		gRefraction,
+		gTransparent,
+		gFlow,
 		gNormal,
-		gHitDistance,
+		gDepth,
+		gPrevNormal,
+		gPrevDepth,
+		gPrevDirectLightAccum,
+		gPrevIndirectLightAccum,
+		gFilteredDirectLight,
+		gFilteredIndirectLight,
+		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
 		gHitSpecular,
 		gHitInstanceId,
 		gBackground,
+		gParams,
 		SceneBVH,
-		ViewParams,
 		SceneLights,
 		instanceTransforms,
 		instanceMaterials,
+		gBlueNoise,
 		gTextures,
 		MAX
 	};
 
 	enum class UAVIndices : int {
-		gOutput,
-		gAlbedo,
+		gViewDirection,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gDiffuse,
+		gInstanceId,
+		gDirectLightAccum,
+		gIndirectLightAccum,
+		gReflection,
+		gRefraction,
+		gTransparent,
+		gFlow,
 		gNormal,
-		gHitDistance,
+		gDepth,
+		gPrevNormal,
+		gPrevDepth,
+		gPrevDirectLightAccum,
+		gPrevIndirectLightAccum,
+		gFilteredDirectLight,
+		gFilteredIndirectLight,
+		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,
 		gHitSpecular,
-		gHitInstanceId
+		gHitInstanceId,
+		MAX
 	};
 
 	enum class SRVIndices : int {
@@ -72,15 +109,54 @@ namespace RT64 {
 		SceneLights,
 		instanceTransforms,
 		instanceMaterials,
+		gBlueNoise,
 		gTextures
 	};
 
 	enum class CBVIndices : int {
-		ViewParams
+		gParams
 	};
+
+	enum class UpscaleMode {
+		Bilinear,
+		FSR,
+#ifdef RT64_DLSS
+		DLSS
+#endif
+	};
+
+	// Some shared shader constants.
+	static const unsigned int VisualizationModeFinal = 0;
+	static const unsigned int VisualizationModeShadingPosition = 1;
+	static const unsigned int VisualizationModeShadingNormal = 2;
+	static const unsigned int VisualizationModeShadingSpecular = 3;
+	static const unsigned int VisualizationModeDiffuse = 4;
+	static const unsigned int VisualizationModeInstanceID = 5;
+	static const unsigned int VisualizationModeDirectLightRaw = 6;
+	static const unsigned int VisualizationModeDirectLightFiltered = 7;
+	static const unsigned int VisualizationModeIndirectLightRaw = 8;
+	static const unsigned int VisualizationModeIndirectLightFiltered = 9;
+	static const unsigned int VisualizationModeReflection = 10;
+	static const unsigned int VisualizationModeRefraction = 11;
+	static const unsigned int VisualizationModeTransparent = 12;
+	static const unsigned int VisualizationModeMotionVectors = 13;
+	static const unsigned int VisualizationModeDepth = 14;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
+
+#ifdef NDEBUG
+#	define RT64_LOG_OPEN(x)
+#	define RT64_LOG_CLOSE()
+#	define RT64_LOG_PRINTF(x, ...)
+#else
+	extern FILE *GlobalLogFile;
+#	define RT64_LOG_OPEN(x) do { GlobalLogFile = fopen(x, "wt"); } while (0)
+#	define RT64_LOG_CLOSE() do { fclose(GlobalLogFile); } while (0)
+#	define RT64_LOG_PRINTF(x, ...) do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); fflush(GlobalLogFile); } while (0)
+#endif
+
+
 
 #ifndef RT64_MINIMAL
 	class AllocatedResource {
@@ -96,6 +172,12 @@ namespace RT64 {
 		}
 
 		~AllocatedResource() { }
+
+		void SetName(LPCWSTR name) {
+			if (!IsNull()) {
+				Get()->SetName(name);
+			}
+		}
 
 		inline ID3D12Resource *Get() const {
 			if (!IsNull()) {
@@ -123,6 +205,7 @@ namespace RT64 {
 	struct InstanceTransforms {
 		XMMATRIX objectToWorld;
 		XMMATRIX objectToWorldNormal;
+		XMMATRIX objectToWorldPrevious;
 	};
 
 	struct AccelerationStructureBuffers {
@@ -199,19 +282,44 @@ namespace RT64 {
 		}
 	};
 
-	inline float Length(const RT64_VECTOR3 &a) {
-		float sqrLength = a.x * a.x + a.y * a.y + a.z * a.z;
-		return sqrt(sqrLength);
-	}
-
 	inline void operator+=(RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
 		a.x += b.x;
 		a.y += b.y;
 		a.z += b.z;
 	}
 
+	inline RT64_VECTOR3 operator+(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
+		return { a.x + b.x, a.y + b.y, a.z + b.z };
+	}
+
+	inline RT64_VECTOR3 operator-(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
+		return { a.x - b.x, a.y - b.y, a.z - b.z };
+	}
+
+	inline RT64_VECTOR3 operator*(const RT64_VECTOR3 &a, const float v) {
+		return { a.x * v, a.y * v, a.z * v };
+	}
+
 	inline RT64_VECTOR3 operator/(const RT64_VECTOR3 &a, const float v) {
 		return { a.x / v, a.y / v, a.z / v };
+	}
+
+	inline float Length(const RT64_VECTOR3 &a) {
+		float sqrLength = a.x * a.x + a.y * a.y + a.z * a.z;
+		return sqrt(sqrLength);
+	}
+
+	inline RT64_VECTOR3 Normalize(const RT64_VECTOR3 &a) {
+		float l = Length(a);
+		return (l > 0.0f) ? (a / l) : a;
+	}
+
+	inline RT64_VECTOR3 Cross(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
+		return {
+			a.y * b.z - b.y * a.z,
+			a.z * b.x - b.z * a.x,
+			a.x * b.y - b.x * a.y
+		};
 	}
 
 	inline RT64_VECTOR3 DirectionFromTo(const RT64_VECTOR3 &a, const RT64_VECTOR3 &b) {
@@ -220,11 +328,31 @@ namespace RT64 {
 		return dir / length;
 	}
 
-	inline void CalculateTextureRowWidthPadding(int width, int stride, UINT &rowWidth, UINT &rowPadding) {
+	inline RT64_VECTOR4 ToVector4(const RT64_VECTOR3& a, float w) {
+		return { a.x, a.y, a.z, w };
+	}
+
+	inline void CalculateTextureRowWidthPadding(UINT rowPitch, UINT &rowWidth, UINT &rowPadding) {
 		const int RowMultiple = 256;
-		rowWidth = width * stride;
+		rowWidth = rowPitch;
 		rowPadding = (rowWidth % RowMultiple) ? RowMultiple - (rowWidth % RowMultiple) : 0;
 		rowWidth += rowPadding;
+	}
+
+	inline float HaltonSequence(int i, int b) {
+		float f = 1.0;
+		float r = 0.0;
+		while (i > 0) {
+			f = f / float(b);
+			r = r + f * float(i % b);
+			i = i / b;
+		}
+
+		return r;
+	}
+
+	inline RT64_VECTOR2 HaltonJitter(int frame, int phases) {
+		return { HaltonSequence(frame % phases + 1, 2) - 0.5f, HaltonSequence(frame % phases + 1, 3) - 0.5f };
 	}
 #endif
 };

@@ -26,8 +26,12 @@ const char RayHLSLI[] =
 #include "shaders/Ray.hlsli"
 ;
 
-const char ViewParamsHLSLI[] =
-#include "shaders/ViewParams.hlsli"
+const char TexturesHLSLI[] =
+#include "shaders/Textures.hlsli"
+;
+
+const char GlobalParamsHLSLI[] =
+#include "shaders/GlobalParams.hlsli"
 ;
 
 #define INCLUDE_HLSLI(x) &x[strlen("#else\n")]

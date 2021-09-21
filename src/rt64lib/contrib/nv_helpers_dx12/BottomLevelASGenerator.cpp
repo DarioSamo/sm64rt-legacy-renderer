@@ -127,9 +127,11 @@ void BottomLevelASGenerator::AddVertexBuffer(
 // structure, as well as the size of the resulting structure. The allocation of
 // the buffers is then left to the application
 void BottomLevelASGenerator::ComputeASBufferSizes(
-    ID3D12Device8 *device, // Device on which the build will be performed
-    bool allowUpdate,     // If true, the resulting acceleration structure will
-                          // allow iterative updates
+    ID3D12Device8 *device,      // Device on which the build will be performed
+    bool allowUpdate,           // If true, the resulting acceleration structure will
+                                // allow iterative updates
+    bool compact,               // Prefer to build a smaller acceleration structure.
+    bool fastTrace,             // Prefer to build for fast tracing.
     UINT64 *scratchSizeInBytes, // Required scratch memory on the GPU to build
                                 // the acceleration structure
     UINT64 *resultSizeInBytes   // Required GPU memory to store the acceleration
@@ -142,6 +144,14 @@ void BottomLevelASGenerator::ComputeASBufferSizes(
       allowUpdate
           ? D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE
           : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+
+  if (compact) {
+      m_flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
+  }
+
+  if (fastTrace) {
+      m_flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+  }
 
   // Describe the work being requested, in this case the construction of a
   // (possibly dynamic) bottom-level hierarchy, with the given vertex buffers
@@ -196,16 +206,13 @@ void BottomLevelASGenerator::Generate(
   // The stored flags represent whether the AS has been built for updates or
   // not. If yes and an update is requested, the builder is told to only update
   // the AS instead of fully rebuilding it
-  if (flags ==
-          D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE &&
-      updateOnly) {
+  bool allowUpdate = flags & D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
+  if (allowUpdate && updateOnly) {
     flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE;
   }
 
   // Sanity checks
-  if (m_flags !=
-          D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE &&
-      updateOnly) {
+  if (!allowUpdate && updateOnly) {
     throw std::logic_error(
         "Cannot update a bottom-level AS not originally built for updates");
   }

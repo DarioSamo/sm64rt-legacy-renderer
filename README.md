@@ -18,7 +18,7 @@ The library is not meant to be used in the traditional way by linking it as an s
 ## Requirements
 * Visual Studio Community 2019 Version 16.9.0 or newer
 * Windows SDK 10.0.19041.0 or newer
-* [CUDA Toolkit 11.3 or newer](https://developer.nvidia.com/cuda-downloads)
+* [DLSS SDK 2.2.1 or newer](https://developer.nvidia.com/dlss-sdk-2.2.1) if you wish to build with DLSS support.
 
 ## Building
 Open **src/RT64.sln** in **Visual Studio Community 2019** and build the solution.
@@ -27,3 +27,6 @@ A sample is included to showcase how to use the renderer library.
 
 ## Screenshot
 ![Sample screenshot](/images/screen1.jpg?raw=true)
+
+## Credits
+Some of the textures used in the sample projects for this repository have been sourced from the [RENDER96-HD-TEXTURE-PACK](https://github.com/pokeheadroom/RENDER96-HD-TEXTURE-PACK) repository.

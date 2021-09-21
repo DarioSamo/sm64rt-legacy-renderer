@@ -8,6 +8,7 @@ R"raw(
 struct InstanceTransforms {
 	float4x4 objectToWorld;
 	float4x4 objectToWorldNormal;
+	float4x4 objectToWorldPrevious;
 };
 
 static const float InstanceIdBias = 0.001f;
