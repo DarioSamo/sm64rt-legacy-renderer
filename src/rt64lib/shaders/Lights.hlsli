@@ -112,7 +112,7 @@ float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uin
 	return (SceneLights[lightIndex].diffuseColor * lLambertFactor + SceneLights[lightIndex].specularColor * lSpecularityFactor) * lShadowFactor;
 }
 
-float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLights, const bool checkShadows) {
+float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLightCount, const bool checkShadows) {
 	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
 	uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
@@ -136,7 +136,7 @@ float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instance
 		}
 
 		float randomRange = totalLightIntensity;
-		uint lLightCount = min(sLightCount, maxLights);
+		uint lLightCount = min(sLightCount, maxLightCount);
 
 		// TODO: Probability is disabled when more than one light is sampled because it's
 		// not trivial to calculate the probability of the dependent events without replacement.

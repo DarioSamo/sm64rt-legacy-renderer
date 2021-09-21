@@ -67,7 +67,7 @@ namespace RT64 {
 			unsigned int giSamples;
 			unsigned int diReproject;
 			unsigned int giReproject;
-			unsigned int maxLightSamples;
+			unsigned int maxLights;
 			unsigned int motionBlurSamples;
 			unsigned int visualizationMode;
 			unsigned int frameCount;
@@ -207,8 +207,8 @@ namespace RT64 {
 		int getDISamples() const;
 		void setGISamples(int v);
 		int getGISamples() const;
-		void setMaxLightSamples(int v);
-		int getMaxLightSamples() const;
+		void setMaxLights(int v);
+		int getMaxLights() const;
 		void setMotionBlurStrength(float v);
 		float getMotionBlurStrength() const;
 		void setMotionBlurSamples(int v);

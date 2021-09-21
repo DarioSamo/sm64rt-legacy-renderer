@@ -62,7 +62,7 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.randomSeed = 0;
 	globalParamsBufferData.diSamples = 0;
 	globalParamsBufferData.giSamples = 0;
-	globalParamsBufferData.maxLightSamples = 12;
+	globalParamsBufferData.maxLights = 12;
 	globalParamsBufferData.motionBlurSamples = 32;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
@@ -2006,12 +2006,12 @@ int RT64::View::getGISamples() const {
 	return globalParamsBufferData.giSamples;
 }
 
-void RT64::View::setMaxLightSamples(int v) {
-	globalParamsBufferData.maxLightSamples = v;
+void RT64::View::setMaxLights(int v) {
+	globalParamsBufferData.maxLights = v;
 }
 
-int RT64::View::getMaxLightSamples() const {
-	return globalParamsBufferData.maxLightSamples;
+int RT64::View::getMaxLights() const {
+	return globalParamsBufferData.maxLights;
 }
 
 void RT64::View::setMotionBlurStrength(float v) {
@@ -2213,9 +2213,9 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setResolutionScale(viewDesc.resolutionScale);
 	view->setMotionBlurStrength(viewDesc.motionBlurStrength);
-	view->setMaxLightSamples(viewDesc.maxLightSamples);
-	view->setDISamples(viewDesc.softLightSamples);
-	view->setGISamples(viewDesc.giBounces);
+	view->setMaxLights(viewDesc.maxLights);
+	view->setDISamples(viewDesc.diSamples);
+	view->setGISamples(viewDesc.giSamples);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
 #ifdef RT64_DLSS
 	view->setUpscaleMode((viewDesc.dlssMode != RT64_DLSS_MODE_OFF) ? RT64::UpscaleMode::DLSS : RT64::UpscaleMode::Bilinear);

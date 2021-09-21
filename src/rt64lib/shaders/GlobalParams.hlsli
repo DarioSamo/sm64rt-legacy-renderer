@@ -35,7 +35,7 @@ cbuffer gParams : register(b0) {
 	uint giSamples;
 	uint diReproject;
 	uint giReproject;
-	uint maxLightSamples;
+	uint maxLights;
 	uint motionBlurSamples;
 	uint visualizationMode;
 	uint frameCount;

@@ -118,7 +118,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::Begin("View Params Inspector");
     int diSamples = view->getDISamples();
     int giSamples = view->getGISamples();
-    int maxLightSamples = view->getMaxLightSamples();
+    int maxLights = view->getMaxLights();
     int maxReflections = view->getMaxReflections();
     float motionBlurStrength = view->getMotionBlurStrength();
     int motionBlurSamples = view->getMotionBlurSamples();
@@ -129,7 +129,7 @@ void RT64::Inspector::renderViewParams(View *view) {
 
     ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI samples", &giSamples, 0.1f, 0, 32);
-    ImGui::DragInt("Max lights", &maxLightSamples, 0.1f, 0, 16);
+    ImGui::DragInt("Max lights", &maxLights, 0.1f, 0, 16);
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
@@ -196,7 +196,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     // Update viewport parameters.
     view->setDISamples(diSamples);
     view->setGISamples(giSamples);
-    view->setMaxLightSamples(maxLightSamples);
+    view->setMaxLights(maxLights);
     view->setMaxReflections(maxReflections);
     view->setMotionBlurStrength(motionBlurStrength);
     view->setMotionBlurSamples(motionBlurSamples);

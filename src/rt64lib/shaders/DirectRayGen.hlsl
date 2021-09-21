@@ -47,7 +47,7 @@ void DirectRayGen() {
 		historyLength = prevDirectAccum.a * historyWeight;
 	}
 
-	float3 resDirect = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLightSamples, true);
+	float3 resDirect = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, true);
 	resDirect += instanceMaterials[instanceId].selfLight;
 
 	// Add the eye light.
