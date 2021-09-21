@@ -73,6 +73,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	case WM_CLOSE:
 		PostQuitMessage(0);
 		break;
+	case WM_RBUTTONDOWN: {
+		POINT cursorPos = {};
+		GetCursorPos(&cursorPos);
+		ScreenToClient(hWnd, &cursorPos);
+		RT64_INSTANCE *instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorPos.x, cursorPos.y);
+		fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
+		break;
+	}
 	case WM_KEYDOWN: {
 		if (wParam == VK_F1) {
 			if (RT64.inspector != nullptr) {

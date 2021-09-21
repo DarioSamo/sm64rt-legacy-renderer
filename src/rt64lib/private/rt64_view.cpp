@@ -82,7 +82,8 @@ RT64::View::View(Scene *scene) {
 	perspectiveControlActive = false;
 	perspectiveCanReproject = true;
 	im3dVertexCount = 0;
-	rtHitInstanceIdReadbackUpdated = false;
+	rtFirstInstanceIdRowWidth = 0;
+	rtFirstInstanceIdReadbackUpdated = false;
 	skyPlaneTexture = nullptr;
 	scissorApplied = false;
 	viewportApplied = false;
@@ -236,7 +237,13 @@ void RT64::View::createOutputBuffers() {
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
-	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtFirstInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
+
+	// Create a buffer big enough to read the resource back.
+	UINT rowPadding;
+	CalculateTextureRowWidthPadding((UINT)(resDesc.Width * 4), rtFirstInstanceIdRowWidth, rowPadding);
+	rtFirstInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, rtFirstInstanceIdRowWidth * resDesc.Height, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	if (rtUpscaleActive) {
@@ -257,7 +264,6 @@ void RT64::View::createOutputBuffers() {
 	rtHitNormal = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceId = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	rtHitInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, hitCountBufferSizeOne * 2, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 #ifndef NDEBUG
 	rasterBg.SetName(L"rasterBg");
@@ -271,6 +277,8 @@ void RT64::View::createOutputBuffers() {
 	rtNormal[0].SetName(L"rtNormal[0]");
 	rtNormal[1].SetName(L"rtNormal[1]");
 	rtInstanceId.SetName(L"rtInstanceId");
+	rtFirstInstanceId.SetName(L"rtFirstInstanceId");
+	rtFirstInstanceIdReadback.SetName(L"rtFirstInstanceIdReadback");
 	rtDirectLightAccum[0].SetName(L"rtDirectLightAccum[0]");
 	rtDirectLightAccum[1].SetName(L"rtDirectLightAccum[1]");
 	rtIndirectLightAccum[0].SetName(L"rtIndirectLightAccum[0]");
@@ -290,7 +298,6 @@ void RT64::View::createOutputBuffers() {
 	rtHitNormal.SetName(L"rtHitNormal");
 	rtHitSpecular.SetName(L"rtHitSpecular");
 	rtHitInstanceId.SetName(L"rtHitInstanceId");
-	rtHitInstanceIdReadback.SetName(L"rtHitInstanceIdReadback");
 	rtOutputUpscaled.SetName(L"rtOutputUpscaled");
 	rtOutputSharpened.SetName(L"rtOutputSharpened");
 #endif
@@ -326,6 +333,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtNormal[0].Release();
 	rtNormal[1].Release();
 	rtInstanceId.Release();
+	rtFirstInstanceId.Release();
+	rtFirstInstanceIdReadback.Release();
 	rtDirectLightAccum[0].Release();
 	rtDirectLightAccum[1].Release();
 	rtIndirectLightAccum[0].Release();
@@ -345,7 +354,6 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitNormal.Release();
 	rtHitSpecular.Release();
 	rtHitInstanceId.Release();
-	rtHitInstanceIdReadback.Release();
 	rtOutputUpscaled.Release();
 	rtOutputSharpened.Release();
 }
@@ -1501,17 +1509,20 @@ void RT64::View::render() {
 
 		// Barriers for shading buffers before dispatching secondary rays.
 		CD3DX12_RESOURCE_BARRIER shadingBarriers[] = {
+				CD3DX12_RESOURCE_BARRIER::Transition(rtInstanceId.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtViewDirection.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingPosition.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingNormal.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtRefraction.Get()),
-				CD3DX12_RESOURCE_BARRIER::UAV(rtInstanceId.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal[rtSwap ? 1 : 0].Get()),
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(shadingBarriers), shadingBarriers);
+
+		// Store the first bounce instance Id.
+		d3dCommandList->CopyResource(rtFirstInstanceId.Get(), rtInstanceId.Get());
 
 		// Dispatch rays for direct light.
 		RT64_LOG_PRINTF("Dispatching direct light rays");
@@ -1528,6 +1539,10 @@ void RT64::View::render() {
 		// This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
 		CD3DX12_RESOURCE_BARRIER indirectBarrier = CD3DX12_RESOURCE_BARRIER::UAV(rtIndirectLightAccum[rtSwap ? 1 : 0].Get());
 		d3dCommandList->ResourceBarrier(1, &indirectBarrier);
+
+		// Transition the instance ID buffer back to unordered access.
+		CD3DX12_RESOURCE_BARRIER instanceIdCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtInstanceId.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		d3dCommandList->ResourceBarrier(1, &instanceIdCopyBarrier);
 
 		// Dispatch rays for refraction.
 		RT64_LOG_PRINTF("Dispatching refraction rays");
@@ -1836,7 +1851,7 @@ void RT64::View::render() {
 	// End the frame.
 	rtSwap = !rtSwap;
 	rtSkipReprojection = false;
-	rtHitInstanceIdReadbackUpdated = false;
+	rtFirstInstanceIdReadbackUpdated = false;
 	globalParamsBufferData.frameCount++;
 
 	RT64_LOG_PRINTF("Finished view render");
@@ -2090,48 +2105,71 @@ RT64_VECTOR3 RT64::View::getRayDirectionAt(int px, int py) {
 }
 
 RT64_INSTANCE *RT64::View::getRaytracedInstanceAt(int x, int y) {
-	// TODO: This doesn't handle cases properly when nothing was hit at the target pixel and returns
-	// the first instance instead. We need to determine what's the best solution for that.
-	// TODO: This is broken on deferred renderer at the moment.
-	return nullptr;
-
-	/*
-	// Copy instance id resource to readback if necessary.
-	if (!rtHitInstanceIdReadbackUpdated) {
-		auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
-		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceId.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		d3dCommandList->ResourceBarrier(1, &rtBarrier);
-		d3dCommandList->CopyResource(rtHitInstanceIdReadback.Get(), rtHitInstanceId.Get());
-		rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtHitInstanceId.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		d3dCommandList->ResourceBarrier(1, &rtBarrier);
-		scene->getDevice()->submitCommandList();
-		scene->getDevice()->waitForGPU();
-		scene->getDevice()->resetCommandList();
-		rtHitInstanceIdReadbackUpdated = true;
-	}
+	int screenWidth = scene->getDevice()->getWidth();
+	int screenHeight = scene->getDevice()->getHeight();
+	float xScale = (float)(rtWidth) / (float)(screenWidth);
+	float yScale = (float)(rtHeight) / (float)(screenHeight);
 
 	// Check resource's bounds.
-	x = (int)(x * rtScale);
-	y = (int)(y * rtScale);
+	x = lround(x * xScale);
+	y = lround(y * yScale);
 	if ((x < 0) || (x >= rtWidth) || (y < 0) || (y >= rtHeight)) {
 		return nullptr;
 	}
-	
+
+	// Update readback resource if necessary this frame.
+	if (!rtFirstInstanceIdReadbackUpdated) {
+		auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
+		CD3DX12_RESOURCE_BARRIER rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFirstInstanceId.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		d3dCommandList->ResourceBarrier(1, &rtBarrier);
+
+		D3D12_TEXTURE_COPY_LOCATION src = {};
+		src.pResource = rtFirstInstanceId.Get();
+		src.SubresourceIndex = 0;
+		src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+
+		D3D12_RESOURCE_DESC desc = rtFirstInstanceId.Get()->GetDesc();
+		D3D12_SUBRESOURCE_FOOTPRINT subresource = {};
+		subresource.Format = desc.Format;
+		subresource.Width = (UINT)(desc.Width);
+		subresource.Height = desc.Height;
+		subresource.RowPitch = rtFirstInstanceIdRowWidth;
+		subresource.Depth = 1;
+
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+		footprint.Offset = 0;
+		footprint.Footprint = subresource;
+
+		D3D12_TEXTURE_COPY_LOCATION dst = {};
+		dst.pResource = rtFirstInstanceIdReadback.Get();
+		dst.PlacedFootprint = footprint;
+		dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		d3dCommandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+		rtBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtFirstInstanceId.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+		d3dCommandList->ResourceBarrier(1, &rtBarrier);
+
+		scene->getDevice()->submitCommandList();
+		scene->getDevice()->waitForGPU();
+		scene->getDevice()->resetCommandList();
+		rtFirstInstanceIdReadbackUpdated = true;
+	}
+
 	// Map the resource read the pixel.
-	size_t index = (rtWidth * y + x) * 2;
-	uint16_t instanceId = 0;
+	size_t index = rtFirstInstanceIdRowWidth * y + x * 4;
+	int32_t instanceId = 0;
 	uint8_t *pData;
-	D3D12_CHECK(rtHitInstanceIdReadback.Get()->Map(0, nullptr, (void **)(&pData)));
+	D3D12_CHECK(rtFirstInstanceIdReadback.Get()->Map(0, nullptr, (void **)(&pData)));
 	memcpy(&instanceId, pData + index, sizeof(instanceId));
-	rtHitInstanceIdReadback.Get()->Unmap(0, nullptr);
-	
+	rtFirstInstanceIdReadback.Get()->Unmap(0, nullptr);
+
 	// Check the matching instance.
-	if (instanceId >= rtInstances.size()) {
+	if ((instanceId >= 0) && (instanceId < rtInstances.size())) {
+		return (RT64_INSTANCE *)(rtInstances[instanceId].instance);
+	}
+	else {
 		return nullptr;
 	}
-	
-	return (RT64_INSTANCE *)(rtInstances[instanceId].instance);
-	*/
 }
 
 void RT64::View::resize() {

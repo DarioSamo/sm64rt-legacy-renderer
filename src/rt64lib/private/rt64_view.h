@@ -91,6 +91,8 @@ namespace RT64 {
 		AllocatedResource rtShadingSpecular;
 		AllocatedResource rtDiffuse;
 		AllocatedResource rtInstanceId;
+		AllocatedResource rtFirstInstanceId;
+		AllocatedResource rtFirstInstanceIdReadback;
 		AllocatedResource rtDirectLightAccum[2];
 		AllocatedResource rtFilteredDirectLight[2];
 		AllocatedResource rtIndirectLightAccum[2];
@@ -106,7 +108,6 @@ namespace RT64 {
 		AllocatedResource rtHitNormal;
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
-		AllocatedResource rtHitInstanceIdReadback;
 		AllocatedResource rtOutputUpscaled;
 		AllocatedResource rtOutputSharpened;
 
@@ -122,8 +123,8 @@ namespace RT64 {
 		bool rtRecreateBuffers;
 		bool rtSkipReprojection;
 		bool denoiserEnabled;
-
-		bool rtHitInstanceIdReadbackUpdated;
+		UINT rtFirstInstanceIdRowWidth;
+		bool rtFirstInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
 		ID3D12DescriptorHeap *descriptorHeap;
 		UINT descriptorHeapEntryCount;
