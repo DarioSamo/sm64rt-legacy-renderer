@@ -1093,7 +1093,11 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.cameraW = ToVector4(cameraW, 0.0f);
 
 	// Enable light reprojection if denoising is enabled.
+#ifdef DI_REPROJECTION_SUPPORT
 	globalParamsBufferData.diReproject = denoiserEnabled && (globalParamsBufferData.diSamples > 0) ? 1 : 0;
+#else
+	globalParamsBufferData.diReproject = 0;
+#endif
 	globalParamsBufferData.giReproject = denoiserEnabled && (globalParamsBufferData.giSamples > 0) ? 1 : 0;
 
 	// Use the total frame count as the random seed.
@@ -1556,7 +1560,11 @@ void RT64::View::render() {
 		}
 
 		// Copy direct light raw buffer to the first direct filtered buffer.
+#	ifdef DI_DENOISING_SUPPORT
 		bool denoiseDI = denoiserEnabled && (globalParamsBufferData.diSamples > 0);
+#	else
+		bool denoiseDI = false;
+#	endif
 		{
 			ID3D12Resource *source = rtDirectLightAccum[rtSwap ? 1 : 0].Get();
 			ID3D12Resource *dest = rtFilteredDirectLight[denoiseDI ? 0 : 1].Get();
@@ -1578,6 +1586,7 @@ void RT64::View::render() {
 			d3dCommandList->ResourceBarrier(_countof(afterCopyBarriers), afterCopyBarriers);
 		}
 
+#	ifdef DI_DENOISING_SUPPORT
 		// Apply a gaussian filter to the direct light with a compute shader.
 		if (denoiseDI) {
 			for (int i = 0; i < 3; i++) {
@@ -1598,6 +1607,7 @@ void RT64::View::render() {
 				d3dCommandList->ResourceBarrier(_countof(afterBlurBarriers), afterBlurBarriers);
 			}
 		}
+#	endif
 
 		// Copy indirect light raw buffer to the first indirect filtered buffer.
 		bool denoiseGI = denoiserEnabled && (globalParamsBufferData.giSamples > 0);
