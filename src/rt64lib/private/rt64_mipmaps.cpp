@@ -126,12 +126,8 @@ void RT64::Mipmaps::generate(ID3D12Resource *resource) {
 
 		d3dCommandList->CopyResource(aliasResource, resource);
 
-		CD3DX12_RESOURCE_BARRIER afterCopyBarriers[] = {
-			CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST),
-			CD3DX12_RESOURCE_BARRIER::Transition(aliasResource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COPY_SOURCE)
-		};
-
-		d3dCommandList->ResourceBarrier(_countof(afterCopyBarriers), afterCopyBarriers);
+		CD3DX12_RESOURCE_BARRIER afterCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(aliasResource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		d3dCommandList->ResourceBarrier(1, &afterCopyBarrier);
 	}
 	else {
 		CD3DX12_RESOURCE_BARRIER beforeGenerationBarrier = CD3DX12_RESOURCE_BARRIER::Transition(uavResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -239,6 +235,9 @@ void RT64::Mipmaps::generate(ID3D12Resource *resource) {
 	}
 	
 	if (aliasResource != nullptr) {
+		CD3DX12_RESOURCE_BARRIER beforeCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+		d3dCommandList->ResourceBarrier(1, &beforeCopyBarrier);
+
 		d3dCommandList->CopyResource(resource, aliasResource);
 
 		CD3DX12_RESOURCE_BARRIER afterCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
