@@ -146,7 +146,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     bool dlssInitialized = view->getDlssInitialized();
     if (dlssInitialized) 
     {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0NVIDIA DLSS 2.2\0");
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0NVIDIA DLSS 2.3\0");
     }
     else
 #endif
