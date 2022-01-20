@@ -69,6 +69,8 @@ namespace RT64 {
 			unsigned int giReproject;
 			unsigned int maxLights;
 			unsigned int motionBlurSamples;
+			unsigned int tonemapMode;
+			float tonemapExposure;
 			unsigned int visualizationMode;
 			unsigned int frameCount;
 		};
@@ -214,6 +216,8 @@ namespace RT64 {
 		float getMotionBlurStrength() const;
 		void setMotionBlurSamples(int v);
 		int getMotionBlurSamples() const;
+		void setToneMapExposure(float v);
+		float getToneMapExposure() const;
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;
 		void setResolutionScale(float v);
@@ -230,6 +234,8 @@ namespace RT64 {
 		void resize();
 		int getWidth() const;
 		int getHeight() const;
+		void setToneMappingMode(int v);
+		int getToneMappingMode() const;
 
 #ifdef RT64_DLSS
 		void setDlssQualityMode(RT64::DLSS::QualityMode v);

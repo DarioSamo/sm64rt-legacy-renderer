@@ -66,6 +66,8 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.motionBlurSamples = 32;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
+	globalParamsBufferData.tonemapMode = 0;
+	globalParamsBufferData.tonemapExposure = 1.0f;
 	globalParamsBufferSize = 0;
 	rtSwap = false;
 	rtWidth = 0;
@@ -2053,6 +2055,22 @@ int RT64::View::getVisualizationMode() const {
 	return globalParamsBufferData.visualizationMode;
 }
 
+void RT64::View::setToneMappingMode(int v) {
+	globalParamsBufferData.tonemapMode = v;
+}
+
+int RT64::View::getToneMappingMode() const {
+	return globalParamsBufferData.tonemapMode;
+}
+
+void RT64::View::setToneMapExposure(float v) {
+	globalParamsBufferData.tonemapExposure = v;
+}
+
+float RT64::View::getToneMapExposure() const {
+	return globalParamsBufferData.tonemapExposure;
+}
+
 void RT64::View::setResolutionScale(float v) {
 	if (resolutionScale != v) {
 		resolutionScale = v;
@@ -2250,6 +2268,8 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setResolutionScale(viewDesc.resolutionScale);
+	view->setToneMappingMode(viewDesc.tonemapMode);
+	view->setToneMapExposure(viewDesc.tonemapExposure);
 	view->setMotionBlurStrength(viewDesc.motionBlurStrength);
 	view->setMaxLights(viewDesc.maxLights);
 	view->setDISamples(viewDesc.diSamples);

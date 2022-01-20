@@ -99,8 +99,8 @@ void ReflectionRayGen() {
 				resColor.rgb += hitColor.rgb * alphaContrib;
 			}
 			else {
-				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
-			}
+                resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
+            }
 
 			resPosition = vertexPosition;
 			resNormal = vertexNormal;
@@ -124,7 +124,7 @@ void ReflectionRayGen() {
 	}
 
 	// Blend with the background.
-	resColor.rgb += bgColor * resColor.a + resTransparent;
+    resColor.rgb += bgColor * resColor.a + resTransparent;
 	resColor.a = 1.0f;
 
 	// Artificial shine factor.
