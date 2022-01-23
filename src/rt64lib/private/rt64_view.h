@@ -61,6 +61,11 @@ namespace RT64 {
 			float giDiffuseStrength;
 			float giSkyStrength;
 			float motionBlurStrength;
+			float tonemapExposure;
+			float tonemapWhite;
+			float tonemapBlack;
+			float tonemapSaturation;
+			float tonemapGamma;
 			int skyPlaneTexIndex;
 			unsigned int randomSeed;
 			unsigned int diSamples;
@@ -68,9 +73,8 @@ namespace RT64 {
 			unsigned int diReproject;
 			unsigned int giReproject;
 			unsigned int maxLights;
-			unsigned int motionBlurSamples;
 			unsigned int tonemapMode;
-			float tonemapExposure;
+			unsigned int motionBlurSamples;
 			unsigned int visualizationMode;
 			unsigned int frameCount;
 		};
@@ -216,8 +220,15 @@ namespace RT64 {
 		float getMotionBlurStrength() const;
 		void setMotionBlurSamples(int v);
 		int getMotionBlurSamples() const;
+		void setToneMappingMode(int v);
+		int getToneMappingMode() const;
+		void setTonemapperValues(float e, float w, float b, float s, float g);
 		void setToneMapExposure(float v);
 		float getToneMapExposure() const;
+		float getToneMapWhitePoint() const;
+		float getToneMapBlackLevel() const;
+		float getToneMapSaturation() const;
+		float getToneMapGamma() const;
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;
 		void setResolutionScale(float v);
@@ -234,8 +245,6 @@ namespace RT64 {
 		void resize();
 		int getWidth() const;
 		int getHeight() const;
-		void setToneMappingMode(int v);
-		int getToneMappingMode() const;
 
 #ifdef RT64_DLSS
 		void setDlssQualityMode(RT64::DLSS::QualityMode v);

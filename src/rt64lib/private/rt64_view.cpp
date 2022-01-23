@@ -68,6 +68,10 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.frameCount = 0;
 	globalParamsBufferData.tonemapMode = 0;
 	globalParamsBufferData.tonemapExposure = 1.0f;
+	globalParamsBufferData.tonemapWhite = 1.0f;
+	globalParamsBufferData.tonemapBlack = 0.0f;
+	globalParamsBufferData.tonemapSaturation = 1.0f;
+	globalParamsBufferData.tonemapGamma = 1.0f;
 	globalParamsBufferSize = 0;
 	rtSwap = false;
 	rtWidth = 0;
@@ -208,10 +212,8 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-
 	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtNormal[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtNormal[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
@@ -247,7 +249,7 @@ void RT64::View::createOutputBuffers() {
 	CalculateTextureRowWidthPadding((UINT)(resDesc.Width * 4), rtFirstInstanceIdRowWidth, rowPadding);
 	rtFirstInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, rtFirstInstanceIdRowWidth * resDesc.Height, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	if (rtUpscaleActive) {
 		resDesc.Width = screenWidth;
 		resDesc.Height = screenHeight;
@@ -760,7 +762,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 
 		// SRV for diffuse buffer.
-		textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtDiffuse.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
@@ -845,15 +847,14 @@ void RT64::View::createShaderResourceHeap() {
 		textureSRVDesc.Texture2D.MipLevels = 1;
 		textureSRVDesc.Texture2D.MostDetailedMip = 0;
 		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 
 		ID3D12Resource *inputResource = nullptr;
 		if (rtUpscaleActive) {
 			inputResource = rtOutputUpscaled.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		}
 		else {
 			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
@@ -892,11 +893,11 @@ void RT64::View::createShaderResourceHeap() {
 		ID3D12Resource *inputResource = nullptr;
 		if (rtSharpenActive) {
 			inputResource = rtOutputSharpened.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 		else if (rtUpscaleActive) {
 			inputResource = rtOutputUpscaled.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 		else {
 			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
@@ -2063,12 +2064,37 @@ int RT64::View::getToneMappingMode() const {
 	return globalParamsBufferData.tonemapMode;
 }
 
+void RT64::View::setTonemapperValues(float e, float w, float b, float s, float g)
+{
+	globalParamsBufferData.tonemapExposure = e;
+	globalParamsBufferData.tonemapWhite = w;
+	globalParamsBufferData.tonemapBlack = b;
+	globalParamsBufferData.tonemapSaturation = s;
+	globalParamsBufferData.tonemapGamma = g;
+}
+
 void RT64::View::setToneMapExposure(float v) {
 	globalParamsBufferData.tonemapExposure = v;
 }
 
 float RT64::View::getToneMapExposure() const {
 	return globalParamsBufferData.tonemapExposure;
+}
+
+float RT64::View::getToneMapWhitePoint() const {
+	return globalParamsBufferData.tonemapWhite;
+}
+
+float RT64::View::getToneMapBlackLevel() const {
+	return globalParamsBufferData.tonemapBlack;
+}
+
+float RT64::View::getToneMapSaturation() const {
+	return globalParamsBufferData.tonemapSaturation;
+}
+
+float RT64::View::getToneMapGamma() const {
+	return globalParamsBufferData.tonemapGamma;
 }
 
 void RT64::View::setResolutionScale(float v) {
@@ -2268,8 +2294,6 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setResolutionScale(viewDesc.resolutionScale);
-	view->setToneMappingMode(viewDesc.tonemapMode);
-	view->setToneMapExposure(viewDesc.tonemapExposure);
 	view->setMotionBlurStrength(viewDesc.motionBlurStrength);
 	view->setMaxLights(viewDesc.maxLights);
 	view->setDISamples(viewDesc.diSamples);

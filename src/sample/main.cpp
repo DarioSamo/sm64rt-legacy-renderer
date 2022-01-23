@@ -169,7 +169,7 @@ RT64_TEXTURE *loadTexturePNG(const char *path) {
 
 RT64_TEXTURE *loadTextureDDS(const char *path) {
 	RT64_TEXTURE *texture = nullptr;
-	FILE *ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
+	FILE *ddsFp = stbi__fopen(path, "rb");
 	if (ddsFp != nullptr) {
 		fseek(ddsFp, 0, SEEK_END);
 		int ddsDataSize = ftell(ddsFp);
@@ -234,7 +234,7 @@ void setupRT64Scene() {
 	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
 	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
 	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
-	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
+	RT64_TEXTURE *textureSky = loadTexturePNG("res/sky.png");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
@@ -260,7 +260,7 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/sphere.obj", NULL, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/ds_bob/ds_bob.obj", "res/ds_bob/", true);
 	assert(loaded);
 	
 	for (size_t i = 0; i < shapes.size(); i++) {
@@ -278,9 +278,9 @@ void setupRT64Scene() {
 				RT64.objIndices.push_back((unsigned int)(RT64.objVertices.size()));
 				RT64.objVertices.push_back(vertex);
 			}
-
 			index_offset += fnum;
 		}
+		// RT64.textureDif = materials[i];
 	}
 	
 	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);

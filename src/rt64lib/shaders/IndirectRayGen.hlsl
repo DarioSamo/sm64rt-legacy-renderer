@@ -113,14 +113,14 @@ void IndirectRayGen() {
 			}
 
 			// Add diffuse bounce as indirect light.
-			float3 resIndirect = ambientBaseColor.rgb;
+            float3 resIndirect = ambientBaseColor.rgb + ambientNoGIColor.rgb;
 			if (resInstanceId >= 0) {
 				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
-				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
-				resIndirect += indirectLight;
-			}
-
-			resIndirect += bgColor * giSkyStrength * resColor.a;
+                float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * directLight * giDiffuseStrength;
+                resIndirect *= indirectLight;
+            }
+			
+            resIndirect += bgColor * giSkyStrength * resColor.a;
 
 			// Accumulate.
 			historyLength = min(historyLength + 1.0f, 64.0f);

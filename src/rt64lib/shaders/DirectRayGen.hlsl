@@ -54,7 +54,7 @@ void DirectRayGen() {
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
 	float eyeLightLambertFactor = max(dot(normal.xyz, -rayDirection), 0.0f);
 	float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
-	float3 eyeLightSpecularFactor = specular.rgb * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
+	float3 eyeLightSpecularFactor = specular.rgb * pow(max(dot(eyeLightReflected, -rayDirection), 0.0f), specularExponent);
 	resDirect += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 
 	// Accumulate.

@@ -4,62 +4,107 @@
 
 #include "Constants.hlsli"
 #include "GlobalParams.hlsli"
+#include "Color.hlsli"
 
-#define REINHARD 0
+// Tonemappers sourced from https://64.github.io/tonemapping/
+#define TONEMAP_MODE_RAW_IMAGE 0
+#define TONEMAP_MODE_REINHARD 1
+#define TONEMAP_MODE_REINHARD_LUMA 2
+#define TONEMAP_MODE_REINHARD_JODIE 3
+#define TONEMAP_MODE_UNCHARTED_2 4
+#define TONEMAP_MODE_ACES 5
 
 Texture2D<float4> gOutput : register(t0);
 Texture2D<float4> gFlow : register(t1);
 
 SamplerState gSampler : register(s0);
 
-// Standard clamped tonemapping
-float3 Clamped(float3 color, float xp)
+float3 WhiteBlackPoint(float3 bl, float3 wp, float3 color)
 {
-	return clamp(color * xp, 0.0f, 1.0f);
+    return (color - bl) / (wp - bl);
 }
 
-// Reinhard and Luminance-Based Reinhard
-// Taken from https://64.github.io/tonemapping/
 float3 Reinhard(float3 color, float xp)
 {
     float3 num = color * (1.0f + (color / (xp * xp)));
-	return num / (1.0f + color);
-}
-
-float Luma(float3 color)
-{
-	return dot(color, float3(0.2126f, 0.7152f, 0.0722f));
+    return num / (1.0f + color);
 }
 
 float3 ChangeLuma(float3 color, float lumaOut)
 {
-	float lumaIn = Luma(color);
-	return color * (lumaOut / lumaIn);
+    float lumaIn = RGBtoLuminance(color);
+    return color * (lumaOut / lumaIn);
 }
 
 float3 ReinhardLuma(float3 color, float xp)
 {
-	float lumaOld = Luma(color);
-	float num = lumaOld * (1.0f + (lumaOld / (xp * xp)));
-	float lumaNew = num / (1.0f + lumaOld);
-	return ChangeLuma(color, lumaNew);
+    float lumaOld = RGBtoLuminance(color);
+    float num = lumaOld * (1.0f + (lumaOld / (xp * xp)));
+    float lumaNew = num / (1.0f + lumaOld);
+    return ChangeLuma(color, lumaNew);
 }
 
-float3 Tonemapping(float3 color, float xp, int mode)
+// Taken from https://www.shadertoy.com/view/4dBcD1
+float3 ReinhardJodie(float3 rgb, float exp)
+{
+    float luma = RGBtoLuminance(rgb);
+    float3 tc = rgb / (rgb + 1.0f);
+    return lerp(rgb / (luma + 1.0f), exp, tc);
+}
+
+float3 Uncharted2(float3 rgb, float exp)
+{
+    float A = 0.15f;
+    float B = 0.50f;
+    float C = 0.10f;
+    float D = 0.20f;
+    float E = 0.02f;
+    float F = 0.30f;
+    float3 color = ((rgb * exp * (A * rgb * exp + C * B) + D * E) / (rgb * exp * (A * rgb * exp + B) + D * F)) - E / F;
+    float3 w = float3(11.2f, 11.2f, 11.2f);
+    float3 whiteScale = float3(1.0f, 1.0f, 1.0f) / (((11.2f * (A * 11.2f + C * B) + D * E) / (11.2f * (A * 11.2f + B) + D * F)) - E / F);
+    
+    return color * whiteScale;
+}
+
+// ACES in HLSL from https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+float3 RRTAndODTFit(float3 v)
+{
+    float3 a = v * (v + 0.0245786f) - 0.000090537f;
+    float3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
+    return a / b;
+}
+
+float3 ACESFitted(float3 color)
+{
+    color = mul(ACESInputMat, color);
+
+    // Apply RRT and ODT
+    color = RRTAndODTFit(color);
+    color = mul(ACESOutputMat, color);
+    
+    return color;
+}
+
+float3 Tonemapper(float3 rgb, float exposure, uint mode)
 {
     switch (mode)
     {
-        case TONEMAP_MODE_CLAMP:
-            return Clamped(color, xp);
         case TONEMAP_MODE_REINHARD:
-            return Reinhard(color, 1.0f / xp);
+            return Reinhard(rgb * exposure, 1.0f / exposure + 1.0f);
         case TONEMAP_MODE_REINHARD_LUMA:
-            return ReinhardLuma(color, 1.0f / xp);
+            return ReinhardLuma(rgb * exposure, 1.0f / exposure + 1.0f);
+        case TONEMAP_MODE_REINHARD_JODIE:
+            return ReinhardJodie(rgb * exposure, exposure);
+        case TONEMAP_MODE_UNCHARTED_2:
+            return Uncharted2(rgb * 2.0f, exposure);
+        case TONEMAP_MODE_ACES:
+            return ACESFitted(rgb * exposure);
     }
-	return color * xp;
+    return rgb * exposure;
 }
 
-float4 MotionBlur(float4 color, float2 uv)
+float4 MotionBlur(float2 uv)
 {
     float2 flow = gFlow.SampleLevel(gSampler, uv, 0).xy / resolution.xy;
     float flowLength = length(flow);
@@ -71,30 +116,37 @@ float4 MotionBlur(float4 color, float2 uv)
         float2 startUV = uv - (flow * motionBlurStrength / 2.0f);
         for (uint s = 0; s < motionBlurSamples; s++)
         {
-            float2 sampleUV = clamp(startUV + flow * s * SampleStep, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+            float2 sampleUV = max(startUV + flow * s * SampleStep, float2(0.0f, 0.0f));
             float sampleWeight = 1.0f;
             sumColor += gOutput.SampleLevel(gSampler, sampleUV, 0) * sampleWeight;
             sumWeight += sampleWeight;
         }
 
-        color = sumColor / sumWeight;
+        return sumColor / sumWeight;
     }
-    return color;
+    return gOutput.SampleLevel(gSampler, uv, 0);
 }
 
-float AutoExposure()
-{
+
+float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     
-}
-
-float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
-{
-	float4 color = gOutput.SampleLevel(gSampler, uv, 0);
-	if ((motionBlurStrength > 0.0f) && (motionBlurSamples > 0)) {
-        color = MotionBlur(color, uv);
+    float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
+    if ((motionBlurStrength > 0.0f) && (motionBlurSamples > 0)) {
+        color = MotionBlur(uv);
     }
-	
-    float expOffset = tex2Dlod(gSampler, float4(0.5, 0.5, 0, 0.25));
-    color = float4(Tonemapping(color.rgb, tonemapExposure, tonemapMode), color.w);
+    else {
+        color = gOutput.SampleLevel(gSampler, uv, 0);
+    }
+    
+    color.xyz = Tonemapper(color.xyz, tonemapExposure, tonemapMode);
+    
+    /*
+    if ((color.x + color.y + color.z) / 3.0f > 1.0f) {
+        return float4(1.0f, 1.0f, 0.0f, 1.0f);
+    } 
+    */
+    
+    // Clamp the colors [0.0, 1.0]
+    color.xyz = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.xyz);
     return color;
 }

@@ -18,7 +18,7 @@
 
 float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
 	// TODO: Probably use a more accurate approximation than this.
-	float ret = pow(clamp(1.0f + dot(normal, incident), EPSILON, 1.0f), 5.0f);
+	float ret = pow(max(1.0f + dot(normal, incident), EPSILON), 5.0f);
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
@@ -99,8 +99,8 @@ void ReflectionRayGen() {
 				resColor.rgb += hitColor.rgb * alphaContrib;
 			}
 			else {
-                resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
-            }
+				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
+			}
 
 			resPosition = vertexPosition;
 			resNormal = vertexNormal;
@@ -124,7 +124,7 @@ void ReflectionRayGen() {
 	}
 
 	// Blend with the background.
-    resColor.rgb += bgColor * resColor.a + resTransparent;
+	resColor.rgb += bgColor * resColor.a + resTransparent;
 	resColor.a = 1.0f;
 
 	// Artificial shine factor.
@@ -136,8 +136,8 @@ void ReflectionRayGen() {
 	resColor.rgb = lerp(resColor.rgb, ShadowColor, pow(max(-rayDirection.y, 0.0f) * reflectionShineFactor, BlendingExponent));
 
 	// Add reflection result.
-	gReflection[launchIndex].rgb += resColor.rgb * reflectionAlpha * saturate(1.0f - newReflectionAlpha);
+	gReflection[launchIndex].rgb += resColor.rgb * reflectionAlpha * max(1.0f - newReflectionAlpha, 0.0);
 
 	// Store parameters for new reflection.
-	gReflection[launchIndex].a = saturate(newReflectionAlpha);
+    gReflection[launchIndex].a = newReflectionAlpha;
 }

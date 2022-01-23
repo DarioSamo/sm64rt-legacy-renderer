@@ -24,7 +24,7 @@ float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
 
 float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
 	// TODO: Probably use a more accurate approximation than this.
-	float ret = pow(clamp(1.0f + dot(normal, incident), EPSILON, 1.0f), 5.0f);
+	float ret = pow(max(1.0f + dot(normal, incident), EPSILON), 5.0f);
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
@@ -45,11 +45,11 @@ void PrimaryRayGen() {
 
 	// Sample the background.
 	float2 screenUV = float2(launchIndex.x, launchIndex.y) / float2(launchDims.x, launchDims.y);
-	float3 bgColor = SampleBackground2D(screenUV);
-	float4 skyColor = SampleSky2D(screenUV);
 	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
 	float2 prevBgPos = WorldToScreenPos(prevViewProj, bgPosition);
-	float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);
+    float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);
+    float3 bgColor = SampleBackground2D(screenUV);
+    float4 skyColor = SampleSky2D(screenUV);
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 	// Compute ray differentials.
@@ -167,8 +167,14 @@ void PrimaryRayGen() {
 	}
 
 	// Blend with the background.
-	resColor.rgb += bgColor * resColor.a;
-	resColor.a = 1.0f - resColor.a;
+    resColor.rgb += bgColor * resColor.a;
+    resColor.a = 1.0f - resColor.a;
+	
+	/*
+    if ((bgColor.x + bgColor.y + bgColor.z) / 3.0f > 1.0f)
+    {
+        resColor = float4(1.0f, 0.0f, 1.0f, 1.0f);
+    }*/
 
 	// Store shading information buffers.
 	gShadingPosition[launchIndex] = float4(resPosition, 0.0f);

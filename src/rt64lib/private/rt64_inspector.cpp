@@ -88,6 +88,7 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
     renderLightInspector();
     renderCameraControl(activeView, cursorX, cursorY);
     renderPrint();
+    renderPostInspector(activeView);
 
     Im3d::EndFrame();
 
@@ -122,8 +123,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     int maxReflections = view->getMaxReflections();
     float motionBlurStrength = view->getMotionBlurStrength();
     int motionBlurSamples = view->getMotionBlurSamples();
-    float tonemapExposure = view->getToneMapExposure();
-    int tonemapMode = view->getToneMappingMode();
     int visualizationMode = view->getVisualizationMode();
     int resScale = lround(view->getResolutionScale() * 100.0f);
     int upscaleMode = (int)(view->getUpscaleMode());
@@ -136,9 +135,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
     ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
-    ImGui::DragInt("Tonemapping Mode", &tonemapMode, 0.1f, 0, 10);
-    ImGui::DragFloat("Tonemapping Exposure", &tonemapExposure, 0.1f, 0.0f, 10.0f);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light\0Indirect light\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
 
 #ifdef RT64_DLSS
     // Only show DLSS option if supported by the hardware.
@@ -146,7 +142,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     bool dlssInitialized = view->getDlssInitialized();
     if (dlssInitialized) 
     {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0NVIDIA DLSS 2.2\0");
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0NVIDIA DLSS 2.3\0");
     }
     else
 #endif
@@ -205,13 +201,36 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setMaxReflections(maxReflections);
     view->setMotionBlurStrength(motionBlurStrength);
     view->setMotionBlurSamples(motionBlurSamples);
-    view->setToneMappingMode(tonemapMode);
-    view->setToneMapExposure(tonemapExposure);
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
     view->setUpscaleMode((UpscaleMode)(upscaleMode));
     view->setDenoiserEnabled(denoiser);
 
+    ImGui::End();
+}
+
+// Render the Post-processing window
+void RT64::Inspector::renderPostInspector(View* view) {
+    assert(view != nullptr);
+
+    ImGui::Begin("Post Processing");
+
+    int tonemapMode = view->getToneMappingMode();
+    float tonemapExposure = view->getToneMapExposure();
+    float tonemapWhite = view->getToneMapWhitePoint();
+    float tonemapBlack = view->getToneMapBlackLevel();
+    float tonemapSaturation = view->getToneMapSaturation();
+    float tonemapGamma = view->getToneMapGamma();
+
+    ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0");
+    ImGui::DragFloat("Exposure", &tonemapExposure, 0.01f, 0.0f, 20.0f);
+    ImGui::DragFloat("White Point", &tonemapWhite, 0.01f, 0.0f, 10.0f);
+    ImGui::DragFloat("Black Level", &tonemapBlack, 0.01f, 0.0f, 10.0f);
+    ImGui::DragFloat("Saturation", &tonemapSaturation, 0.001f, 0.0f, 5.0f);
+    ImGui::DragFloat("Gamma", &tonemapGamma, 0.001f, 0.0f, 2.0f);
+
+    view->setToneMappingMode(tonemapMode);
+    view->setTonemapperValues(tonemapExposure, tonemapWhite, tonemapBlack, tonemapSaturation, tonemapGamma);
     ImGui::End();
 }
 

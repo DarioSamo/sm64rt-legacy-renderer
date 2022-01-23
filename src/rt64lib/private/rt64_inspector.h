@@ -34,6 +34,7 @@ namespace RT64 {
 		void renderSceneInspector();
 		void renderMaterialInspector();
 		void renderLightInspector();
+		void renderPostInspector(View* view);
 		void renderPrint();
 		void renderCameraControl(View *view, int cursorX, int cursorY);
 	public:
