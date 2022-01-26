@@ -17,3 +17,4 @@
 *.hlsl.h
 *.bat
 imgui.ini
+*/x64
