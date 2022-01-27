@@ -13,6 +13,12 @@
 #define TONEMAP_MODE_REINHARD_JODIE 3
 #define TONEMAP_MODE_UNCHARTED_2 4
 #define TONEMAP_MODE_ACES 5
+#define TONEMAP_MODE_SIMPLE 6
+
+// KoS's personal recommendation for tonemapping
+// Tonemapper: Unchared 2
+// Exposure: 2.0
+// White point: 0.825
 
 Texture2D<float4> gOutput : register(t0);
 Texture2D<float4> gFlow : register(t1);
@@ -45,11 +51,11 @@ float3 ReinhardLuma(float3 color, float xp)
 }
 
 // Taken from https://www.shadertoy.com/view/4dBcD1
-float3 ReinhardJodie(float3 rgb, float exp)
+float3 ReinhardJodie(float3 rgb)
 {
     float luma = RGBtoLuminance(rgb);
     float3 tc = rgb / (rgb + 1.0f);
-    return lerp(rgb / (luma + 1.0f), exp, tc);
+    return lerp(rgb / (luma + 1.0f), tc, tc);
 }
 
 float3 Uncharted2(float3 rgb, float exp)
@@ -86,22 +92,25 @@ float3 ACESFitted(float3 color)
     return color;
 }
 
-float3 Tonemapper(float3 rgb, float exposure, uint mode)
+float3 Tonemapper(float3 rgb)
 {
-    switch (mode)
+    switch (tonemapMode)
     {
         case TONEMAP_MODE_REINHARD:
-            return Reinhard(rgb * exposure, 1.0f / exposure + 1.0f);
+            return Reinhard(rgb * tonemapExposure, tonemapExposure);
         case TONEMAP_MODE_REINHARD_LUMA:
-            return ReinhardLuma(rgb * exposure, 1.0f / exposure + 1.0f);
+            return ReinhardLuma(rgb * tonemapExposure, tonemapExposure);
         case TONEMAP_MODE_REINHARD_JODIE:
-            return ReinhardJodie(rgb * exposure, exposure);
+            return ReinhardJodie(rgb * tonemapExposure);
         case TONEMAP_MODE_UNCHARTED_2:
-            return Uncharted2(rgb * 2.0f, exposure);
+            return Uncharted2(rgb * 2.0f, tonemapExposure);
         case TONEMAP_MODE_ACES:
-            return ACESFitted(rgb * exposure);
+            return ACESFitted(rgb * tonemapExposure);
+        case TONEMAP_MODE_SIMPLE:
+            return rgb *= tonemapExposure;
     }
-    return rgb * exposure;
+    
+    return rgb;
 }
 
 float4 MotionBlur(float2 uv)
@@ -138,15 +147,21 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         color = gOutput.SampleLevel(gSampler, uv, 0);
     }
     
-    color.xyz = Tonemapper(color.xyz, tonemapExposure, tonemapMode);
+    // Tonemap the image
+    color.rgb = Tonemapper(max(color.rgb, 0.0f));
+    
+    // Post-tonemapping
+    if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
+    {
+        // Saturation is weird. Might have to put that off for a later time
+        //color.xyz = ModRGBWithHSL(color.xyz, float3(0.0, tonemapSaturation - 1.0f, 0.0));
+        color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
+        color.rgb = pow(color.rgb, tonemapGamma);
+    }
     
     /*
     if ((color.x + color.y + color.z) / 3.0f > 1.0f) {
         return float4(1.0f, 1.0f, 0.0f, 1.0f);
-    } 
-    */
-    
-    // Clamp the colors [0.0, 1.0]
-    color.xyz = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.xyz);
+    } */
     return color;
 }

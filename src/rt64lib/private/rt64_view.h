@@ -56,6 +56,11 @@ namespace RT64 {
 			RT64_VECTOR4 eyeLightSpecularColor;
 			RT64_VECTOR4 skyDiffuseMultiplier;
 			RT64_VECTOR4 skyHSLModifier;
+			RT64_VECTOR4 ambientFogColor;
+			RT64_VECTOR4 groundFogColor;
+			RT64_VECTOR2 ambientFogFactors;
+			RT64_VECTOR2 groundFogFactors;
+			RT64_VECTOR2 groundFogHeightFactors;
 			RT64_VECTOR2 pixelJitter;
 			float skyYawOffset;
 			float giDiffuseStrength;
@@ -116,6 +121,7 @@ namespace RT64 {
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtOutputUpscaled;
 		AllocatedResource rtOutputSharpened;
+		AllocatedResource rtOutputLuma;
 
 		bool rtSwap;
 		int rtWidth;
@@ -138,6 +144,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *composeHeap;
 		ID3D12DescriptorHeap *upscaleHeap;
 		ID3D12DescriptorHeap *sharpenHeap;
+		ID3D12DescriptorHeap *lumaHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
 		ID3D12DescriptorHeap *directFilterHeaps[2];
 		ID3D12DescriptorHeap *indirectFilterHeaps[2];
@@ -151,6 +158,10 @@ namespace RT64 {
 		uint32_t upscalingParamBufferSize;
 		AllocatedResource sharpenParamBufferResource;
 		uint32_t sharpenParamBufferSize;
+		AllocatedResource lumaParamBufferResource;
+		uint32_t lumaParamBufferSize;
+		AllocatedResource lumaAvgParamBufferResource;
+		uint32_t lumaAvgParamBufferSize;
 		AllocatedResource filterParamBufferResource;
 		uint32_t filterParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
@@ -192,6 +203,10 @@ namespace RT64 {
 		void updateUpscalingParamsBuffer();
 		void createSharpenParamsBuffer();
 		void updateSharpenParamsBuffer();
+		void createLumaParamsBuffer();
+		void updateLumaParamsBuffer();
+		void createLumaAvgParamsBuffer();
+		void updateLumaAvgParamsBuffer();
 		void createFilterParamsBuffer();
 		void updateFilterParamsBuffer();
 	public:
@@ -223,7 +238,6 @@ namespace RT64 {
 		void setToneMappingMode(int v);
 		int getToneMappingMode() const;
 		void setTonemapperValues(float e, float w, float b, float s, float g);
-		void setToneMapExposure(float v);
 		float getToneMapExposure() const;
 		float getToneMapWhitePoint() const;
 		float getToneMapBlackLevel() const;

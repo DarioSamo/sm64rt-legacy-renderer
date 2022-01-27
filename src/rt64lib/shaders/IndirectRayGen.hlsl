@@ -16,10 +16,10 @@
 #include "BgSky.hlsli"
 
 float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 hitNorm) {
-	float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
+    float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
 
 	// Cosine weighted hemisphere sample from RNG
-	float3 bitangent = getPerpendicularVector(hitNorm);
+    float3 bitangent = getPerpendicularVector(hitNorm);
 	float3 tangent = cross(bitangent, hitNorm);
 	float r = sqrt(randVal.x);
 	float phi = 2.0f * 3.14159265f * randVal.y;
@@ -58,7 +58,7 @@ void IndirectRayGen() {
 		uint maxSamples = giSamples;
 		const uint blueNoiseMult = 64 / giSamples;
 		while (maxSamples > 0) {
-			float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxSamples * blueNoiseMult, shadingNormal);
+            float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxSamples * blueNoiseMult, shadingNormal);
 
 			// Ray differential.
 			RayDiff rayDiff;
@@ -84,50 +84,52 @@ void IndirectRayGen() {
 			bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 			// Process hits.
-			float3 resPosition = float3(0.0f, 0.0f, 0.0f);
-			float3 resNormal = float3(0.0f, 0.0f, 0.0f);
-			float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
-			float4 resColor = float4(0, 0, 0, 1);
-			int resInstanceId = -1;
-			for (uint hit = 0; hit < payload.nhits; hit++) {
-				uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
-				float4 hitColor = gHitColor[hitBufferIndex];
-				float alphaContrib = (resColor.a * hitColor.a);
-				if (alphaContrib >= EPSILON) {
-					uint instanceId = gHitInstanceId[hitBufferIndex];
-					float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
-					float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
-					float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
-					float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
-					resColor.rgb += hitColor.rgb * alphaContrib;
-					resColor.a *= (1.0 - hitColor.a);
-					resPosition = vertexPosition;
-					resNormal = vertexNormal;
-					resSpecular = specular;
-					resInstanceId = instanceId;
-				}
+            float3 resPosition = float3(0.0f, 0.0f, 0.0f);
+            float3 resNormal = float3(0.0f, 0.0f, 0.0f);
+            float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
+            float4 resColor = float4(0, 0, 0, 1);
+            int resInstanceId = -1;
+            for (uint hit = 0; hit < payload.nhits; hit++) {
+                uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
+                float4 hitColor = gHitColor[hitBufferIndex];
+                float alphaContrib = (resColor.a * hitColor.a);
+                if (alphaContrib >= EPSILON) {
+                    uint instanceId = gHitInstanceId[hitBufferIndex];
+                    float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
+                    float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+                    float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+                    float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
+                    
+                    resColor.rgb += hitColor.rgb * alphaContrib;
+                    resColor.a *= (1.0 - hitColor.a);
+                    
+                    resPosition = vertexPosition;
+                    resNormal = vertexNormal;
+                    resSpecular = specular;
+                    resInstanceId = instanceId;
+                }
 
-				if (resColor.a <= EPSILON) {
-					break;
-				}
-			}
+                if (resColor.a <= EPSILON) {
+                    break;
+                }
+            }
 
 			// Add diffuse bounce as indirect light.
             float3 resIndirect = ambientBaseColor.rgb + ambientNoGIColor.rgb;
-			if (resInstanceId >= 0) {
-				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
+            if (resInstanceId >= 0) {
+                float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
                 float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * directLight * giDiffuseStrength;
-                resIndirect *= indirectLight;
+                resIndirect = indirectLight;
             }
 			
             resIndirect += bgColor * giSkyStrength * resColor.a;
 
 			// Accumulate.
-			historyLength = min(historyLength + 1.0f, 64.0f);
-			newIndirect = lerp(newIndirect.rgb, resIndirect, 1.0f / historyLength);
-
-			maxSamples--;
-		}
+            historyLength = min(historyLength + 1.0f, 64.0f);
+            newIndirect = lerp(newIndirect.rgb, resIndirect, 1.0f / historyLength);
+			
+            maxSamples--;
+        }
 		
 		gIndirectLightAccum[launchIndex] = float4(newIndirect, historyLength);
 	}

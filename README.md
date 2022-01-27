@@ -18,7 +18,7 @@ The library is not meant to be used in the traditional way by linking it as an s
 ## Requirements
 * Visual Studio Community 2019 Version 16.9.0 or newer
 * Windows SDK 10.0.19041.0 or newer
-* [DLSS SDK 2.2.1 or newer](https://developer.nvidia.com/dlss-sdk-2.2.1) if you wish to build with DLSS support.
+* [DLSS SDK 2.3.0 or newer](https://developer.nvidia.com/dlss) if you wish to build with DLSS support.
 
 ## Building
 Open **src/RT64.sln** in **Visual Studio Community 2019** and build the solution.

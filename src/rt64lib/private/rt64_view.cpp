@@ -49,6 +49,7 @@ RT64::View::View(Scene *scene) {
 	samplerHeap = nullptr;
 	upscaleHeap = nullptr;
 	sharpenHeap = nullptr;
+	lumaHeap = nullptr;
 	postProcessHeap = nullptr;
 	directFilterHeaps[0] = nullptr;
 	directFilterHeaps[1] = nullptr;
@@ -66,9 +67,9 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.motionBlurSamples = 32;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
-	globalParamsBufferData.tonemapMode = 0;
-	globalParamsBufferData.tonemapExposure = 1.0f;
-	globalParamsBufferData.tonemapWhite = 1.0f;
+	globalParamsBufferData.tonemapMode = 4;
+	globalParamsBufferData.tonemapExposure = 2.0f;
+	globalParamsBufferData.tonemapWhite = 0.75f;
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
@@ -107,6 +108,8 @@ RT64::View::View(Scene *scene) {
 	createGlobalParamsBuffer();
 	createUpscalingParamsBuffer();
 	createSharpenParamsBuffer();
+	createLumaParamsBuffer();
+	createLumaAvgParamsBuffer();
 	createFilterParamsBuffer();
 
 	scene->addView(this);
@@ -255,6 +258,7 @@ void RT64::View::createOutputBuffers() {
 		resDesc.Height = screenHeight;
 		rtOutputUpscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+		rtOutputLuma = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	}
 	else {
 		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -304,6 +308,7 @@ void RT64::View::createOutputBuffers() {
 	rtHitInstanceId.SetName(L"rtHitInstanceId");
 	rtOutputUpscaled.SetName(L"rtOutputUpscaled");
 	rtOutputSharpened.SetName(L"rtOutputSharpened");
+	rtOutputLuma.SetName(L"rtOutputLuma");
 #endif
 
 	// Create the RTVs.
@@ -360,6 +365,7 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitInstanceId.Release();
 	rtOutputUpscaled.Release();
 	rtOutputSharpened.Release();
+	rtOutputLuma.Release();
 }
 
 void RT64::View::createInstanceTransformsBuffer() {
@@ -874,6 +880,51 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 	}
 
+	/*
+	{
+		// Create the heap for the luminance shaders.
+		if (lumaHeap == nullptr) {
+			uint32_t handleCount = 3;
+			lumaHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = lumaHeap->GetCPUDescriptorHandleForHeapStart();
+
+		// SRV for input image.
+		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		textureSRVDesc.Texture2D.MipLevels = 1;
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		ID3D12Resource* inputResource = nullptr;
+		if (rtSharpenActive) {
+			inputResource = rtOutputSharpened.Get();
+		}
+		else if (rtUpscaleActive) {
+			inputResource = rtOutputUpscaled.Get();
+		}
+		else {
+			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
+		}
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for buffer
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutputSharpened.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for luminance parameters.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = lumaParamBufferResource.Get()->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = lumaParamBufferSize;
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+	}
+	*/
+
 	{
 		// Create the heap for the post process shader.
 		if (postProcessHeap == nullptr) {
@@ -893,17 +944,15 @@ void RT64::View::createShaderResourceHeap() {
 		ID3D12Resource *inputResource = nullptr;
 		if (rtSharpenActive) {
 			inputResource = rtOutputSharpened.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 		else if (rtUpscaleActive) {
 			inputResource = rtOutputUpscaled.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 		else {
 			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
@@ -1070,6 +1119,12 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.skyYawOffset = desc.skyYawOffset;
 	globalParamsBufferData.giDiffuseStrength = desc.giDiffuseStrength;
 	globalParamsBufferData.giSkyStrength = desc.giSkyStrength;
+	// My additions
+	globalParamsBufferData.ambientFogColor = ToVector4(desc.ambientFogColor, desc.ambientFogAlpha);
+	globalParamsBufferData.groundFogColor = ToVector4(desc.groundFogColor, desc.groundFogAlpha);
+	globalParamsBufferData.ambientFogFactors = desc.ambientFogFactors;
+	globalParamsBufferData.groundFogFactors = desc.groundFogFactors;
+	globalParamsBufferData.groundFogHeightFactors = desc.groundFogHeightFactors;
 
 	// Previous and current view and projection matrices and their inverse.
 	if (perspectiveCanReproject) {
@@ -1163,6 +1218,58 @@ void RT64::View::updateSharpenParamsBuffer() {
 	D3D12_CHECK(sharpenParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
 	memcpy(pData, &consts, sizeof(FSRConstants));
 	sharpenParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
+struct LumaBuffer {
+	uint32_t inputWidth;
+	uint32_t inputHeight;
+	float minLogLuminance;
+	float oneOverLogLuminanceRange;
+};
+
+void RT64::View::createLumaParamsBuffer() {
+	lumaParamBufferSize = ROUND_UP(sizeof(LumaBuffer), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	lumaParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, lumaParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateLumaParamsBuffer() {
+	LumaBuffer buffer = {};
+	buffer.inputWidth = rtWidth;
+	buffer.inputHeight = rtHeight;
+	buffer.minLogLuminance = -10.f;
+	buffer.oneOverLogLuminanceRange = 1.0f / 12.0f;
+
+	uint8_t *pData;
+	D3D12_CHECK(lumaParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &buffer, sizeof(LumaBuffer));
+	lumaParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
+struct LumaAvgBuffer {
+	uint32_t pixelCount;
+	float minLogLuminance;
+	float logLuminanceRange;
+	float timeDelta;
+	float tau;
+};
+
+void RT64::View::createLumaAvgParamsBuffer() {
+	lumaAvgParamBufferSize = ROUND_UP(sizeof(LumaBuffer), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	lumaAvgParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, lumaAvgParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateLumaAvgParamsBuffer() {
+	LumaAvgBuffer buffer = {};
+	buffer.pixelCount = rtWidth * rtHeight;
+	buffer.minLogLuminance = -10.0f;
+	buffer.logLuminanceRange = 12.0f;
+	buffer.timeDelta = 1.0f;				// Change this to an actual delta
+	buffer.tau = 1.1f;
+
+	uint8_t *pData;
+	D3D12_CHECK(lumaAvgParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &buffer, sizeof(LumaBuffer));
+	lumaAvgParamBufferResource.Get()->Unmap(0, nullptr);
 }
 
 struct alignas(16) FilterCB {
@@ -1428,6 +1535,7 @@ void RT64::View::render() {
 
 		updateGlobalParamsBuffer();
 		updateFilterParamsBuffer();
+		updateLumaParamsBuffer();
 
 		// Update FSR buffers.
 		if (rtUpscaleActive && (rtUpscaleMode == UpscaleMode::FSR)) {
@@ -1808,6 +1916,31 @@ void RT64::View::render() {
 			}
 		}
 
+		/*
+		RT64_LOG_PRINTF("Do the luminance histogram shader");
+		{
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputLuma.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeLumaBarrier);
+
+			// Execute the compute shader for the luminance histogram.
+			std::vector<ID3D12DescriptorHeap*> vLumaHeap = { lumaHeap };
+			static const int threadGroupWorkRegionDim = 16;
+			int width = scene->getDevice()->getWidth();
+			int height = scene->getDevice()->getWidth();
+			int dispatchX = (width + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
+			int dispatchY = (height + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
+			d3dCommandList->SetPipelineState(scene->getDevice()->getLuminanceHistogramPipelineState());
+			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getLuminanceHistogramRootSignature());
+			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(vLumaHeap.size()), vLumaHeap.data());
+			d3dCommandList->SetComputeRootDescriptorTable(0, lumaHeap->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
+
+			// Switch output to shader resource.
+			CD3DX12_RESOURCE_BARRIER afterLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputLuma.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterLumaBarrier);
+		}*/
+
 		// Set the final render target.
 		CD3DX12_CPU_DESCRIPTOR_HANDLE finalRtvHandle = scene->getDevice()->getD3D12RTV();
 		d3dCommandList->OMSetRenderTargets(1, &finalRtvHandle, FALSE, nullptr);
@@ -2073,10 +2206,6 @@ void RT64::View::setTonemapperValues(float e, float w, float b, float s, float g
 	globalParamsBufferData.tonemapGamma = g;
 }
 
-void RT64::View::setToneMapExposure(float v) {
-	globalParamsBufferData.tonemapExposure = v;
-}
-
 float RT64::View::getToneMapExposure() const {
 	return globalParamsBufferData.tonemapExposure;
 }
@@ -2299,6 +2428,8 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setDISamples(viewDesc.diSamples);
 	view->setGISamples(viewDesc.giSamples);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
+	view->setToneMappingMode(viewDesc.tonemapMode);
+	view->setTonemapperValues(viewDesc.tonemapExposure, viewDesc.tonemapWhite, viewDesc.tonemapBlack, viewDesc.tonemapSaturation, viewDesc.tonemapGamma);
 #ifdef RT64_DLSS
 	view->setUpscaleMode((viewDesc.dlssMode != RT64_DLSS_MODE_OFF) ? RT64::UpscaleMode::DLSS : RT64::UpscaleMode::Bilinear);
 	switch (viewDesc.dlssMode) {

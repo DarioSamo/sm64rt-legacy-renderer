@@ -33,13 +33,14 @@
 #define RT64_ATTRIBUTE_REFRACTION_FACTOR			0x0020
 #define RT64_ATTRIBUTE_SPECULAR_COLOR				0x0040
 #define RT64_ATTRIBUTE_SPECULAR_EXPONENT			0x0080
-#define RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER		0x0100
-#define RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER		0x0200
-#define RT64_ATTRIBUTE_DEPTH_BIAS					0x0400
-#define RT64_ATTRIBUTE_SHADOW_RAY_BIAS				0x0800
-#define RT64_ATTRIBUTE_SELF_LIGHT					0x1000
-#define RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS		0x2000
-#define RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX			0x4000
+#define RT64_ATTRIBUTE_ROUGHNESS_FACTOR				0x0100
+#define RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER		0x0200
+#define RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER		0x0400
+#define RT64_ATTRIBUTE_DEPTH_BIAS					0x0800
+#define RT64_ATTRIBUTE_SHADOW_RAY_BIAS				0x1000
+#define RT64_ATTRIBUTE_SELF_LIGHT					0x2000
+#define RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS		0x4000
+#define RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX			0x8000
 
 // Mesh flags.
 #define RT64_MESH_RAYTRACE_ENABLED				0x1
@@ -124,6 +125,7 @@ typedef struct {
 	float refractionFactor;
 	RT64_VECTOR3 specularColor;
 	float specularExponent;
+	float roughnessFactor;
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
 	float depthBias;
@@ -160,6 +162,13 @@ typedef struct {
 	RT64_VECTOR3 eyeLightSpecularColor;
 	RT64_VECTOR3 skyDiffuseMultiplier;
 	RT64_VECTOR3 skyHSLModifier;
+	RT64_VECTOR3 ambientFogColor;
+	float ambientFogAlpha;
+	RT64_VECTOR3 groundFogColor;
+	float groundFogAlpha;
+	RT64_VECTOR2 ambientFogFactors;
+	RT64_VECTOR2 groundFogFactors;
+	RT64_VECTOR2 groundFogHeightFactors;
 	float skyYawOffset;
 	float giDiffuseStrength;
 	float giSkyStrength;
@@ -235,6 +244,10 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_SPECULAR_EXPONENT) {
 		dst->specularExponent = src->specularExponent;
+	}
+
+	if (src->enabledAttributes & RT64_ATTRIBUTE_ROUGHNESS_FACTOR) {
+		dst->roughnessFactor = src->roughnessFactor;
 	}
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER) {

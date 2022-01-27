@@ -2,6 +2,8 @@
 // RT64
 //
 
+#define EPSILON 1e-6
+
 float4 ComputeFogFromCamera(uint instanceId, float3 position) {
 	float4 fogColor = float4(instanceMaterials[instanceId].fogColor, 0.0f);
 	float fogMul = instanceMaterials[instanceId].fogMul;
@@ -24,4 +26,45 @@ float4 ComputeFogFromOrigin(uint instanceId, float3 position, float3 origin) {
 	float distance = length(position - origin);
 	fogColor.a = clamp(((distance + fogOffset) / fogMul) * 0.5f, 0.0f, 1.0f);
 	return fogColor;
+}
+
+// Volumetric Test Box
+// First vector: Origin
+// Second vector: Dimensions
+static float3x2 VolumetricBox =
+{
+    { 0.0, 0.0, 0.0 },
+    { 10.0, 10.0, 10.0 }
+};
+
+#define GROUND_HEIGHT 75.0f
+#define GROUND_OFFSET 50.0f
+#define GROUND_MULTIPLIER 0.50f
+
+#define FOG_SAMPLES 4
+float4 SceneGroundFogFromCamera(float3 position)
+{
+    float4 fogColor = float4(0.55f, 0.6f, 0.85f, 0.0f);
+    if (position.y - GROUND_OFFSET < GROUND_HEIGHT)
+    {
+        fogColor.a = clamp(-(position.y - GROUND_OFFSET) / GROUND_HEIGHT * GROUND_MULTIPLIER, 0.f, 1.0f);
+    }
+    return fogColor;
+}
+
+float4 SceneGroundFogFromOrigin(float3 position, float3 origin, float cameraMul, float cameraOffset, float groundHeight, float groundOffset, float4 fogColor)
+{    
+    float distance = length(position - origin);
+    float fogFactor = (distance - cameraOffset) / cameraMul * 0.5f;
+    fogColor.a = clamp(-(position.y - groundOffset) / groundHeight * fogFactor, 0.f, 1.0f) * fogColor.a;
+    return fogColor;
+}
+
+float4 SceneFogFromOrigin(float3 position, float3 origin, float cameraMul, float cameraOffset, float4 fogColor)
+{    
+    float distance = length(position - origin);
+    float fogFactor = (distance - cameraOffset) / cameraMul * 0.5f;
+    
+    fogColor.a = clamp(fogFactor, 0.0f, 1.0f) * fogColor.a;
+    return fogColor;
 }

@@ -27,6 +27,8 @@
 #include "shaders/FsrEasuPassCS.hlsl.h"
 #include "shaders/FsrRcasPassCS.hlsl.h"
 #include "shaders/GaussianFilterRGB3x3CS.hlsl.h"
+#include "shaders/LuminanceHistogramCS.hlsl.h""
+#include "shaders/HistogramAverageCS.hlsl.h"
 
 #include "shaders/FullScreenVS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
@@ -342,6 +344,22 @@ ID3D12RootSignature *RT64::Device::getGaussianFilterRGB3x3RootSignature() const 
 
 ID3D12PipelineState *RT64::Device::getGaussianFilterRGB3x3PipelineState() const {
 	return d3dGaussianFilterRGB3x3PipelineState;
+}
+
+ID3D12RootSignature *RT64::Device::getLuminanceHistogramRootSignature() const {
+	return d3dLuminanceHistogramRootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getLuminanceHistogramPipelineState() const {
+	return d3dLuminanceHistogramPipelineState;
+}
+
+ID3D12RootSignature *RT64::Device::getHistogramAverageRootSignature() const {
+	return d3dHistogramAverageRootSignature;
+}
+
+ID3D12PipelineState *RT64::Device::getHistogramAveragePipelineState() const {
+	return d3dHistogramAveragePipelineState;
 }
 
 ID3D12RootSignature *RT64::Device::getDebugRootSignature() const {
@@ -822,6 +840,70 @@ void RT64::Device::loadAssets() {
 
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dGaussianFilterRGB3x3PipelineState)));
 	}
+
+	/*
+	RT64_LOG_PRINTF("Creating the luminance histogram root signature");
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
+			});
+
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc = { };
+		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.MaxAnisotropy = 1;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+
+		d3dLuminanceHistogramRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
+	}
+
+	RT64_LOG_PRINTF("Creating the luminance histogram pipeline state");
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+		psoDesc.CS = CD3DX12_SHADER_BYTECODE(LuminanceHistogramCSBlob, sizeof(LuminanceHistogramCSBlob));
+		psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		psoDesc.pRootSignature = d3dLuminanceHistogramRootSignature;
+		psoDesc.NodeMask = 0;
+
+		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dLuminanceHistogramPipelineState)));
+	}
+
+	RT64_LOG_PRINTF("Creating the histogram average root signature");
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 0 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
+			});
+
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc = { };
+		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.MaxAnisotropy = 1;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+
+		d3dHistogramAverageRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
+	}
+
+	RT64_LOG_PRINTF("Creating the histogram average pipeline state");
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+		psoDesc.CS = CD3DX12_SHADER_BYTECODE(HistogramAverageCSBlob, sizeof(HistogramAverageCSBlob));
+		psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		psoDesc.pRootSignature = d3dHistogramAverageRootSignature;
+		psoDesc.NodeMask = 0;
+
+		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dHistogramAveragePipelineState)));
+	}
+	*/
 
 	mipmaps = new RT64::Mipmaps(this);
 

@@ -24,7 +24,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.h" />
-    <ClInclude Include="contrib\d3dx12.h" />
     <ClInclude Include="contrib\DDSTextureLoader\DDSTextureLoader12.h" />
     <ClInclude Include="contrib\im3d\im3d.h" />
     <ClInclude Include="contrib\im3d\im3d_config.h" />
@@ -37,6 +36,12 @@
     <ClInclude Include="contrib\imgui\imstb_rectpack.h" />
     <ClInclude Include="contrib\imgui\imstb_textedit.h" />
     <ClInclude Include="contrib\imgui\imstb_truetype.h" />
+    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx.h" />
+    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_defs.h" />
+    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_helpers.h" />
+    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_helpers_vk.h" />
+    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_params.h" />
+    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_vk.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\BottomLevelASGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\RootSignatureGenerator.h" />
@@ -430,6 +435,22 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\LuminanceHistogramCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\HistogramAverageCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{F367D911-6ABC-49D8-A59E-3BF758F6D19A}</ProjectGuid>
@@ -507,6 +528,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">
     <OutDir>../../bin/Debug/</OutDir>
     <TargetName>$(ProjectName)d</TargetName>
+    <LibraryPath>$(ProjectDir)contrib\nvngx_dlss_sdk\lib\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -534,7 +556,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;./contrib/nvngx_dlss_sdk/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;./contrib/nvngx_dlss_sdk/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;RT64_DLSS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>

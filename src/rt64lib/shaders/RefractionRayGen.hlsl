@@ -75,11 +75,23 @@ void RefractionRayGen() {
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, hitInstanceId);
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
+			/*
 			if (instanceMaterials[hitInstanceId].fogEnabled) {
 				float4 fogColor = ComputeFogFromCamera(hitInstanceId, vertexPosition);
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);
-			}
+            } */
+			
+			// Preliminary implementation of scene-driven fog 
+			{ 
+                float3 cameraPos = mul(viewI, float4(0, 0, 0, 1)).xyz;
+                float4 fogColor = SceneFogFromOrigin(vertexPosition, cameraPos, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
+                float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, cameraPos, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
+                float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
+                combinedColor = BlendAOverB(fogColor, groundFog);
+                resTransparent += combinedColor * combinedColor.a * alphaContrib;
+                alphaContrib *= (1.0f - combinedColor.a);
+            }
 
 			if (usesLighting) {
 				float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;

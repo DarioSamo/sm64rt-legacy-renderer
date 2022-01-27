@@ -207,6 +207,14 @@ void setupRT64Scene() {
 	RT64.sceneDesc.skyYawOffset = 0.0f;
 	RT64.sceneDesc.giDiffuseStrength = 0.7f;
 	RT64.sceneDesc.giSkyStrength = 0.35f;
+
+	RT64.sceneDesc.ambientFogColor = { 0.1f, 0.25f, 2.0f };
+	RT64.sceneDesc.ambientFogAlpha = 0.2f;
+	RT64.sceneDesc.ambientFogFactors = { 1250.0f, 100.0f };
+	RT64.sceneDesc.groundFogColor = { 0.5f, 0.65f, 0.85f };
+	RT64.sceneDesc.groundFogAlpha = 0.375f;
+	RT64.sceneDesc.groundFogFactors = { 250.5f, 50.f };
+	RT64.sceneDesc.groundFogHeightFactors = { 75.0f, 50.0f };
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
@@ -234,7 +242,7 @@ void setupRT64Scene() {
 	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
 	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
 	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
-	RT64_TEXTURE *textureSky = loadTexturePNG("res/sky.png");
+	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
@@ -260,7 +268,7 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/ds_bob/ds_bob.obj", "res/ds_bob/", true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/ds_bob/ds_bob.obj", nullptr, true);
 	assert(loaded);
 	
 	for (size_t i = 0; i < shapes.size(); i++) {
@@ -270,7 +278,7 @@ void setupRT64Scene() {
 			for (size_t v = 0; v < fnum; v++) {
 				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
 				VERTEX vertex;
-				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
+				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0] * 10, attrib.vertices[3 * idx.vertex_index + 1] * 10, attrib.vertices[3 * idx.vertex_index + 2] * 10, 1.0f };
 				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
 				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
 				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };

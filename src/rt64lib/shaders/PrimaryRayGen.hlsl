@@ -31,12 +31,13 @@ float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, f
 [shader("raygeneration")]
 void PrimaryRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
-	uint2 launchDims = DispatchRaysDimensions().xy;
+    uint2 launchDims = DispatchRaysDimensions().xy;
+    int instanceId = gInstanceId[launchIndex];
 	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
 	float3 nonNormRayDir = d.x * cameraU.xyz + d.y * cameraV.xyz + cameraW.xyz;
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
-	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
+    float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
 
 	// Initialize the buffers.
 	gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
@@ -45,12 +46,22 @@ void PrimaryRayGen() {
 
 	// Sample the background.
 	float2 screenUV = float2(launchIndex.x, launchIndex.y) / float2(launchDims.x, launchDims.y);
-	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
+    float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
 	float2 prevBgPos = WorldToScreenPos(prevViewProj, bgPosition);
     float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);
     float3 bgColor = SampleBackground2D(screenUV);
     float4 skyColor = SampleSky2D(screenUV);
-	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
+    bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
+	
+	// Add ground fog to the background. Might add the option to enable/disable fog on background       
+	{
+        float3 bgFogPosition = float3(rayOrigin.x, -GROUND_HEIGHT, rayOrigin.z) + float3(rayDirection.x, rayDirection.y, rayDirection.z) * 250.0;
+        float4 fogColor = SceneGroundFogFromOrigin(bgFogPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
+        float combinedAlpha = (fogColor.a + 1.0f * (1.0f - fogColor.a));
+        float3 combinedColor = fogColor.rgb * fogColor.a + bgColor.rgb * (1.0f - fogColor.a);
+        combinedColor /= (combinedAlpha + EPSILON);
+        bgColor = combinedColor;
+    }
 
 	// Compute ray differentials.
 	RayDiff rayDiff;
@@ -68,14 +79,14 @@ void PrimaryRayGen() {
 	payload.nhits = 0;
 	payload.rayDiff = rayDiff;
 
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
+    TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
 	// Process hits.
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
 	float3 resNormal = -rayDirection;
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
-	float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
+    float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
 	float4 resColor = float4(0, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
@@ -95,20 +106,31 @@ void PrimaryRayGen() {
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
 			float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
 			float refractionFactor = instanceMaterials[instanceId].refractionFactor;
-
+			   
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			bool storeHit = false;
+			/*   
 			if (instanceMaterials[instanceId].fogEnabled) {
 				float4 fogColor = ComputeFogFromCamera(instanceId, vertexPosition);
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
-				alphaContrib *= (1.0f - fogColor.a);
-			}
+				alphaContrib *= (1.0f - fogColor.a);   
+			} */   
+			// Preliminary implementation of scene-driven fog instead of material-driven 
+			{ 
+                float4 fogColor = SceneFogFromOrigin(vertexPosition, rayOrigin, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
+                float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
+                float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
+                combinedColor = BlendAOverB(fogColor, groundFog);
+                resTransparent += combinedColor.rgb * combinedColor.a * alphaContrib;
+                alphaContrib *= (1.0f - combinedColor.a);
+            }
 
 			// Reflection.
-			if (reflectionFactor > EPSILON) {
+            if (reflectionFactor > EPSILON)
+            {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
-				float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
-				gReflection[launchIndex].a = fresnelAmount * alphaContrib;
+                float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
+                gReflection[launchIndex].a = fresnelAmount * alphaContrib;
 				alphaContrib *= (1.0f - fresnelAmount);
 				storeHit = true;
 			}

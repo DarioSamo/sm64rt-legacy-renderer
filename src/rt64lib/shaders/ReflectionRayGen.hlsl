@@ -18,30 +18,37 @@
 
 float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
 	// TODO: Probably use a more accurate approximation than this.
-	float ret = pow(max(1.0f + dot(normal, incident), EPSILON), 5.0f);
+    float ret = pow(clamp(1.0f + dot(normal, incident), EPSILON, 1.0f), 5.0f);
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
 [shader("raygeneration")]
 void ReflectionRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
-	uint2 launchDims = DispatchRaysDimensions().xy;
+    uint2 launchDims = DispatchRaysDimensions().xy;	
 	int instanceId = gInstanceId[launchIndex];
 	float reflectionAlpha = gReflection[launchIndex].a;
 	if ((instanceId < 0) || (reflectionAlpha <= EPSILON)) {
 		return;
-	}
+    }
+	
+	// Preliminary roughness implementation
+    float roughness = instanceMaterials[instanceId].roughnessFactor;
+    float3 random = float3(0.0f, 0.0f, 0.0f);
+    if (roughness >= EPSILON) { 
+        random = (getBlueNoise(launchIndex, frameCount) - 0.5f) * roughness;
+    }
 	
 	// Grab the ray origin and direction from the buffers.
-	float3 shadingPosition = gShadingPosition[launchIndex].xyz;
-	float3 viewDirection = gViewDirection[launchIndex].xyz;
-	float3 shadingNormal = gShadingNormal[launchIndex].xyz;
-	float3 rayDirection = reflect(viewDirection, shadingNormal);
-	float newReflectionAlpha = 0.0f;
+    float3 shadingPosition = gShadingPosition[launchIndex].xyz;
+    float3 viewDirection = gViewDirection[launchIndex].xyz;
+    float3 shadingNormal = gShadingNormal[launchIndex].xyz;
+    float3 rayDirection = reflect(viewDirection, shadingNormal) + random;
+    float newReflectionAlpha = 0.0f;
 
 	// Mix background and sky color together.
-	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
-	float4 skyColor = SampleSkyPlane(rayDirection);
+    float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
+    float4 skyColor = SampleSkyPlane(rayDirection );
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 	// Ray differential.
@@ -53,7 +60,7 @@ void ReflectionRayGen() {
 
 	// Trace.
 	RayDesc ray;
-	ray.Origin = shadingPosition;
+    ray.Origin = shadingPosition;
 	ray.Direction = rayDirection;
 	ray.TMin = RAY_MIN_DISTANCE;
 	ray.TMax = RAY_MAX_DISTANCE;
@@ -69,8 +76,9 @@ void ReflectionRayGen() {
 	int resInstanceId = -1;
 	float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
-	for (uint hit = 0; hit < payload.nhits; hit++) {
-		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
+    for (uint hit = 0; hit < payload.nhits; hit++)
+    {
+        uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
@@ -79,11 +87,22 @@ void ReflectionRayGen() {
 			float3 vertexPosition = shadingPosition + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, hitInstanceId);
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
+			/*
 			if (instanceMaterials[hitInstanceId].fogEnabled) {
 				float4 fogColor = ComputeFogFromOrigin(hitInstanceId, vertexPosition, shadingPosition);
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);
-			}
+            }
+			*/
+			// Preliminary implementation of scene-driven fog instead of material-driven
+			{ 
+                float4 fogColor = SceneFogFromOrigin(vertexPosition, shadingPosition, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
+                float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, shadingPosition, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
+                float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
+                combinedColor = BlendAOverB(fogColor, groundFog);
+                resTransparent += combinedColor * combinedColor.a * alphaContrib;
+                alphaContrib *= (1.0f - combinedColor.a);
+            }
 
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
@@ -116,12 +135,13 @@ void ReflectionRayGen() {
 
 	if (resInstanceId >= 0) {
 		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, false) + instanceMaterials[resInstanceId].selfLight;
-		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
+        resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 		gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
 		gShadingNormal[launchIndex] = float4(resNormal, 0.0f);
 		gInstanceId[launchIndex] = resInstanceId;
-	}
+
+    }
 
 	// Blend with the background.
 	resColor.rgb += bgColor * resColor.a + resTransparent;

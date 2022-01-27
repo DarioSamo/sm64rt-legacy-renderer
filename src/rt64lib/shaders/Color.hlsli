@@ -47,3 +47,33 @@ float RGBtoLuminance(float3 rgb) {
     // RGB [0...1] to Luminance [0...1]
     return dot(rgb, float3(0.2126f, 0.7152f, 0.0722f));
 }
+
+uint HDRToHistogramBin(float3 hdrColor)
+{
+    float luminance = RGBtoLuminance(hdrColor);
+    if (luminance < EPS) {
+        return 0;
+    }
+    
+    float logLuminance = log2(luminance);
+    return (uint) (saturate((logLuminance - -10.0f) * (1.0f / logLuminance)) * 254.0 + 1.0);
+}
+
+float4 BlendAOverB(float4 colorA, float4 colorB)
+{
+    if (colorA.a < EPS) {
+        return colorB;
+    }
+    if (colorB.a < EPS) {
+        return colorA;
+    }
+    
+    float4 colorC = float4(0.f, 0.f, 0.f, 0.f);
+    colorC.a = (colorA.a + colorB.a * (1.0f - colorA.a));
+    if (colorC.a < EPS) {
+        return colorC;
+    }
+    colorC.rgb = colorA.rgb * colorA.a + colorB.rgb * colorB.a * (1.0f - colorA.a);
+    colorC.rgb /= colorC.a;
+    return colorC;
+}

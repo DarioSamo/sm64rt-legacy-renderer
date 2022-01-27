@@ -222,7 +222,7 @@ void RT64::Inspector::renderPostInspector(View* view) {
     float tonemapSaturation = view->getToneMapSaturation();
     float tonemapGamma = view->getToneMapGamma();
 
-    ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0");
+    ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0Simple\0");
     ImGui::DragFloat("Exposure", &tonemapExposure, 0.01f, 0.0f, 20.0f);
     ImGui::DragFloat("White Point", &tonemapWhite, 0.01f, 0.0f, 10.0f);
     ImGui::DragFloat("Black Level", &tonemapBlack, 0.01f, 0.0f, 10.0f);
@@ -246,6 +246,13 @@ void RT64::Inspector::renderSceneInspector() {
         ImGui::DragFloat("Sky Yaw Offset", &sceneDesc->skyYawOffset, 0.01f, 0.0f, Im3d::TwoPi);
         ImGui::DragFloat("GI Diffuse Strength", &sceneDesc->giDiffuseStrength, 0.01f, 0.0f, 100.0f);
         ImGui::DragFloat("GI Sky Strength", &sceneDesc->giSkyStrength, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Ambient Fog Color", &sceneDesc->ambientFogColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat("Ambient Fog Alpha", &sceneDesc->ambientFogAlpha, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat2("Ambient Fog Factors", &sceneDesc->ambientFogFactors.x, 1.00f, 0.0f, 1000000.0f);
+        ImGui::DragFloat3("Ground Fog Color", &sceneDesc->groundFogColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat("Ground Fog Alpha", &sceneDesc->groundFogAlpha, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat2("Ground Fog Factors", &sceneDesc->groundFogFactors.x, 1.00f, -1000000.0f, 1000000.0f);
+        ImGui::DragFloat2("Ground Fog Height Factors", &sceneDesc->groundFogHeightFactors.x, 1.00f, -1000000.0f, 1000000.0f);
         ImGui::End();
     }
 }
@@ -323,6 +330,7 @@ void RT64::Inspector::renderMaterialInspector() {
         pushFloat("Refraction factor", RT64_ATTRIBUTE_REFRACTION_FACTOR, &material->refractionFactor, &material->enabledAttributes, 0.01f, 0.0f, 2.0f);
         pushVector3("Specular color", RT64_ATTRIBUTE_SPECULAR_COLOR, &material->specularColor, &material->enabledAttributes, 0.01f, 0.0f, 100.0f);
         pushFloat("Specular exponent", RT64_ATTRIBUTE_SPECULAR_EXPONENT, &material->specularExponent, &material->enabledAttributes, 0.1f, 0.0f, 1000.0f);
+        pushFloat("Roughness factor", RT64_ATTRIBUTE_ROUGHNESS_FACTOR, &material->roughnessFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Solid alpha multiplier", RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER, &material->solidAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushFloat("Shadow alpha multiplier", RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER, &material->shadowAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushFloat("Depth bias", RT64_ATTRIBUTE_DEPTH_BIAS, &material->depthBias, &material->enabledAttributes, 1.0f, -1000.0f, 1000.0f);
