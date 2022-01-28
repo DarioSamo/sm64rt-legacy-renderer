@@ -41,7 +41,9 @@ static float3x2 VolumetricBox =
 #define GROUND_OFFSET 50.0f
 #define GROUND_MULTIPLIER 0.50f
 
-#define FOG_SAMPLES 4
+#define LIGHTSHAFT_SAMPLES 10
+#define LIGHTSHAFT_MAX_SAMPLES 20
+#define LIGHTSHAFT_STEPS 1.0f
 float4 SceneGroundFogFromCamera(float3 position)
 {
     float4 fogColor = float4(0.55f, 0.6f, 0.85f, 0.0f);
@@ -54,6 +56,12 @@ float4 SceneGroundFogFromCamera(float3 position)
 
 float4 SceneGroundFogFromOrigin(float3 position, float3 origin, float cameraMul, float cameraOffset, float groundHeight, float groundOffset, float4 fogColor)
 {    
+    if (groundHeight > 0.f && position.y - groundOffset > groundHeight) {
+        return float4(0.f, 0.f, 0.f, 0.f);
+    }
+    if (groundHeight < 0.f && position.y - groundOffset < groundHeight) {
+        return float4(0.f, 0.f, 0.f, 0.f);
+    }
     float distance = length(position - origin);
     float fogFactor = (distance - cameraOffset) / cameraMul * 0.5f;
     fogColor.a = clamp(-(position.y - groundOffset) / groundHeight * fogFactor, 0.f, 1.0f) * fogColor.a;

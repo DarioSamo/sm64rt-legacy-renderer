@@ -55,8 +55,8 @@ void PrimaryRayGen() {
 	
 	// Add ground fog to the background. Might add the option to enable/disable fog on background       
 	{
-        float3 bgFogPosition = float3(rayOrigin.x, -GROUND_HEIGHT, rayOrigin.z) + float3(rayDirection.x, rayDirection.y, rayDirection.z) * 250.0;
-        float4 fogColor = SceneGroundFogFromOrigin(bgFogPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
+        float3 bgFogPosition = float3(rayOrigin.x, groundFogHeightFactors.x, rayOrigin.z) + float3(rayDirection.x, rayDirection.y, rayDirection.z) * 10000.0;
+        float4 fogColor = SceneGroundFogFromOrigin(bgFogPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x * 100.0f, groundFogHeightFactors.y, groundFogColor);
         float combinedAlpha = (fogColor.a + 1.0f * (1.0f - fogColor.a));
         float3 combinedColor = fogColor.rgb * fogColor.a + bgColor.rgb * (1.0f - fogColor.a);
         combinedColor /= (combinedAlpha + EPSILON);
@@ -100,7 +100,9 @@ void PrimaryRayGen() {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
 			bool usesLighting = (instanceMaterials[instanceId].lightGroupMaskBits > 0);
 			bool applyLighting = usesLighting && (hitColor.a > APPLY_LIGHTS_MINIMUM_ALPHA);
-			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
+            bool lightShafts = (volumetricEnabled & 0x1) == true;
+            float vertexDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
+            float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
@@ -117,10 +119,25 @@ void PrimaryRayGen() {
 			} */   
 			// Preliminary implementation of scene-driven fog instead of material-driven 
 			{ 
+                float4 lightAdd = float4(0.f, 0.f, 0.f, 1.f);
+                if (lightShafts) {
+					// Preliminary implementation of lightshafts 
+                    uint maxShaftSamples = clamp(uint(volumetricStepDistance / vertexDistance + EPSILON), volumetricMinSamples, volumetricMaxSamples);
+                    for (int shaftSample = 1; shaftSample <= maxShaftSamples; shaftSample++)
+                    {
+                        float3 samplePosition = rayOrigin + rayDirection * vertexDistance * (float(shaftSample) / float(maxShaftSamples));
+                        lightAdd.rgb += ComputeLightAtPointRandom(launchIndex, rayDirection, samplePosition, 0.0f, 1, 1, true);
+                    }
+                    lightAdd.rgb /= float3(maxShaftSamples, maxShaftSamples, maxShaftSamples);
+                    lightAdd.a = saturate(RGBtoLuminance(lightAdd.rgb));
+                }
+				
                 float4 fogColor = SceneFogFromOrigin(vertexPosition, rayOrigin, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
                 float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
                 float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
                 combinedColor = BlendAOverB(fogColor, groundFog);
+                combinedColor.rgb += lightAdd.rgb;
+                combinedColor.a *= lightAdd.a;
                 resTransparent += combinedColor.rgb * combinedColor.a * alphaContrib;
                 alphaContrib *= (1.0f - combinedColor.a);
             }
@@ -147,7 +164,7 @@ void PrimaryRayGen() {
 			// has the same problem.
 			else if (usesLighting) {
 				if (!resTransparentLightComputed) {
-					resTransparentLight = ComputeLightsRandom(launchIndex, rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, true);
+                    resTransparentLight = ComputeLightsRandom(launchIndex, rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
 					resTransparentLightComputed = true;
 				}
 
@@ -189,7 +206,7 @@ void PrimaryRayGen() {
 	}
 
 	// Blend with the background.
-    resColor.rgb += bgColor * resColor.a;
+    resColor.rgb += bgColor * resColor.a; 
     resColor.a = 1.0f - resColor.a;
 	
 	/*

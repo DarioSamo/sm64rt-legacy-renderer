@@ -100,7 +100,7 @@ void ReflectionRayGen() {
                 float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, shadingPosition, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
                 float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
                 combinedColor = BlendAOverB(fogColor, groundFog);
-                resTransparent += combinedColor * combinedColor.a * alphaContrib;
+                resTransparent += combinedColor.rgb * combinedColor.a * alphaContrib;
                 alphaContrib *= (1.0f - combinedColor.a);
             }
 
@@ -134,7 +134,7 @@ void ReflectionRayGen() {
 	}
 
 	if (resInstanceId >= 0) {
-		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, false) + instanceMaterials[resInstanceId].selfLight;
+        float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, false) + instanceMaterials[resInstanceId].selfLight;
         resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 		gViewDirection[launchIndex] = float4(rayDirection, 0.0f);

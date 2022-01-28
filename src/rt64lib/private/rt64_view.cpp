@@ -73,6 +73,10 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
+	globalParamsBufferData.volumetricEnabled = 0;
+	globalParamsBufferData.volumetricMinSamples = 14;
+	globalParamsBufferData.volumetricMaxSamples = 28;
+	globalParamsBufferData.volumetricStepDistance = 10.0f;
 	globalParamsBufferSize = 0;
 	rtSwap = false;
 	rtWidth = 0;
@@ -2224,6 +2228,42 @@ float RT64::View::getToneMapSaturation() const {
 
 float RT64::View::getToneMapGamma() const {
 	return globalParamsBufferData.tonemapGamma;
+}
+
+void RT64::View::setVolumetricMinSamples(int v) {
+	globalParamsBufferData.volumetricMinSamples = v;
+}
+
+int RT64::View::getVolumetricMinSamples() const {
+	return globalParamsBufferData.volumetricMinSamples;
+}
+
+void RT64::View::setVolumetricMaxSamples(int v) {
+	globalParamsBufferData.volumetricMaxSamples = v;
+}
+
+int RT64::View::getVolumetricMaxSamples() const {
+	return globalParamsBufferData.volumetricMaxSamples;
+}
+
+void RT64::View::setVolumetricStepDistance(float v) {
+	globalParamsBufferData.volumetricStepDistance = v;
+}
+
+float RT64::View::getVolumetricStepDistance() const {
+	return globalParamsBufferData.volumetricStepDistance;
+}
+
+void RT64::View::setVolumetricEnabledFlag(bool v) {
+	if (v) {
+		globalParamsBufferData.volumetricEnabled = (globalParamsBufferData.volumetricEnabled | 0x1);
+	} else {
+		globalParamsBufferData.volumetricEnabled = (globalParamsBufferData.volumetricEnabled & 0xFFFFFFFE);
+	}
+}
+
+bool RT64::View::getVolumetricEnabledFlag() const {
+	return (globalParamsBufferData.volumetricEnabled & 0x1) != 0;
 }
 
 void RT64::View::setResolutionScale(float v) {

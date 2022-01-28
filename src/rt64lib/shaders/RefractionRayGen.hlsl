@@ -89,7 +89,7 @@ void RefractionRayGen() {
                 float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, cameraPos, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
                 float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
                 combinedColor = BlendAOverB(fogColor, groundFog);
-                resTransparent += combinedColor * combinedColor.a * alphaContrib;
+                resTransparent += combinedColor.rgb * combinedColor.a * alphaContrib;
                 alphaContrib *= (1.0f - combinedColor.a);
             }
 
@@ -116,7 +116,7 @@ void RefractionRayGen() {
 	}
 
 	if (resInstanceId >= 0) {
-		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
+		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true) + instanceMaterials[resInstanceId].selfLight;
 		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
 	}
 

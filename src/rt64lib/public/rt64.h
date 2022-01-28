@@ -188,6 +188,10 @@ typedef struct {
 	unsigned int tonemapMode;
 	unsigned char dlssMode;
 	bool denoiserEnabled;
+	bool volumetricEnabled;
+	unsigned int volumetricMinSamples;
+	unsigned int volumetricMaxSamples;
+	float volumetricStepDistance;
 } RT64_VIEW_DESC;
 
 typedef struct {

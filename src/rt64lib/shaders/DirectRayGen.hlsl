@@ -53,7 +53,7 @@ void DirectRayGen() {
     if (roughness >= EPSILON) {
         random = (getBlueNoise(launchIndex, frameCount) - 0.5f) * roughness;
     }
-    float3 resDirect = ComputeLightsRandom(launchIndex, rayDirection + random, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, true);
+    float3 resDirect = ComputeLightsRandom(launchIndex, rayDirection + random, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
 	resDirect += instanceMaterials[instanceId].selfLight;
 
 	// Add the eye light.

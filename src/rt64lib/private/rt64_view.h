@@ -82,6 +82,10 @@ namespace RT64 {
 			unsigned int motionBlurSamples;
 			unsigned int visualizationMode;
 			unsigned int frameCount;
+			unsigned int volumetricEnabled;
+			unsigned int volumetricMinSamples;
+			unsigned int volumetricMaxSamples;
+			float volumetricStepDistance;
 		};
 
 		Scene *scene;
@@ -243,8 +247,16 @@ namespace RT64 {
 		float getToneMapBlackLevel() const;
 		float getToneMapSaturation() const;
 		float getToneMapGamma() const;
+		void setVolumetricMinSamples(int v);
+		int getVolumetricMinSamples() const;
+		void setVolumetricMaxSamples(int v);
+		int getVolumetricMaxSamples() const;
+		void setVolumetricStepDistance(float v);
+		float getVolumetricStepDistance() const;
+		void setVolumetricEnabledFlag(bool v);
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;
+		bool getVolumetricEnabledFlag() const;
 		void setResolutionScale(float v);
 		float getResolutionScale() const;
 		void setMaxReflections(int v);
