@@ -23,6 +23,7 @@
 #include "shaders/ReflectionRayGen.hlsl.h"
 #include "shaders/RefractionRayGen.hlsl.h"
 #include "shaders/PrimaryRayGen.hlsl.h"
+#include "shaders/VolumetricFogRayGen.hlsl.h"
 
 #include "shaders/FsrEasuPassCS.hlsl.h"
 #include "shaders/FsrRcasPassCS.hlsl.h"
@@ -73,11 +74,13 @@ RT64::Device::Device(HWND hwnd) {
 	d3dIndirectRayGenLibrary = nullptr;
 	d3dReflectionRayGenLibrary = nullptr;
 	d3dRefractionRayGenLibrary = nullptr;
+	d3dVolumetricFogRayGenLibrary = nullptr;
 	primaryRayGenID = nullptr;
 	directRayGenID = nullptr;
 	indirectRayGenID = nullptr;
 	reflectionRayGenID = nullptr;
 	refractionRayGenID = nullptr;
+	volumetricFogRayGenID = nullptr;
 	surfaceMissID = nullptr;
 	shadowMissID = nullptr;
 	blueNoise = nullptr;
@@ -406,6 +409,10 @@ void *RT64::Device::getRefractionRayGenID() const {
 	return refractionRayGenID;
 }
 
+void* RT64::Device::getVolumetricFogRayGenID() const {
+	return volumetricFogRayGenID;
+}
+
 void *RT64::Device::getSurfaceMissID() const {
 	return surfaceMissID;
 }
@@ -640,7 +647,8 @@ void RT64::Device::loadAssets() {
 			{ 4, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4 },
 			{ 5, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5 },
 			{ 6, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6 },
-			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 7 }
+			{ 7, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7 },
+			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 8 }
 		});
 
 		// Fill out the sampler.
@@ -728,6 +736,7 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
 			{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 			{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
+			{ UAV_INDEX(gVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gVolumetricFog) },
 			{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
 			{ UAV_INDEX(gDepth), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDepth) },
 			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) }
@@ -974,6 +983,10 @@ void RT64::Device::createRaytracingPipeline() {
 		d3dRefractionRayGenLibrary = new StaticBlob(RefractionRayGenBlob, sizeof(RefractionRayGenBlob));
 	}
 
+	if (d3dVolumetricFogRayGenLibrary == nullptr) {
+		d3dVolumetricFogRayGenLibrary = new StaticBlob(VolumetricFogRayGenBlob, sizeof(VolumetricFogRayGenBlob));
+	}
+
 	RT64_LOG_PRINTF("Adding libraries");
 
 	// Add shaders from libraries to the pipeline.
@@ -982,6 +995,7 @@ void RT64::Device::createRaytracingPipeline() {
 	pipeline.AddLibrary(d3dIndirectRayGenLibrary, { L"IndirectRayGen" });
 	pipeline.AddLibrary(d3dReflectionRayGenLibrary, { L"ReflectionRayGen" });
 	pipeline.AddLibrary(d3dRefractionRayGenLibrary, { L"RefractionRayGen" });
+	pipeline.AddLibrary(d3dVolumetricFogRayGenLibrary, { L"VolumetricFogRayGen" });
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -1008,7 +1022,7 @@ void RT64::Device::createRaytracingPipeline() {
 	RT64_LOG_PRINTF("Adding root signature associations");
 
 	// Associate the root signatures to the hit groups.
-	pipeline.AddRootSignatureAssociation(d3dRayGenSignature, { L"PrimaryRayGen", L"DirectRayGen", L"IndirectRayGen", L"ReflectionRayGen", L"RefractionRayGen" });
+	pipeline.AddRootSignatureAssociation(d3dRayGenSignature, { L"PrimaryRayGen", L"DirectRayGen", L"IndirectRayGen", L"ReflectionRayGen", L"RefractionRayGen", L"VolumetricFogRayGen" });
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -1039,6 +1053,7 @@ void RT64::Device::createRaytracingPipeline() {
 	indirectRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"IndirectRayGen");
 	reflectionRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"ReflectionRayGen");
 	refractionRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"RefractionRayGen");
+	volumetricFogRayGenID = d3dRtStateObjectProps->GetShaderIdentifier(L"VolumetricFogRayGen");
 	surfaceMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"SurfaceMiss");
 	shadowMissID = d3dRtStateObjectProps->GetShaderIdentifier(L"ShadowMiss");
 	for (Shader *shader : shaders) {
@@ -1074,6 +1089,7 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
 		{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 		{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
+		{ UAV_INDEX(gVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gVolumetricFog) },
 		{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
 		{ UAV_INDEX(gNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gNormal) },
 		{ UAV_INDEX(gDepth), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDepth) },

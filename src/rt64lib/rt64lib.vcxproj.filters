@@ -340,5 +340,8 @@
     <CustomBuild Include="shaders\HistogramAverageCS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="shaders\VolumetricFogRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

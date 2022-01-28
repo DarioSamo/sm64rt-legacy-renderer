@@ -12,6 +12,7 @@ Texture2D<float4> gIndirectLight : register(t3);
 Texture2D<float4> gReflection : register(t4);
 Texture2D<float4> gRefraction : register(t5);
 Texture2D<float4> gTransparent : register(t6);
+Texture2D<float4> gVolumetricFog : register(t7);
 
 SamplerState gSampler : register(s0);
 

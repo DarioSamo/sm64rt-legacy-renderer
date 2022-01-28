@@ -71,5 +71,6 @@ cbuffer gParams : register(b0) {
 #define VISUALIZATION_MODE_TRANSPARENT				12
 #define VISUALIZATION_MODE_FLOW						13
 #define VISUALIZATION_MODE_DEPTH					14
+#define VISUALIZATION_MODE_VOLUMETRICS				15
 //)raw"
 #endif

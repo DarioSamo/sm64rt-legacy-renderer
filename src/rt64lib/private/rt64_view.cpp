@@ -55,6 +55,8 @@ RT64::View::View(Scene *scene) {
 	directFilterHeaps[1] = nullptr;
 	indirectFilterHeaps[0] = nullptr;
 	indirectFilterHeaps[1] = nullptr;
+	volumetricHeaps[0] = nullptr;
+	volumetricHeaps[1] = nullptr;
 	sbtStorageSize = 0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
@@ -246,6 +248,22 @@ void RT64::View::createOutputBuffers() {
 	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	if (true) {
+		D3D12_RESOURCE_DESC volDesc = { };
+		volDesc.DepthOrArraySize = 1;
+		volDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		volDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		volDesc.Width = rtWidth / 4.0f;
+		volDesc.Height = rtHeight / 4.0f;
+		volDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		volDesc.MipLevels = 1;
+		volDesc.SampleDesc.Count = 1;
+		volDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+		rtVolumetricFog = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &volDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	}
+	else {
+		rtVolumetricFog = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	}
 
 	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
 	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
@@ -261,12 +279,10 @@ void RT64::View::createOutputBuffers() {
 		resDesc.Width = screenWidth;
 		resDesc.Height = screenHeight;
 		rtOutputUpscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-		rtOutputLuma = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	}
-	else {
-		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	}
+
+	rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtOutputLuma = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	// Create hit result buffers.
 	UINT64 hitCountBufferSizeOne = rtWidth * rtHeight;
@@ -302,6 +318,7 @@ void RT64::View::createOutputBuffers() {
 	rtReflection.SetName(L"rtReflection");
 	rtRefraction.SetName(L"rtRefraction");
 	rtTransparent.SetName(L"rtTransparent");
+	rtVolumetricFog.SetName(L"rtVolumetricFog");
 	rtFlow.SetName(L"rtFlow");
 	rtDepth[0].SetName(L"rtDepth[0]");
 	rtDepth[1].SetName(L"rtDepth[1]");
@@ -359,6 +376,7 @@ void RT64::View::releaseOutputBuffers() {
 	rtReflection.Release();
 	rtRefraction.Release();
 	rtTransparent.Release();
+	rtVolumetricFog.Release();
 	rtFlow.Release();
 	rtDepth[0].Release();
 	rtDepth[1].Release();
@@ -558,6 +576,10 @@ void RT64::View::createShaderResourceHeap() {
 		// UAV for transparent buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtTransparent.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
+
+		// UAV for volumetric fog.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtVolumetricFog.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
 		
 		// UAV for flow buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFlow.Get(), nullptr, &uavDesc, handle);
@@ -754,7 +776,7 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
-			uint32_t handleCount = 8;
+			uint32_t handleCount = 9;		// Imagine not realizing this value needed to be increased by 1 for fuckin' hours lmao
 			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
@@ -799,6 +821,11 @@ void RT64::View::createShaderResourceHeap() {
 		// SRV for transparent buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtTransparent.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for volumetric fog buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtVolumetricFog.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.
@@ -1042,6 +1069,41 @@ void RT64::View::createShaderResourceHeap() {
 			handle.ptr += handleIncrement;
 		}
 	}
+
+	{
+		// Create the heap for the volumetrics filter.
+		for (int i = 0; i < 2; i++) {
+			if (volumetricHeaps[i] == nullptr) {
+				uint32_t handleCount = 3;
+				volumetricHeaps[i] = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+			}
+
+			D3D12_CPU_DESCRIPTOR_HANDLE handle = volumetricHeaps[i]->GetCPUDescriptorHandleForHeapStart();
+
+			// SRV for input image.
+			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			textureSRVDesc.Texture2D.MipLevels = 1;
+			textureSRVDesc.Texture2D.MostDetailedMip = 0;
+			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtVolumetricFog.Get(), &textureSRVDesc, handle);
+			handle.ptr += handleIncrement;
+
+			// UAV for output image.
+			D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+			scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtVolumetricFog.Get(), nullptr, &uavDesc, handle);
+			handle.ptr += handleIncrement;
+
+			// CBV for sharpen parameters.
+			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+			cbvDesc.BufferLocation = filterParamBufferResource.Get()->GetGPUVirtualAddress();
+			cbvDesc.SizeInBytes = filterParamBufferSize;
+			scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+			handle.ptr += handleIncrement;
+		}
+	}
 }
 
 void RT64::View::createShaderBindingTable() {
@@ -1063,6 +1125,7 @@ void RT64::View::createShaderBindingTable() {
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getIndirectRayGenID(), { srvUavPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getReflectionRayGenID(), { srvUavPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getRefractionRayGenID(), { srvUavPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getVolumetricFogRayGenID(), { srvUavPointer });
 	
 	// Miss shaders don't use any external data.
 	sbtHelper.AddMissProgram(scene->getDevice()->getSurfaceMissID(), {});
@@ -1610,6 +1673,7 @@ void RT64::View::render() {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtReflection.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtVolumetricFog.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		};
@@ -1631,6 +1695,7 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtRefraction.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtVolumetricFog.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal[rtSwap ? 1 : 0].Get()),
 		};
 
@@ -1658,6 +1723,17 @@ void RT64::View::render() {
 		// Transition the instance ID buffer back to unordered access.
 		CD3DX12_RESOURCE_BARRIER instanceIdCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtInstanceId.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &instanceIdCopyBarrier);
+
+		// Dispatch rays for volumetrics.
+		RT64_LOG_PRINTF("Dispatching volumetric rays");
+		{
+			desc.Width = rtWidth / 4.0f;
+			desc.Height = rtHeight / 4.0f;
+			desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 5;
+			d3dCommandList->DispatchRays(&desc);
+			desc.Width = rtWidth;
+			desc.Height = rtHeight;
+		}
 
 		// Dispatch rays for refraction.
 		RT64_LOG_PRINTF("Dispatching refraction rays");
@@ -1786,6 +1862,28 @@ void RT64::View::render() {
 			}
 		}
 
+		// Smoothen the volumetric fog with the same gaussian filter
+		/*
+		{
+			for (int i = 0; i < 5; i++) {
+				const int ThreadGroupWorkCount = 8;
+				int dispatchX = rtWidth / 4.0f / ThreadGroupWorkCount + ((rtWidth % ThreadGroupWorkCount) ? 1 : 0);
+				int dispatchY = rtHeight / 4.0f / ThreadGroupWorkCount + ((rtHeight % ThreadGroupWorkCount) ? 1 : 0);
+				d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
+				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
+				d3dCommandList->SetDescriptorHeaps(1, &volumetricHeaps[i % 2]);
+				d3dCommandList->SetComputeRootDescriptorTable(0, volumetricHeaps[i % 2]->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
+
+				CD3DX12_RESOURCE_BARRIER afterBlurBarriers[] = {
+					CD3DX12_RESOURCE_BARRIER::Transition(rtVolumetricFog.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+					CD3DX12_RESOURCE_BARRIER::Transition(rtVolumetricFog.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+				};
+
+				d3dCommandList->ResourceBarrier(_countof(afterBlurBarriers), afterBlurBarriers);
+			}
+		}*/
+
 		// Compose the output buffer.
 		ID3D12Resource *rtOutputCur = rtOutput[rtSwap ? 1 : 0].Get();
 
@@ -1795,7 +1893,8 @@ void RT64::View::render() {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDiffuse.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtReflection.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtVolumetricFog.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
 
 		d3dCommandList->ResourceBarrier(_countof(afterDispatchBarriers), afterDispatchBarriers);

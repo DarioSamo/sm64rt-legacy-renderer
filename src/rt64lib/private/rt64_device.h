@@ -81,11 +81,13 @@ namespace RT64 {
 		IDxcBlob *d3dIndirectRayGenLibrary;
 		IDxcBlob *d3dReflectionRayGenLibrary;
 		IDxcBlob *d3dRefractionRayGenLibrary;
+		IDxcBlob *d3dVolumetricFogRayGenLibrary;
 		void *primaryRayGenID;
 		void *directRayGenID;
 		void *indirectRayGenID;
 		void *reflectionRayGenID;
 		void *refractionRayGenID;
+		void *volumetricFogRayGenID;
 		void *surfaceMissID;
 		void *shadowMissID;
 		Texture *blueNoise;
@@ -159,6 +161,7 @@ namespace RT64 {
 		void *getIndirectRayGenID() const;
 		void *getReflectionRayGenID() const;
 		void *getRefractionRayGenID() const;
+		void* getVolumetricFogRayGenID() const;
 		void *getSurfaceMissID() const;
 		void *getShadowMissID() const;
 		IDxcCompiler *getDxcCompiler() const;

@@ -115,6 +115,7 @@ namespace RT64 {
 		AllocatedResource rtReflection;
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
+		AllocatedResource rtVolumetricFog;
 		AllocatedResource rtFlow;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];
@@ -152,6 +153,7 @@ namespace RT64 {
 		ID3D12DescriptorHeap *postProcessHeap;
 		ID3D12DescriptorHeap *directFilterHeaps[2];
 		ID3D12DescriptorHeap *indirectFilterHeaps[2];
+		ID3D12DescriptorHeap *volumetricHeaps[2];
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;

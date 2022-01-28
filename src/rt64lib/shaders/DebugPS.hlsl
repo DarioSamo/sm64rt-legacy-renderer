@@ -104,6 +104,11 @@ float4 getDepth(float2 pos) {
     return float4(d, d, d, 1.0f);
 }
 
+float4 getVolumetrics(float2 pos)
+{
+    return gVolumetricFog[pos];
+}
+
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     switch (visualizationMode) {
     case VISUALIZATION_MODE_SHADING_POSITION:
@@ -134,6 +139,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getMotionVector(uv * resolution.xy);
     case VISUALIZATION_MODE_DEPTH:
         return getDepth(uv * resolution.xy);
+    case VISUALIZATION_MODE_VOLUMETRICS:
+        return getVolumetrics(uv * resolution.xy / 4.0f);
     default:
         return float4(0.5f, 0.5f, 0.5f, 1.0f);
     }

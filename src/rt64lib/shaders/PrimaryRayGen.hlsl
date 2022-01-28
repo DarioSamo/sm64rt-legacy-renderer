@@ -116,7 +116,7 @@ void PrimaryRayGen() {
 				float4 fogColor = ComputeFogFromCamera(instanceId, vertexPosition);
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);   
-			} */   
+			}  
 			// Preliminary implementation of scene-driven fog instead of material-driven 
 			{ 
                 float4 lightAdd = float4(0.f, 0.f, 0.f, 1.f);
@@ -140,7 +140,7 @@ void PrimaryRayGen() {
                 combinedColor.a *= lightAdd.a;
                 resTransparent += combinedColor.rgb * combinedColor.a * alphaContrib;
                 alphaContrib *= (1.0f - combinedColor.a);
-            }
+            } */ 
 
 			// Reflection.
             if (reflectionFactor > EPSILON)
