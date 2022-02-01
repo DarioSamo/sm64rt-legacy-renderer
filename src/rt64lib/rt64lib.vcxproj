@@ -463,6 +463,20 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\BicubicUpscaleCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
     </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">

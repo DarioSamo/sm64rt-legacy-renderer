@@ -104,9 +104,9 @@ float4 getDepth(float2 pos) {
     return float4(d, d, d, 1.0f);
 }
 
-float4 getVolumetrics(float2 pos)
-{
-    return gVolumetricFog[pos];
+float4 getVolumetrics(float2 pos, bool filtered) {
+    float4 color = filtered ? gFilteredVolumetricFog[pos] : gVolumetricFog[pos / 4];
+    return float4(color.rgb * color.a, 1.0f);
 }
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
@@ -139,8 +139,10 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getMotionVector(uv * resolution.xy);
     case VISUALIZATION_MODE_DEPTH:
         return getDepth(uv * resolution.xy);
-    case VISUALIZATION_MODE_VOLUMETRICS:
-        return getVolumetrics(uv * resolution.xy / 4.0f);
+    case VISUALIZATION_MODE_VOLUMETRICS_RAW:
+        return getVolumetrics(uv * resolution.xy, false);
+    case VISUALIZATION_MODE_VOLUMETRICS_FILTERED:
+        return getVolumetrics(uv * resolution.xy, true);
     default:
         return float4(0.5f, 0.5f, 0.5f, 1.0f);
     }

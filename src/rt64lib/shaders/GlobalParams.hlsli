@@ -51,9 +51,7 @@ cbuffer gParams : register(b0) {
     uint visualizationMode;
     uint frameCount;
     uint volumetricEnabled;
-    uint volumetricMinSamples;
     uint volumetricMaxSamples;
-    float volumetricStepDistance;
 }
 
 #define VISUALIZATION_MODE_FINAL					0
@@ -71,6 +69,7 @@ cbuffer gParams : register(b0) {
 #define VISUALIZATION_MODE_TRANSPARENT				12
 #define VISUALIZATION_MODE_FLOW						13
 #define VISUALIZATION_MODE_DEPTH					14
-#define VISUALIZATION_MODE_VOLUMETRICS				15
+#define VISUALIZATION_MODE_VOLUMETRICS_RAW			15
+#define VISUALIZATION_MODE_VOLUMETRICS_FILTERED		16
 //)raw"
 #endif

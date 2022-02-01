@@ -7,8 +7,6 @@
 #define M_TWO_PI							(M_PI * 2.0f)
 #define APPLY_LIGHTS_MINIMUM_ALPHA			0.5
 
-#define NUM_HISTOGRAM_BINS 256
-
 // Got this from https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
 // About that beer I owed ya...
 // sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT

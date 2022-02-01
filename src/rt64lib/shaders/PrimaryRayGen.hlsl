@@ -52,16 +52,6 @@ void PrimaryRayGen() {
     float3 bgColor = SampleBackground2D(screenUV);
     float4 skyColor = SampleSky2D(screenUV);
     bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
-	
-	// Add ground fog to the background. Might add the option to enable/disable fog on background       
-	{
-        float3 bgFogPosition = float3(rayOrigin.x, groundFogHeightFactors.x, rayOrigin.z) + float3(rayDirection.x, rayDirection.y, rayDirection.z) * 10000.0;
-        float4 fogColor = SceneGroundFogFromOrigin(bgFogPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x * 100.0f, groundFogHeightFactors.y, groundFogColor);
-        float combinedAlpha = (fogColor.a + 1.0f * (1.0f - fogColor.a));
-        float3 combinedColor = fogColor.rgb * fogColor.a + bgColor.rgb * (1.0f - fogColor.a);
-        combinedColor /= (combinedAlpha + EPSILON);
-        bgColor = combinedColor;
-    }
 
 	// Compute ray differentials.
 	RayDiff rayDiff;
@@ -100,7 +90,7 @@ void PrimaryRayGen() {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
 			bool usesLighting = (instanceMaterials[instanceId].lightGroupMaskBits > 0);
 			bool applyLighting = usesLighting && (hitColor.a > APPLY_LIGHTS_MINIMUM_ALPHA);
-            bool lightShafts = (volumetricEnabled & 0x1) == true;
+            bool lightShafts = volumetricEnabled == 1;
             float vertexDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
             float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
@@ -117,30 +107,18 @@ void PrimaryRayGen() {
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);   
 			}  
-			// Preliminary implementation of scene-driven fog instead of material-driven 
+			*/ 
+			// Scene-driven fog. Volumetric lighting is on a different shader 
 			{ 
-                float4 lightAdd = float4(0.f, 0.f, 0.f, 1.f);
-                if (lightShafts) {
-					// Preliminary implementation of lightshafts 
-                    uint maxShaftSamples = clamp(uint(volumetricStepDistance / vertexDistance + EPSILON), volumetricMinSamples, volumetricMaxSamples);
-                    for (int shaftSample = 1; shaftSample <= maxShaftSamples; shaftSample++)
-                    {
-                        float3 samplePosition = rayOrigin + rayDirection * vertexDistance * (float(shaftSample) / float(maxShaftSamples));
-                        lightAdd.rgb += ComputeLightAtPointRandom(launchIndex, rayDirection, samplePosition, 0.0f, 1, 1, true);
-                    }
-                    lightAdd.rgb /= float3(maxShaftSamples, maxShaftSamples, maxShaftSamples);
-                    lightAdd.a = saturate(RGBtoLuminance(lightAdd.rgb));
-                }
-				
                 float4 fogColor = SceneFogFromOrigin(vertexPosition, rayOrigin, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
                 float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
                 float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
                 combinedColor = BlendAOverB(fogColor, groundFog);
-                combinedColor.rgb += lightAdd.rgb;
-                combinedColor.a *= lightAdd.a;
-                resTransparent += combinedColor.rgb * combinedColor.a * alphaContrib;
-                alphaContrib *= (1.0f - combinedColor.a);
-            } */ 
+                if (lightShafts) {
+                    combinedColor.a *= 1.50f;
+                }
+                gFilteredVolumetricFog[launchIndex] = combinedColor;
+            } 
 
 			// Reflection.
             if (reflectionFactor > EPSILON)

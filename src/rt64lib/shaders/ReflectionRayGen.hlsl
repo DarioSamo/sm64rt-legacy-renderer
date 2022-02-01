@@ -94,14 +94,14 @@ void ReflectionRayGen() {
 				alphaContrib *= (1.0f - fogColor.a);
             }
 			*/
-			// Preliminary implementation of scene-driven fog instead of material-driven
+			// Scene-driven fog
 			{ 
                 float4 fogColor = SceneFogFromOrigin(vertexPosition, shadingPosition, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
                 float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, shadingPosition, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
                 float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
                 combinedColor = BlendAOverB(fogColor, groundFog);
                 resTransparent += combinedColor.rgb * combinedColor.a * alphaContrib;
-                alphaContrib *= (1.0f - combinedColor.a);
+                alphaContrib *= (1.0f - fogColor.a);
             }
 
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;

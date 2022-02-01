@@ -30,6 +30,7 @@
 #include "shaders/GaussianFilterRGB3x3CS.hlsl.h"
 #include "shaders/LuminanceHistogramCS.hlsl.h""
 #include "shaders/HistogramAverageCS.hlsl.h"
+#include "shaders/BicubicUpscaleCS.hlsl.h"
 
 #include "shaders/FullScreenVS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
@@ -365,6 +366,14 @@ ID3D12PipelineState *RT64::Device::getHistogramAveragePipelineState() const {
 	return d3dHistogramAveragePipelineState;
 }
 
+ID3D12RootSignature* RT64::Device::getBicubicUpscaleRootSignature() const {
+	return d3dBicubicUpscaleRootSignature;
+}
+
+ID3D12PipelineState* RT64::Device::getBicubicUpscalePipelineState() const {
+	return d3dBicubicUpscalePipelineState;
+}
+
 ID3D12RootSignature *RT64::Device::getDebugRootSignature() const {
 	return d3dDebugRootSignature;
 }
@@ -687,7 +696,8 @@ void RT64::Device::loadAssets() {
 		rsc.AddHeapRangesParameter({
 			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
 			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 },
-			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
+			{ 2, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2 },
+			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 3 }
 		});
 
 		// Fill out the sampler.
@@ -731,12 +741,13 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gInstanceId) },
 			{ UAV_INDEX(gDirectLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDirectLightAccum) },
 			{ UAV_INDEX(gIndirectLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gIndirectLightAccum) },
+			{ UAV_INDEX(gVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gVolumetricFog) },
 			{ UAV_INDEX(gFilteredDirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredDirectLight) },
 			{ UAV_INDEX(gFilteredIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredIndirectLight) },
+			{ UAV_INDEX(gFilteredVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredVolumetricFog) },
 			{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
 			{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 			{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
-			{ UAV_INDEX(gVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gVolumetricFog) },
 			{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
 			{ UAV_INDEX(gDepth), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDepth) },
 			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) }
@@ -850,7 +861,6 @@ void RT64::Device::loadAssets() {
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dGaussianFilterRGB3x3PipelineState)));
 	}
 
-	/*
 	RT64_LOG_PRINTF("Creating the luminance histogram root signature");
 	{
 		nv_helpers_dx12::RootSignatureGenerator rsc;
@@ -862,7 +872,6 @@ void RT64::Device::loadAssets() {
 
 		// Fill out the sampler.
 		D3D12_STATIC_SAMPLER_DESC desc = { };
-		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
 		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		desc.MaxAnisotropy = 1;
@@ -887,13 +896,12 @@ void RT64::Device::loadAssets() {
 		nv_helpers_dx12::RootSignatureGenerator rsc;
 		rsc.AddHeapRangesParameter({
 			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 0 },
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
+			{ 1, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
 			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
 			});
 
 		// Fill out the sampler.
 		D3D12_STATIC_SAMPLER_DESC desc = { };
-		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
 		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		desc.MaxAnisotropy = 1;
@@ -912,7 +920,37 @@ void RT64::Device::loadAssets() {
 
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dHistogramAveragePipelineState)));
 	}
-	*/
+
+	RT64_LOG_PRINTF("Creating the bicubic upscale root signature");
+	{
+		nv_helpers_dx12::RootSignatureGenerator rsc;
+		rsc.AddHeapRangesParameter({
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
+			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
+			});
+
+		// Fill out the sampler.
+		D3D12_STATIC_SAMPLER_DESC desc = { };
+		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		desc.MaxAnisotropy = 1;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+
+		d3dBicubicUpscaleRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
+	}
+
+	RT64_LOG_PRINTF("Creating the bicubic upscale pipeline state");
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+		psoDesc.CS = CD3DX12_SHADER_BYTECODE(BicubicUpscaleCSBlob, sizeof(BicubicUpscaleCSBlob));
+		psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		psoDesc.pRootSignature = d3dBicubicUpscaleRootSignature;
+		psoDesc.NodeMask = 0;
+
+		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dBicubicUpscalePipelineState)));
+	}
 
 	mipmaps = new RT64::Mipmaps(this);
 
@@ -993,9 +1031,9 @@ void RT64::Device::createRaytracingPipeline() {
 	pipeline.AddLibrary(d3dPrimaryRayGenLibrary, { L"PrimaryRayGen", L"SurfaceMiss", L"ShadowMiss" });
 	pipeline.AddLibrary(d3dDirectRayGenLibrary, { L"DirectRayGen" });
 	pipeline.AddLibrary(d3dIndirectRayGenLibrary, { L"IndirectRayGen" });
+	pipeline.AddLibrary(d3dVolumetricFogRayGenLibrary, { L"VolumetricFogRayGen" });
 	pipeline.AddLibrary(d3dReflectionRayGenLibrary, { L"ReflectionRayGen" });
 	pipeline.AddLibrary(d3dRefractionRayGenLibrary, { L"RefractionRayGen" });
-	pipeline.AddLibrary(d3dVolumetricFogRayGenLibrary, { L"VolumetricFogRayGen" });
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -1022,7 +1060,7 @@ void RT64::Device::createRaytracingPipeline() {
 	RT64_LOG_PRINTF("Adding root signature associations");
 
 	// Associate the root signatures to the hit groups.
-	pipeline.AddRootSignatureAssociation(d3dRayGenSignature, { L"PrimaryRayGen", L"DirectRayGen", L"IndirectRayGen", L"ReflectionRayGen", L"RefractionRayGen", L"VolumetricFogRayGen" });
+	pipeline.AddRootSignatureAssociation(d3dRayGenSignature, { L"PrimaryRayGen", L"DirectRayGen", L"IndirectRayGen", L"VolumetricFogRayGen", L"ReflectionRayGen", L"RefractionRayGen"});
 
 	for (Shader *shader : shaders) {
 		const auto &surfaceHitGroup = shader->getSurfaceHitGroup();
@@ -1086,10 +1124,10 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ UAV_INDEX(gInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gInstanceId) },
 		{ UAV_INDEX(gDirectLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDirectLightAccum) },
 		{ UAV_INDEX(gIndirectLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gIndirectLightAccum) },
+		{ UAV_INDEX(gVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gVolumetricFog) },
 		{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
 		{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 		{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
-		{ UAV_INDEX(gVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gVolumetricFog) },
 		{ UAV_INDEX(gFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFlow) },
 		{ UAV_INDEX(gNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gNormal) },
 		{ UAV_INDEX(gDepth), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gDepth) },
@@ -1099,6 +1137,7 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ UAV_INDEX(gPrevIndirectLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gPrevIndirectLightAccum) },
 		{ UAV_INDEX(gFilteredDirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredDirectLight) },
 		{ UAV_INDEX(gFilteredIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredIndirectLight) },
+		{ UAV_INDEX(gFilteredVolumetricFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredVolumetricFog) },
 		{ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },

@@ -343,5 +343,8 @@
     <CustomBuild Include="shaders\VolumetricFogRayGen.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="shaders\BicubicUpscaleCS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

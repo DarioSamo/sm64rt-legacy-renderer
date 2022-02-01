@@ -165,7 +165,7 @@ float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instance
 	return resultLight;
 }
 
-float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 rayDirection, float3 position, float3 specular, const bool checkShadows)
+float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position, const bool checkShadows)
 {
     float3 lightPosition = SceneLights[lightIndex].position;
     float3 lightDirection = normalize(lightPosition - position);
@@ -193,13 +193,11 @@ float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 rayDirect
         float sampleDistance = length(position - samplePosition);
         float3 sampleDirection = normalize(samplePosition - position);
         float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
-        //float3 reflectedLight = reflect(-sampleDirection, normal);
         float sampleShadowFactor = 1.0f;
         if (checkShadows) {
             sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
         }
-
-        //float3 sampleSpecularityFactor = specular * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+		
         lLambertFactor += sampleIntensityFactor / maxSamples;
         lShadowFactor += sampleShadowFactor / maxSamples;
 
@@ -220,7 +218,7 @@ float CalculateLightIntensityNoNormal(uint l, float3 position)
     return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLightAtPointRandom(uint2 launchIndex, float3 rayDirection, float3 position, float3 specular, uint maxLightCount, uint lightGroupMaskBits, const bool checkShadows)
+float3 ComputeLightAtPointRandom(uint2 launchIndex, float3 position, uint maxLightCount, uint lightGroupMaskBits, const bool checkShadows)
 {
     float3 resultLight = float3(0.0f, 0.0f, 0.0f);
     if (lightGroupMaskBits > 0)
@@ -256,7 +254,7 @@ float3 ComputeLightAtPointRandom(uint2 launchIndex, float3 rayDirection, float3 
         bool useProbability = lLightCount == 1;
         for (uint s = 0; s < lLightCount; s++)
         {
-            float r = getBlueNoise(launchIndex, frameCount + s).r * randomRange;
+            float r = getBlueNoise(launchIndex, launchIndex.x + frameCount + s).r * randomRange;
             uint chosen = 0;
             float rLightIntensity = sLightIntensities[chosen];
             while ((chosen < (sLightCount - 1)) && (r >= rLightIntensity))
@@ -273,7 +271,7 @@ float3 ComputeLightAtPointRandom(uint2 launchIndex, float3 rayDirection, float3 
             randomRange -= cLightIntensity;
 
 			// Compute and add the light.
-            resultLight += ComputeLightNoNormal(launchIndex, cLightIndex, rayDirection, position, specular, checkShadows) * invProbability;
+            resultLight += ComputeLightNoNormal(launchIndex, cLightIndex, position, checkShadows) * invProbability;
         }
     }
 

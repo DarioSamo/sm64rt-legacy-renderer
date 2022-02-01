@@ -83,9 +83,7 @@ namespace RT64 {
 			unsigned int visualizationMode;
 			unsigned int frameCount;
 			unsigned int volumetricEnabled;
-			unsigned int volumetricMinSamples;
 			unsigned int volumetricMaxSamples;
-			float volumetricStepDistance;
 		};
 
 		Scene *scene;
@@ -116,6 +114,7 @@ namespace RT64 {
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
 		AllocatedResource rtVolumetricFog;
+		AllocatedResource rtFilteredVolumetricFog;
 		AllocatedResource rtFlow;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];
@@ -126,8 +125,10 @@ namespace RT64 {
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtOutputUpscaled;
 		AllocatedResource rtOutputSharpened;
-		AllocatedResource rtOutputLuma;
+		AllocatedResource rtLumaHistogram;
+		AllocatedResource rtLumaAvg;
 
+		float deltaTime;
 		bool rtSwap;
 		int rtWidth;
 		int rtHeight;
@@ -140,6 +141,7 @@ namespace RT64 {
 		bool rtRecreateBuffers;
 		bool rtSkipReprojection;
 		bool denoiserEnabled;
+		bool volumetricsEnabled;
 		UINT rtFirstInstanceIdRowWidth;
 		bool rtFirstInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
@@ -150,10 +152,12 @@ namespace RT64 {
 		ID3D12DescriptorHeap *upscaleHeap;
 		ID3D12DescriptorHeap *sharpenHeap;
 		ID3D12DescriptorHeap *lumaHeap;
+		ID3D12DescriptorHeap *lumaAvgHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
 		ID3D12DescriptorHeap *directFilterHeaps[2];
 		ID3D12DescriptorHeap *indirectFilterHeaps[2];
-		ID3D12DescriptorHeap *volumetricHeaps[2];
+		ID3D12DescriptorHeap *volumetricHeap[2];
+		ID3D12DescriptorHeap *bicubicHeap;
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;
@@ -170,6 +174,10 @@ namespace RT64 {
 		uint32_t lumaAvgParamBufferSize;
 		AllocatedResource filterParamBufferResource;
 		uint32_t filterParamBufferSize;
+		AllocatedResource volumetricBlurParamBufferResource;
+		uint32_t volumetricBlurParamBufferSize;
+		AllocatedResource bicubicParamBufferResource;
+		uint32_t bicubicParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -215,6 +223,10 @@ namespace RT64 {
 		void updateLumaAvgParamsBuffer();
 		void createFilterParamsBuffer();
 		void updateFilterParamsBuffer();
+		void createVolumetricsBlurParamsBuffer();
+		void updateVolumetricsBlurParamsBuffer();
+		void createBicubicParamsBuffer();
+		void updateBicubicParamsBuffer(int inputRes[2], int outputRes[2]);
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -249,12 +261,8 @@ namespace RT64 {
 		float getToneMapBlackLevel() const;
 		float getToneMapSaturation() const;
 		float getToneMapGamma() const;
-		void setVolumetricMinSamples(int v);
-		int getVolumetricMinSamples() const;
 		void setVolumetricMaxSamples(int v);
 		int getVolumetricMaxSamples() const;
-		void setVolumetricStepDistance(float v);
-		float getVolumetricStepDistance() const;
 		void setVolumetricEnabledFlag(bool v);
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;

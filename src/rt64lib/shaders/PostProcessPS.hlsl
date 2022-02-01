@@ -22,6 +22,7 @@
 
 Texture2D<float4> gOutput : register(t0);
 Texture2D<float4> gFlow : register(t1);
+Texture2D<float> gLumaAvg : register(t2);
 
 SamplerState gSampler : register(s0);
 
@@ -92,22 +93,22 @@ float3 ACESFitted(float3 color)
     return color;
 }
 
-float3 Tonemapper(float3 rgb)
+float3 Tonemapper(float3 rgb, float exposure)
 {
     switch (tonemapMode)
     {
         case TONEMAP_MODE_REINHARD:
-            return Reinhard(rgb * tonemapExposure, tonemapExposure);
+            return Reinhard(rgb * exposure, exposure);
         case TONEMAP_MODE_REINHARD_LUMA:
-            return ReinhardLuma(rgb * tonemapExposure, tonemapExposure);
+            return ReinhardLuma(rgb * exposure, exposure);
         case TONEMAP_MODE_REINHARD_JODIE:
-            return ReinhardJodie(rgb * tonemapExposure);
+            return ReinhardJodie(rgb * exposure);
         case TONEMAP_MODE_UNCHARTED_2:
-            return Uncharted2(rgb * 2.0f, tonemapExposure);
+            return Uncharted2(rgb * 2.0f, exposure);
         case TONEMAP_MODE_ACES:
-            return ACESFitted(rgb * tonemapExposure);
+            return ACESFitted(rgb * exposure);
         case TONEMAP_MODE_SIMPLE:
-            return rgb *= tonemapExposure;
+            return rgb *= exposure;
     }
     
     return rgb;
@@ -148,7 +149,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     }
     
     // Tonemap the image
-    color.rgb = Tonemapper(max(color.rgb, 0.0f));
+    float avgLuma = log2(gLumaAvg.Sample(gSampler, float2(0.0, 0.0)));
+    color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure - avgLuma);
     
     // Post-tonemapping
     if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
