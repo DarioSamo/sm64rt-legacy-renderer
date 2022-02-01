@@ -35,7 +35,7 @@ uint HDRToHistogramBin(float3 hdrColor)
 	}
 	
 	float logLuminance = saturate((log2(luminance) - minLogLuminance) * oneOverLogLuminanceRange);
-	return (uint) (logLuminance * 62.0 + 1.0);
+    return (uint) (logLuminance * 62.0 + 1.0);
 }
 
 [numthreads(HISTOGRAM_THREADS_PER_DIMENSION, HISTOGRAM_THREADS_PER_DIMENSION, 1)]

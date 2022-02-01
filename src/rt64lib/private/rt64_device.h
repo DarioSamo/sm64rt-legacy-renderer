@@ -69,10 +69,12 @@ namespace RT64 {
 		ID3D12PipelineState *d3dGaussianFilterRGB3x3PipelineState;
 		ID3D12RootSignature *d3dLuminanceHistogramRootSignature;
 		ID3D12PipelineState *d3dLuminanceHistogramPipelineState;
-		ID3D12RootSignature *d3dBicubicUpscaleRootSignature;
-		ID3D12PipelineState *d3dBicubicUpscalePipelineState;
+		ID3D12RootSignature *d3dBicubicScalingRootSignature;
+		ID3D12PipelineState *d3dBicubicScalingPipelineState;
 		ID3D12RootSignature *d3dHistogramAverageRootSignature;
 		ID3D12PipelineState *d3dHistogramAveragePipelineState;
+		ID3D12RootSignature *d3dHistogramClearRootSignature;
+		ID3D12PipelineState *d3dHistogramClearPipelineState;
 		ID3D12RootSignature *d3dDebugRootSignature;
 		ID3D12PipelineState *d3dDebugPipelineState;
 		UINT d3dRtvDescriptorSize;
@@ -152,8 +154,10 @@ namespace RT64 {
 		ID3D12PipelineState* getLuminanceHistogramPipelineState() const;
 		ID3D12RootSignature* getHistogramAverageRootSignature() const;
 		ID3D12PipelineState* getHistogramAveragePipelineState() const;
-		ID3D12RootSignature* getBicubicUpscaleRootSignature() const;
-		ID3D12PipelineState* getBicubicUpscalePipelineState() const;
+		ID3D12RootSignature* getHistogramClearRootSignature() const;
+		ID3D12PipelineState* getHistogramClearPipelineState() const;
+		ID3D12RootSignature* getBicubicScalingRootSignature() const;
+		ID3D12PipelineState* getBicubicScalingPipelineState() const;
 		ID3D12RootSignature *getDebugRootSignature() const;
 		ID3D12PipelineState *getDebugPipelineState() const;
 		ID3D12RootSignature *getIm3dRootSignature() const;

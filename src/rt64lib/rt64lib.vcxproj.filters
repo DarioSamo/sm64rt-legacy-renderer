@@ -281,6 +281,9 @@
     <None Include="shaders\BlueNoise.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
+    <None Include="shaders\BicubicFiltering.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Im3DPS.hlsl">
@@ -343,7 +346,10 @@
     <CustomBuild Include="shaders\VolumetricFogRayGen.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\BicubicUpscaleCS.hlsl">
+    <CustomBuild Include="shaders\BicubicScalingCS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\HistogramClearCS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>

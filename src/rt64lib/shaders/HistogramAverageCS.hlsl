@@ -24,7 +24,7 @@ cbuffer LuminanceHistogramAverageBuffer : register(b0)
 groupshared float HistogramShared[NUM_HISTOGRAM_BINS];
 
 [numthreads(HISTOGRAM_AVERAGE_THREADS_PER_DIMENSION, HISTOGRAM_AVERAGE_THREADS_PER_DIMENSION, 1)]
-void mainCS(uint groupIndex : SV_GroupIndex) 
+void mainCS(uint groupIndex : SV_GroupIndex)
 {
 	float countForThisBin = (float) LuminanceHistogram.Load(groupIndex * 4);
 	HistogramShared[groupIndex] = countForThisBin * (float) groupIndex;
@@ -40,7 +40,12 @@ void mainCS(uint groupIndex : SV_GroupIndex)
 	
 	if (groupIndex == 0) {
 		float weightedLogAverage = (HistogramShared[0].x / max((float) pixelCount - countForThisBin, 1.0)) - 1.0;
-        float weightedAverageLuminance = exp2(((weightedLogAverage / (62.0)) * logLuminanceRange) + minLogLuminance);
-        LuminanceOutput[uint2(0, 0)] = weightedAverageLuminance;
+        float weightedAverageLuminance = exp2(((weightedLogAverage / 62.0) * logLuminanceRange) + minLogLuminance);
+		float luminanceLastFrame = LuminanceOutput[uint2(0, 0)];
+		if (isnan(luminanceLastFrame) || isinf(luminanceLastFrame)) {
+			luminanceLastFrame = 1.0f;
+		}
+		float adaptedLuminance = luminanceLastFrame + (weightedAverageLuminance - luminanceLastFrame) * (1 - exp(-timeDelta * tau));
+        LuminanceOutput[uint2(0, 0)] = adaptedLuminance;
     }
 }

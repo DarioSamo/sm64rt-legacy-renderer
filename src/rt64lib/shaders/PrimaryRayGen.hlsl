@@ -117,7 +117,7 @@ void PrimaryRayGen() {
                 if (lightShafts) {
                     combinedColor.a *= 1.50f;
                 }
-                gFilteredVolumetricFog[launchIndex] = combinedColor;
+                gFog[launchIndex] = combinedColor;
             } 
 
 			// Reflection.

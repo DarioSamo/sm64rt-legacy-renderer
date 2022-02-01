@@ -113,8 +113,8 @@ namespace RT64 {
 		AllocatedResource rtReflection;
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
-		AllocatedResource rtVolumetricFog;
-		AllocatedResource rtFilteredVolumetricFog;
+		AllocatedResource rtVolumetrics;
+		AllocatedResource rtFog;
 		AllocatedResource rtFlow;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];
@@ -125,8 +125,15 @@ namespace RT64 {
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtOutputUpscaled;
 		AllocatedResource rtOutputSharpened;
+		AllocatedResource rtOutputDownscaled;
 		AllocatedResource rtLumaHistogram;
 		AllocatedResource rtLumaAvg;
+		AllocatedResource rtBloom;
+
+		// Eye adaption parameters
+		float minLogLuminance;
+		float logLuminanceRange;
+		float lumaUpdateTime;
 
 		float deltaTime;
 		bool rtSwap;
@@ -156,8 +163,8 @@ namespace RT64 {
 		ID3D12DescriptorHeap *postProcessHeap;
 		ID3D12DescriptorHeap *directFilterHeaps[2];
 		ID3D12DescriptorHeap *indirectFilterHeaps[2];
-		ID3D12DescriptorHeap *volumetricHeap[2];
-		ID3D12DescriptorHeap *bicubicHeap;
+		ID3D12DescriptorHeap* volumetricHeap;
+		ID3D12DescriptorHeap *bloomHeap[2];
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;
@@ -176,8 +183,10 @@ namespace RT64 {
 		uint32_t filterParamBufferSize;
 		AllocatedResource volumetricBlurParamBufferResource;
 		uint32_t volumetricBlurParamBufferSize;
-		AllocatedResource bicubicParamBufferResource;
-		uint32_t bicubicParamBufferSize;
+		AllocatedResource bloomBlurParamBufferResource;
+		uint32_t bloomBlurParamBufferSize;
+		AllocatedResource hdrDownscaleParamBufferResource;
+		uint32_t hdrDownscaleParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -225,8 +234,10 @@ namespace RT64 {
 		void updateFilterParamsBuffer();
 		void createVolumetricsBlurParamsBuffer();
 		void updateVolumetricsBlurParamsBuffer();
-		void createBicubicParamsBuffer();
-		void updateBicubicParamsBuffer(int inputRes[2], int outputRes[2]);
+		void createBloomBlurParamsBuffer();
+		void updateBloomBlurParamsBuffer();
+		void createHDRDownsampleParamsBuffer();
+		void updateHDRDownsampleParamsBuffer();
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -281,6 +292,12 @@ namespace RT64 {
 		void resize();
 		int getWidth() const;
 		int getHeight() const;
+		float getMinLogLuminance() const;
+		void setMinLogLuminance(float v);
+		float getLogLuminanceRange() const;
+		void setLogLuminanceRange(float v);
+		float getLuminanceUpdateTime() const;
+		void setLuminanceUpdateTime(float v);
 
 #ifdef RT64_DLSS
 		void setDlssQualityMode(RT64::DLSS::QualityMode v);

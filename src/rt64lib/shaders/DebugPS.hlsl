@@ -105,7 +105,7 @@ float4 getDepth(float2 pos) {
 }
 
 float4 getVolumetrics(float2 pos, bool filtered) {
-    float4 color = filtered ? gFilteredVolumetricFog[pos] : gVolumetricFog[pos / 4];
+    float4 color = filtered ? gFog[pos] : gVolumetrics[pos / 4];
     return float4(color.rgb * color.a, 1.0f);
 }
 

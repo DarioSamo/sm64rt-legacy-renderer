@@ -23,7 +23,7 @@ void VolumetricFogRayGen()
 {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	if (volumetricEnabled == 0) {
-		gVolumetricFog[launchIndex] = float4(0, 0, 0, 1);;
+        gVolumetrics[launchIndex] = float4(0, 0, 0, 1);;
 		return;
 	}
 	
@@ -71,6 +71,6 @@ void VolumetricFogRayGen()
 		resColor.rgb /= volumetricMaxSamples;
 		resColor.a = RGBtoLuminance(resColor.rgb);
 	
-		gVolumetricFog[launchIndex] = resColor;
-	}
+        gVolumetrics[launchIndex] = resColor;
+    }
 }

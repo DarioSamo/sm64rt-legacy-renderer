@@ -5,6 +5,7 @@
 #include "Constants.hlsli"
 #include "GlobalParams.hlsli"
 #include "Color.hlsli"
+#include "BicubicFiltering.hlsli"
 
 // Tonemappers sourced from https://64.github.io/tonemapping/
 #define TONEMAP_MODE_RAW_IMAGE 0
@@ -15,14 +16,18 @@
 #define TONEMAP_MODE_ACES 5
 #define TONEMAP_MODE_SIMPLE 6
 
-// KoS's personal recommendation for tonemapping
+// Reccommended settings for tonemapping
 // Tonemapper: Unchared 2
 // Exposure: 2.0
 // White point: 0.825
+// Eye Adaption Minimum Luminence: -5.0
+// Eye Adaption Luminance Range: 7.0
+// Eye Adaption Update Time: 5.0
 
 Texture2D<float4> gOutput : register(t0);
 Texture2D<float4> gFlow : register(t1);
 Texture2D<float> gLumaAvg : register(t2);
+Texture2D<float4> gBloom : register(t3);
 
 SamplerState gSampler : register(s0);
 
@@ -137,6 +142,15 @@ float4 MotionBlur(float2 uv)
     return gOutput.SampleLevel(gSampler, uv, 0);
 }
 
+float4 Bloom(float bloomExposure, float bloomThreshold, float bloomAlpha, float2 uv)
+{
+    float4 bloom = BicubicFilter(gBloom, gSampler, uv, resolution.xy);
+    bloom.rgb *= bloomExposure;
+    bloom.rgb = max(bloom.rgb - bloomThreshold, 0.0);
+    bloom.a = RGBtoLuminance(bloom.rgb) * bloomAlpha;
+    return bloom;
+}
+
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     
@@ -149,8 +163,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     }
     
     // Tonemap the image
-    float avgLuma = log2(gLumaAvg.Sample(gSampler, float2(0.0, 0.0)));
-    color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure - avgLuma);
+    float avgLuma = gLumaAvg.Sample(gSampler, float2(0.0, 0.0)) * 10.0;
+    color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure / max((avgLuma + EPSILON), 0.1));
     
     // Post-tonemapping
     if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)

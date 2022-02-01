@@ -135,7 +135,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0Volumetric Fog Raw\0Volumetric Fog Filtered\0");
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0Volumetrics\0Scene Fog\0");
 
 #ifdef RT64_DLSS
     // Only show DLSS option if supported by the hardware.
@@ -233,6 +233,9 @@ void RT64::Inspector::renderPostInspector(View* view) {
     float tonemapBlack = view->getToneMapBlackLevel();
     float tonemapSaturation = view->getToneMapSaturation();
     float tonemapGamma = view->getToneMapGamma();
+    float minLogLuminance = view->getMinLogLuminance();
+    float logLuminanceRange = view->getLogLuminanceRange();
+    float lumaUpdateTime = view->getLuminanceUpdateTime();
 
     ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0Simple\0");
     ImGui::DragFloat("Exposure", &tonemapExposure, 0.01f, 0.0f, 20.0f);
@@ -240,9 +243,15 @@ void RT64::Inspector::renderPostInspector(View* view) {
     ImGui::DragFloat("Black Level", &tonemapBlack, 0.01f, 0.0f, 10.0f);
     ImGui::DragFloat("Saturation", &tonemapSaturation, 0.001f, 0.0f, 5.0f);
     ImGui::DragFloat("Gamma", &tonemapGamma, 0.001f, 0.0f, 2.0f);
+    ImGui::DragFloat("Eye Adaption Minimum", &minLogLuminance, 0.01f, -20.0f, 20.0f);
+    ImGui::DragFloat("Eye Adaption Range", &logLuminanceRange, 0.01f, 0.0f, 20.0f);
+    ImGui::DragFloat("Eye Adaption Update Time", &lumaUpdateTime, 0.01f, 0.0f, 4.0f);
 
     view->setToneMappingMode(tonemapMode);
     view->setTonemapperValues(tonemapExposure, tonemapWhite, tonemapBlack, tonemapSaturation, tonemapGamma);
+    view->setMinLogLuminance(minLogLuminance);
+    view->setLogLuminanceRange(logLuminanceRange);
+    view->setLuminanceUpdateTime(lumaUpdateTime);
     ImGui::End();
 }
 
