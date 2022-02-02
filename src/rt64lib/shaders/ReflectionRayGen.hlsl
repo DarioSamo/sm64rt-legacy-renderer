@@ -156,7 +156,7 @@ void ReflectionRayGen() {
 	resColor.rgb = lerp(resColor.rgb, ShadowColor, pow(max(-rayDirection.y, 0.0f) * reflectionShineFactor, BlendingExponent));
 
 	// Add reflection result.
-	gReflection[launchIndex].rgb += resColor.rgb * reflectionAlpha * max(1.0f - newReflectionAlpha, 0.0);
+	gReflection[launchIndex].rgb = resColor.rgb * reflectionAlpha * max(1.0f - newReflectionAlpha, 0.0);
 
 	// Store parameters for new reflection.
     gReflection[launchIndex].a = newReflectionAlpha;

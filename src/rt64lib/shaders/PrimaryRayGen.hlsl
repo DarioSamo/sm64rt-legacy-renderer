@@ -90,7 +90,7 @@ void PrimaryRayGen() {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
 			bool usesLighting = (instanceMaterials[instanceId].lightGroupMaskBits > 0);
 			bool applyLighting = usesLighting && (hitColor.a > APPLY_LIGHTS_MINIMUM_ALPHA);
-            bool lightShafts = volumetricEnabled == 1;
+            bool lightShafts = (processingFlags & 0x1) == 1;
             float vertexDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
             float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
@@ -125,6 +125,7 @@ void PrimaryRayGen() {
             {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
                 float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
+                gReflection[launchIndex].rgb = hitColor.rgb;				// For a planned metalness implementation
                 gReflection[launchIndex].a = fresnelAmount * alphaContrib;
 				alphaContrib *= (1.0f - fresnelAmount);
 				storeHit = true;
