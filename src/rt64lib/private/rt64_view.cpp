@@ -80,8 +80,10 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
-	globalParamsBufferData.volumetricEnabled = 0;
+	globalParamsBufferData.processingFlags = 0x6;
 	globalParamsBufferData.volumetricMaxSamples = 32;
+	globalParamsBufferData.volumetricIntensity = 1.0f;
+	globalParamsBufferData.eyeAdaptionBrightnessFactor = 10.0f;
 
 	// Eye adaption parameters
 	minLogLuminance = -5.0;
@@ -1209,7 +1211,7 @@ void RT64::View::createShaderResourceHeap() {
 			textureSRVDesc.Texture2D.MostDetailedMip = 0;
 			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
+			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutputDownscaled.Get(), &textureSRVDesc, handle);
 			handle.ptr += handleIncrement;
 
 			// UAV for output buffer.
@@ -2085,7 +2087,7 @@ void RT64::View::render() {
 		}
 
 		// Apply that same compute shader for the volumetric fog.
-		if (globalParamsBufferData.volumetricEnabled == 1)
+		if ((globalParamsBufferData.processingFlags & 0x1) == 1)
 		{
 			for (int i = 0; i < 8; i++)
 			{
@@ -2250,6 +2252,9 @@ void RT64::View::render() {
 			d3dCommandList->ResourceBarrier(1, &afterDownscaleBarriers);
 		}
 
+
+		// TO DO: Find a better guassian blur shader for bloom
+		/*
 		RT64_LOG_PRINTF("Do the bloom blurring shader");
 		{
 			for (int i = 0; i < 8; i++)
@@ -2271,6 +2276,7 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER::Transition(rtBloom.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			d3dCommandList->ResourceBarrier(1, &afterDownscaleBarriers);
 		}
+		*/
 
 		RT64_LOG_PRINTF("Do the luminance histogram shader");
 		{
@@ -2614,14 +2620,48 @@ int RT64::View::getVolumetricMaxSamples() const {
 
 void RT64::View::setVolumetricEnabledFlag(bool v) {
 	if (v) {
-		globalParamsBufferData.volumetricEnabled = 1;
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 1);
 	} else {
-		globalParamsBufferData.volumetricEnabled = 0;
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFFE);
 	}
 }
 
 bool RT64::View::getVolumetricEnabledFlag() const {
-	return globalParamsBufferData.volumetricEnabled == 1;
+	return (globalParamsBufferData.processingFlags & 0x1) == 1;
+}
+
+void RT64::View::setEyeAdaptionEnabledFlag(bool v) {
+	if (v) {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 2);
+	}
+	else {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFFD);
+	}
+}
+
+bool RT64::View::getEyeAdaptionEnabledFlag() const {
+	return (globalParamsBufferData.processingFlags & 0x2) == 0x2;
+}
+
+void RT64::View::setAlternateIndirectFlag(bool v) {
+	if (v) {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 4);
+	}
+	else {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFFB);
+	}
+}
+
+bool RT64::View::getAlternateIndirectFlag() const {
+	return (globalParamsBufferData.processingFlags & 0x4) == 0x4;
+}
+
+void RT64::View::setVolumetricIntensity(float v) {
+	globalParamsBufferData.volumetricIntensity = v;
+}
+
+float RT64::View::getVolumetricIntensity() const {
+	return globalParamsBufferData.volumetricIntensity;
 }
 
 void RT64::View::setResolutionScale(float v) {
@@ -2649,6 +2689,14 @@ void RT64::View::setDenoiserEnabled(bool v) {
 
 bool RT64::View::getDenoiserEnabled() const {
 	return denoiserEnabled;
+}
+
+void RT64::View::setEyeAdaptionBrightnessFactor(float v) {
+	globalParamsBufferData.eyeAdaptionBrightnessFactor = v;
+}
+
+float RT64::View::getEyeAdaptionBrightnessFactor() const {
+	return globalParamsBufferData.eyeAdaptionBrightnessFactor;
 }
 
 void RT64::View::setUpscaleMode(UpscaleMode v) {
@@ -2854,6 +2902,10 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setTonemapperValues(viewDesc.tonemapExposure, viewDesc.tonemapWhite, viewDesc.tonemapBlack, viewDesc.tonemapSaturation, viewDesc.tonemapGamma);
 	view->setVolumetricEnabledFlag(viewDesc.volumetricEnabled);
 	view->setVolumetricMaxSamples(viewDesc.volumetricMaxSamples);
+	view->setVolumetricIntensity(viewDesc.volumetricIntensity);
+	view->setEyeAdaptionEnabledFlag(viewDesc.eyeAdaptionEnabled);
+	view->setEyeAdaptionBrightnessFactor(viewDesc.eyeAdaptionBrightnessFactor);
+	view->setAlternateIndirectFlag(viewDesc.alternateIndirectLight);
 #ifdef RT64_DLSS
 	view->setUpscaleMode((viewDesc.dlssMode != RT64_DLSS_MODE_OFF) ? RT64::UpscaleMode::DLSS : RT64::UpscaleMode::Bilinear);
 	switch (viewDesc.dlssMode) {

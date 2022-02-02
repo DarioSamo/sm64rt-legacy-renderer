@@ -82,8 +82,10 @@ namespace RT64 {
 			unsigned int motionBlurSamples;
 			unsigned int visualizationMode;
 			unsigned int frameCount;
-			unsigned int volumetricEnabled;
+			unsigned int processingFlags;
 			unsigned int volumetricMaxSamples;
+			float volumetricIntensity;
+			float eyeAdaptionBrightnessFactor;
 		};
 
 		Scene *scene;
@@ -275,15 +277,23 @@ namespace RT64 {
 		void setVolumetricMaxSamples(int v);
 		int getVolumetricMaxSamples() const;
 		void setVolumetricEnabledFlag(bool v);
+		bool getVolumetricEnabledFlag() const;
+		void setEyeAdaptionEnabledFlag(bool v);
+		bool getEyeAdaptionEnabledFlag() const;
+		void setAlternateIndirectFlag(bool v);
+		bool getAlternateIndirectFlag() const;
+		void setVolumetricIntensity(float v);
+		float getVolumetricIntensity() const;
 		void setVisualizationMode(int v);
 		int getVisualizationMode() const;
-		bool getVolumetricEnabledFlag() const;
 		void setResolutionScale(float v);
 		float getResolutionScale() const;
 		void setMaxReflections(int v);
 		int getMaxReflections() const;
 		void setDenoiserEnabled(bool v);
 		bool getDenoiserEnabled() const;
+		void setEyeAdaptionBrightnessFactor(float v);
+		float getEyeAdaptionBrightnessFactor() const;
 		void setUpscaleMode(UpscaleMode v);
 		UpscaleMode getUpscaleMode() const;
 		void setSkyPlaneTexture(Texture *texture);

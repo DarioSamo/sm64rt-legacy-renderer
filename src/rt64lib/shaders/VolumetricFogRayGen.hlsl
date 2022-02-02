@@ -22,7 +22,7 @@
 void VolumetricFogRayGen()
 {
 	uint2 launchIndex = DispatchRaysIndex().xy;
-	if (volumetricEnabled == 0) {
+    if ((processingFlags & 0x1)  == 0) {
         gVolumetrics[launchIndex] = float4(0, 0, 0, 1);;
 		return;
 	}
@@ -69,6 +69,7 @@ void VolumetricFogRayGen()
 			resColor.rgb += ComputeLightAtPointRandom(launchIndex, samplePosition, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, true); // Groups 8-16 aren't in the volumetrics
 		}
 		resColor.rgb /= volumetricMaxSamples;
+		resColor.rgb *= volumetricIntensity;
 		resColor.a = RGBtoLuminance(resColor.rgb);
 	
         gVolumetrics[launchIndex] = resColor;

@@ -190,6 +190,10 @@ typedef struct {
 	bool denoiserEnabled;
 	bool volumetricEnabled;
 	unsigned int volumetricMaxSamples;
+	float volumetricIntensity;
+	bool eyeAdaptionEnabled;
+	bool alternateIndirectLight;
+	float eyeAdaptionBrightnessFactor;
 } RT64_VIEW_DESC;
 
 typedef struct {

@@ -89,7 +89,8 @@ void IndirectRayGen() {
             float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
             float4 resColor = float4(0, 0, 0, 1);
             int resInstanceId = -1;
-            for (uint hit = 0; hit < payload.nhits; hit++) {
+            for (uint hit = 0; hit < payload.nhits; hit++)
+            {
                 uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
                 float4 hitColor = gHitColor[hitBufferIndex];
                 float alphaContrib = (resColor.a * hitColor.a);
@@ -99,7 +100,7 @@ void IndirectRayGen() {
                     float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
                     float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
                     float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
-                    
+					
                     resColor.rgb += hitColor.rgb * alphaContrib;
                     resColor.a *= (1.0 - hitColor.a);
                     
@@ -119,7 +120,11 @@ void IndirectRayGen() {
             if (resInstanceId >= 0) {
                 float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true) + instanceMaterials[resInstanceId].selfLight;
                 float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * directLight * giDiffuseStrength;
-                resIndirect = indirectLight;
+                if ((processingFlags & 0x4) == 0x4) {
+                    resIndirect = indirectLight;
+                } else {
+                    resIndirect += indirectLight;
+                }
             }
 			
             resIndirect += bgColor * giSkyStrength * resColor.a;

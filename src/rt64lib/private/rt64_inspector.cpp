@@ -182,14 +182,22 @@ void RT64::Inspector::renderViewParams(View *view) {
 
     ImGui::Checkbox("Denoiser", &denoiser);
     ImGui::Checkbox("Volumetrics", &volumetricEnabled);
+    if (giSamples > 0) {
+        bool alternateIndirect = view->getAlternateIndirectFlag();
+        ImGui::Checkbox("Alternate Indirect Lighting", &alternateIndirect);
+        view->setAlternateIndirectFlag(alternateIndirect);
+    }
 
     if (volumetricEnabled)
     {
         int volumetricMaxSamples = view->getVolumetricMaxSamples();
+        float volumetricIntensity = view->getVolumetricIntensity();
 
         ImGui::DragInt("Volumetric Samples", &volumetricMaxSamples, 0.1f, 32, 1028);
+        ImGui::DragFloat("Volumetric Intensity", &volumetricIntensity, 0.01f, 0.0, 1.0);
 
         view->setVolumetricMaxSamples(volumetricMaxSamples);
+        view->setVolumetricIntensity(volumetricIntensity);
     }
 
     // Dumping toggle.
@@ -233,9 +241,7 @@ void RT64::Inspector::renderPostInspector(View* view) {
     float tonemapBlack = view->getToneMapBlackLevel();
     float tonemapSaturation = view->getToneMapSaturation();
     float tonemapGamma = view->getToneMapGamma();
-    float minLogLuminance = view->getMinLogLuminance();
-    float logLuminanceRange = view->getLogLuminanceRange();
-    float lumaUpdateTime = view->getLuminanceUpdateTime();
+    bool eyeAdaption = view->getEyeAdaptionEnabledFlag();
 
     ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0Simple\0");
     ImGui::DragFloat("Exposure", &tonemapExposure, 0.01f, 0.0f, 20.0f);
@@ -243,15 +249,29 @@ void RT64::Inspector::renderPostInspector(View* view) {
     ImGui::DragFloat("Black Level", &tonemapBlack, 0.01f, 0.0f, 10.0f);
     ImGui::DragFloat("Saturation", &tonemapSaturation, 0.001f, 0.0f, 5.0f);
     ImGui::DragFloat("Gamma", &tonemapGamma, 0.001f, 0.0f, 2.0f);
-    ImGui::DragFloat("Eye Adaption Minimum", &minLogLuminance, 0.01f, -20.0f, 20.0f);
-    ImGui::DragFloat("Eye Adaption Range", &logLuminanceRange, 0.01f, 0.0f, 20.0f);
-    ImGui::DragFloat("Eye Adaption Update Time", &lumaUpdateTime, 0.01f, 0.0f, 4.0f);
+    ImGui::Checkbox("Eye Adaption", &eyeAdaption);
+
+    if (eyeAdaption)
+    {
+        float minLogLuminance = view->getMinLogLuminance();
+        float logLuminanceRange = view->getLogLuminanceRange();
+        float lumaUpdateTime = view->getLuminanceUpdateTime();
+        float eyeAdaptionBrightnessFactor = view->getEyeAdaptionBrightnessFactor();
+
+        ImGui::DragFloat("Eye Adaption Minimum", &minLogLuminance, 0.01f, -20.0f, 20.0f);
+        ImGui::DragFloat("Eye Adaption Range", &logLuminanceRange, 0.01f, 0.0f, 20.0f);
+        ImGui::DragFloat("Eye Adaption Update Time", &lumaUpdateTime, 0.01f, 0.0f, 4.0f);
+        ImGui::DragFloat("Eye Adaption Brightening Factor", &eyeAdaptionBrightnessFactor, 0.01f, 1.0f, 20.0f);
+
+        view->setMinLogLuminance(minLogLuminance);
+        view->setLogLuminanceRange(logLuminanceRange);
+        view->setLuminanceUpdateTime(lumaUpdateTime);
+        view->setEyeAdaptionBrightnessFactor(eyeAdaptionBrightnessFactor);
+    }
 
     view->setToneMappingMode(tonemapMode);
     view->setTonemapperValues(tonemapExposure, tonemapWhite, tonemapBlack, tonemapSaturation, tonemapGamma);
-    view->setMinLogLuminance(minLogLuminance);
-    view->setLogLuminanceRange(logLuminanceRange);
-    view->setLuminanceUpdateTime(lumaUpdateTime);
+    view->setEyeAdaptionEnabledFlag(eyeAdaption);
     ImGui::End();
 }
 
