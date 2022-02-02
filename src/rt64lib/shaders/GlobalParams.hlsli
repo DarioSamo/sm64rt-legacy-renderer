@@ -53,6 +53,7 @@ cbuffer gParams : register(b0) {
     uint processingFlags;
     uint volumetricMaxSamples;
     float volumetricIntensity;
+    float eyeAdaptionBrightnessFactor;
 }
 
 #define VISUALIZATION_MODE_FINAL					0

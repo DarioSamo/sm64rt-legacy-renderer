@@ -167,7 +167,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     if ((processingFlags & 0x2) == 0) {
         avgLuma = 1.0f;
     }
-    color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure / max((avgLuma + EPSILON), 0.1));
+    color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure / max((avgLuma + EPSILON), 1.0 / eyeAdaptionBrightnessFactor));
     
     // Post-tonemapping
     if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
