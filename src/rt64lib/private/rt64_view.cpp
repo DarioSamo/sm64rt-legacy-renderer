@@ -1475,7 +1475,7 @@ void RT64::View::createLumaAvgParamsBuffer() {
 
 void RT64::View::updateLumaAvgParamsBuffer() {
 	LumaAvgBuffer buffer = {};
-	buffer.pixelCount = (rtWidth) * (rtHeight);
+	buffer.pixelCount = (rtWidth / 8) * (rtHeight / 8);
 	buffer.minLogLuminance = minLogLuminance;
 	buffer.logLuminanceRange = logLuminanceRange;
 	buffer.timeDelta = deltaTime;
