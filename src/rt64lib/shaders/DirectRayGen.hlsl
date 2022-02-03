@@ -41,7 +41,7 @@ void DirectRayGen() {
 		float4 prevDirectAccum = gPrevDirectLightAccum[prevIndex];
 		float depth = gDepth[launchIndex];
 		float weightDepth = abs(depth - prevDepth) / 0.01f;
-		float weightNormal = pow(max(0.0f, dot(prevNormal, normal)), WeightNormalExponent);
+		float weightNormal = pow(saturate(dot(prevNormal, normal)), WeightNormalExponent);
 		float historyWeight = exp(-weightDepth) * weightNormal;
 		newDirect = prevDirectAccum.rgb;
 		historyLength = prevDirectAccum.a * historyWeight;
@@ -58,9 +58,9 @@ void DirectRayGen() {
 
 	// Add the eye light.
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
-    float eyeLightLambertFactor = max(dot(normal.xyz, -(rayDirection + random)), 0.0f);
+    float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection + random)));
     float3 eyeLightReflected = reflect(rayDirection + random, normal.xyz);
-    float3 eyeLightSpecularFactor = specular.rgb * pow(max(dot(eyeLightReflected, -(rayDirection + random)), 0.0f), specularExponent);
+    float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection + random))), specularExponent);
 	resDirect += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 
 	// Accumulate.

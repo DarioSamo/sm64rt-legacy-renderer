@@ -75,8 +75,8 @@ RT64::View::View(Scene *scene) {
 
 	// Tonemapper parameters
 	globalParamsBufferData.tonemapMode = 4;
-	globalParamsBufferData.tonemapExposure = 2.0f;
-	globalParamsBufferData.tonemapWhite = 0.75f;
+	globalParamsBufferData.tonemapExposure = 1.0f;
+	globalParamsBufferData.tonemapWhite = 0.875f;
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
@@ -1717,6 +1717,8 @@ void RT64::View::render() {
 		return;
 	}
 	std::chrono::time_point t1 = std::chrono::high_resolution_clock::now();
+	int screenWidth = scene->getDevice()->getWidth();
+	int screenHeight = scene->getDevice()->getHeight();
 
 	auto viewport = scene->getDevice()->getD3D12Viewport();
 	auto scissorRect = scene->getDevice()->getD3D12ScissorRect();
@@ -2239,8 +2241,8 @@ void RT64::View::render() {
 		{
 			// Execute the compute shader for the downscaled HDR image.
 			static const int threadGroupWorkRegionDim = 8;
-			int dispatchX = scene->getDevice()->getWidth() / 8 / threadGroupWorkRegionDim;
-			int dispatchY = scene->getDevice()->getHeight() / 8 / threadGroupWorkRegionDim;
+			int dispatchX = screenWidth / 8 / threadGroupWorkRegionDim;
+			int dispatchY = screenHeight / 8 / threadGroupWorkRegionDim;
 			d3dCommandList->SetPipelineState(scene->getDevice()->getBicubicScalingPipelineState());
 			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getBicubicScalingRootSignature());
 			d3dCommandList->SetDescriptorHeaps(1, &bloomHeap[0]);
@@ -2252,17 +2254,15 @@ void RT64::View::render() {
 			d3dCommandList->ResourceBarrier(1, &afterDownscaleBarriers);
 		}
 
-
-		// TO DO: Find a better guassian blur shader for bloom
 		/*
 		RT64_LOG_PRINTF("Do the bloom blurring shader");
 		{
-			for (int i = 0; i < 8; i++)
+			for (int i = 0; i < 256; i++)
 			{
 				const int ThreadGroupWorkCount = 8;
 				int dispatchRes[2] = {
-					rtWidth / 8 / ThreadGroupWorkCount + (((rtWidth / 8) % ThreadGroupWorkCount) ? 1 : 0) ,
-					rtHeight / 8 / ThreadGroupWorkCount + (((rtHeight / 8) % ThreadGroupWorkCount) ? 1 : 0)
+					screenWidth / 8 / ThreadGroupWorkCount + (((screenWidth / 8) % ThreadGroupWorkCount) ? 1 : 0) ,
+					screenHeight / 8 / ThreadGroupWorkCount + (((screenHeight / 8) % ThreadGroupWorkCount) ? 1 : 0)
 				};
 				d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
 				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
@@ -2282,8 +2282,8 @@ void RT64::View::render() {
 		{
 			// Execute the compute shader for the luminance histogram.
 			static const int threadGroupWorkRegionDim = 8;
-			int dispatchX = scene->getDevice()->getWidth() / threadGroupWorkRegionDim;
-			int dispatchY = scene->getDevice()->getHeight() / threadGroupWorkRegionDim;
+			int dispatchX = screenWidth / 8 / threadGroupWorkRegionDim;
+			int dispatchY = screenWidth / 8 / threadGroupWorkRegionDim;
 			d3dCommandList->SetPipelineState(scene->getDevice()->getLuminanceHistogramPipelineState());
 			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getLuminanceHistogramRootSignature());
 			d3dCommandList->SetDescriptorHeaps(1, &lumaHeap);

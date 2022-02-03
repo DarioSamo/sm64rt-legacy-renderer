@@ -40,7 +40,13 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         result = BlendAOverB(fog, result);
         return result;
     }
-    else {
-        return float4(diffuse.rgb, 1.0f);
+    else
+    {
+        float4 volumetrics = BicubicFilter(gVolumetrics, gSampler, uv, resolution.xy);
+        float4 fog = gFog.SampleLevel(gSampler, uv, 0);
+        fog.rgb += BlendAOverB(fog, volumetrics).rgb;
+        fog.a *= volumetrics.a;
+        float4 result = float4(diffuse.rgb, 1.f);
+        return BlendAOverB(fog, result);
     }
 }

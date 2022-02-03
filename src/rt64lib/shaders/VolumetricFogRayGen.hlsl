@@ -18,22 +18,45 @@
 #include "Fog.hlsli"
 #include "BgSky.hlsli"
 
+float4 CalculateVolumetrics(float3 rayOrigin, float3 rayDirection, float3 vertexDistance, uint2 launchIndex, uint lightGroupMaskBits)
+{
+    float4 resColor = float4(0, 0, 0, 0);
+    float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
+	
+	// Get the light level at each sample
+    for (int shaftSample = 0; shaftSample < volumetricMaxSamples; shaftSample++)
+    {
+        float3 samplePosition = rayOrigin + rayDirection * vertexDistance * (float(shaftSample) / float(volumetricMaxSamples));
+        resColor.rgb += ComputeLightAtPointRandom(launchIndex, samplePosition, maxLights, lightGroupMaskBits, true);
+    }
+    resColor.rgb /= volumetricMaxSamples;
+    resColor.rgb *= volumetricIntensity;
+    resColor.a = RGBtoLuminance(resColor.rgb);
+	
+    return resColor;
+}
+
 [shader("raygeneration")]
 void VolumetricFogRayGen()
 {
-	uint2 launchIndex = DispatchRaysIndex().xy;
-    if ((processingFlags & 0x1)  == 0) {
-        gVolumetrics[launchIndex] = float4(0, 0, 0, 1);;
+    uint2 launchIndex = DispatchRaysIndex().xy;
+    int instanceId = gInstanceId[launchIndex * 4];
+    if ((processingFlags & 0x1) == 0) {
+        gVolumetrics[launchIndex] = float4(0, 0, 0, 1);
 		return;
 	}
 	
 	uint2 launchDims = DispatchRaysDimensions().xy;
-	int instanceId = gInstanceId[launchIndex * 4];
 	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
 	float3 nonNormRayDir = d.x * cameraU.xyz + d.y * cameraV.xyz + cameraW.xyz;
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
-	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
+    float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
+	
+    if (instanceId < 0) {
+        gVolumetrics[launchIndex] = CalculateVolumetrics(rayOrigin, rayDirection, RAY_MAX_DISTANCE / 500.0, launchIndex, 0x0000FFFF);
+        return;
+    }
 	
 	// Compute ray differentials.
 	RayDiff rayDiff;
@@ -60,18 +83,7 @@ void VolumetricFogRayGen()
 	{
 		uint hitBufferIndex = getHitBufferIndex(0, launchIndex, launchDims);
 		float vertexDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
-		float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
 	
-		// Get the light level at each sample
-		for (int shaftSample = 1; shaftSample <= volumetricMaxSamples; shaftSample++)
-		{
-			float3 samplePosition = rayOrigin + rayDirection * vertexDistance * (float(shaftSample) / float(volumetricMaxSamples));
-			resColor.rgb += ComputeLightAtPointRandom(launchIndex, samplePosition, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, true); // Groups 8-16 aren't in the volumetrics
-		}
-		resColor.rgb /= volumetricMaxSamples;
-		resColor.rgb *= volumetricIntensity;
-		resColor.a = RGBtoLuminance(resColor.rgb);
-	
-        gVolumetrics[launchIndex] = resColor;
+        gVolumetrics[launchIndex] = CalculateVolumetrics(rayOrigin, rayDirection, vertexDistance, launchIndex, instanceMaterials[instanceId].lightGroupMaskBits & 0x0000FFFF); // Groups 8-16 aren't in the volumetrics
     }
 }

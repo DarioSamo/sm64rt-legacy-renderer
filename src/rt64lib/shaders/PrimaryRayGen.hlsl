@@ -38,6 +38,7 @@ void PrimaryRayGen() {
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
     float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
+    bool lightShafts = (processingFlags & 0x1) == 1;
 
 	// Initialize the buffers.
 	gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
@@ -52,6 +53,15 @@ void PrimaryRayGen() {
     float3 bgColor = SampleBackground2D(screenUV);
     float4 skyColor = SampleSky2D(screenUV);
     bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
+	
+	// Calculate fog in background
+	{ 
+        float4 fogColor = SceneFogFromOrigin(bgPosition, rayOrigin, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
+        if (lightShafts) {
+            fogColor.a *= 1.50f;
+        }
+        gFog[launchIndex] = fogColor;
+    }
 
 	// Compute ray differentials.
 	RayDiff rayDiff;
@@ -90,7 +100,6 @@ void PrimaryRayGen() {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
 			bool usesLighting = (instanceMaterials[instanceId].lightGroupMaskBits > 0);
 			bool applyLighting = usesLighting && (hitColor.a > APPLY_LIGHTS_MINIMUM_ALPHA);
-            bool lightShafts = (processingFlags & 0x1) == 1;
             float vertexDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
             float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
@@ -125,7 +134,6 @@ void PrimaryRayGen() {
             {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
                 float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
-                gReflection[launchIndex].rgb = hitColor.rgb;				// For a planned metalness implementation
                 gReflection[launchIndex].a = fresnelAmount * alphaContrib;
 				alphaContrib *= (1.0f - fresnelAmount);
 				storeHit = true;

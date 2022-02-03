@@ -167,7 +167,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     if ((processingFlags & 0x2) == 0) {
         avgLuma = 1.0f;
     }
-    color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure / max((avgLuma + EPSILON), 1.0 / eyeAdaptionBrightnessFactor));
+    float exposure = tonemapExposure / max((avgLuma + EPSILON), 1.0 / eyeAdaptionBrightnessFactor);
+    color.rgb = Tonemapper(max(color.rgb, 0.0f), exposure);
     
     // Post-tonemapping
     if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
@@ -176,6 +177,9 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         //color.xyz = ModRGBWithHSL(color.xyz, float3(0.0, tonemapSaturation - 1.0f, 0.0));
         color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
         color.rgb = pow(color.rgb, tonemapGamma);
+        float4 bloom = Bloom(exposure, 0.250, 1.0, uv);
+        color.rgb += bloom.rgb * bloom.a;
+
     }
     
     /*
