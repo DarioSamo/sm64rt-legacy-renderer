@@ -372,6 +372,7 @@ void RT64::Inspector::renderMaterialInspector() {
         pushVector3("Specular color", RT64_ATTRIBUTE_SPECULAR_COLOR, &material->specularColor, &material->enabledAttributes, 0.01f, 0.0f, 100.0f);
         pushFloat("Specular exponent", RT64_ATTRIBUTE_SPECULAR_EXPONENT, &material->specularExponent, &material->enabledAttributes, 0.1f, 0.0f, 1000.0f);
         pushFloat("Roughness factor", RT64_ATTRIBUTE_ROUGHNESS_FACTOR, &material->roughnessFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
+        pushFloat("Metallic factor", RT64_ATTRIBUTE_METALLIC_FACTOR, &material->metallicFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Solid alpha multiplier", RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER, &material->solidAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushFloat("Shadow alpha multiplier", RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER, &material->shadowAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushFloat("Depth bias", RT64_ATTRIBUTE_DEPTH_BIAS, &material->depthBias, &material->enabledAttributes, 1.0f, -1000.0f, 1000.0f);

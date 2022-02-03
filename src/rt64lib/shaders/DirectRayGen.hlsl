@@ -47,20 +47,15 @@ void DirectRayGen() {
 		historyLength = prevDirectAccum.a * historyWeight;
     }
 	
-	// Preliminary Roughness Implementation
-    float roughness = instanceMaterials[instanceId].roughnessFactor;
-    float3 random = float3(0.0f, 0.0f, 0.0f);
-    if (roughness >= EPSILON) {
-        random = (getBlueNoise(launchIndex, frameCount) - 0.5f) * roughness;
-    }
-    float3 resDirect = ComputeLightsRandom(launchIndex, rayDirection + random, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+    float3 resDirect = lightMatrix._11_12_13 + lightMatrix._21_22_23;
 	resDirect += instanceMaterials[instanceId].selfLight;
 
 	// Add the eye light.
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
-    float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection + random)));
-    float3 eyeLightReflected = reflect(rayDirection + random, normal.xyz);
-    float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection + random))), specularExponent);
+    float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
+    float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
+    float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection))), specularExponent);
 	resDirect += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 
 	// Accumulate.

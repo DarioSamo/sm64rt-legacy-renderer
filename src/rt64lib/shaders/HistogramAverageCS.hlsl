@@ -42,10 +42,7 @@ void mainCS(uint groupIndex : SV_GroupIndex)
 		float weightedLogAverage = (HistogramShared[0].x / max((float) pixelCount - countForThisBin, 1.0)) - 1.0;
         float weightedAverageLuminance = exp2(((weightedLogAverage / 62.0) * logLuminanceRange) + minLogLuminance);
 		float luminanceLastFrame = LuminanceOutput[uint2(0, 0)];
-		if (isnan(luminanceLastFrame) || isinf(luminanceLastFrame)) {
-			luminanceLastFrame = 0.25f;
-		}
 		float adaptedLuminance = luminanceLastFrame + (weightedAverageLuminance - luminanceLastFrame) * (1 - exp(-timeDelta * tau));
-        LuminanceOutput[uint2(0, 0)] = adaptedLuminance;
+        LuminanceOutput[uint2(0, 0)] = weightedAverageLuminance;
     }
 }

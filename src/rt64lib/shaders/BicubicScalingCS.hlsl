@@ -22,5 +22,7 @@ SamplerState gSampler : register(s0);
 
 [numthreads(BLOCK_SIZE, BLOCK_SIZE, 1)]
 void mainCS(uint2 coord : SV_DispatchThreadID) {
-    gOutput[coord] = BicubicFilter(gInput, gSampler, float2(coord) / float2(OutputResolution), OutputResolution);
+    if (coord.x < OutputResolution.x && coord.y < OutputResolution.y) {
+        gOutput[coord] = BicubicFilter(gInput, gSampler, float2(coord) / float2(OutputResolution), OutputResolution);
+    }
 }

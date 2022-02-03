@@ -268,9 +268,11 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/ds_bob/ds_bob.obj", nullptr, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/hires_sphere.obj", nullptr, true);
 	assert(loaded);
 	
+	float size = 4;
+	float yOffset = 0;
 	for (size_t i = 0; i < shapes.size(); i++) {
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
@@ -278,7 +280,7 @@ void setupRT64Scene() {
 			for (size_t v = 0; v < fnum; v++) {
 				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
 				VERTEX vertex;
-				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0] * 10, attrib.vertices[3 * idx.vertex_index + 1] * 10, attrib.vertices[3 * idx.vertex_index + 2] * 10, 1.0f };
+				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0] * size, attrib.vertices[3 * idx.vertex_index + 1] * size + yOffset, attrib.vertices[3 * idx.vertex_index + 2] * size, 1.0f };
 				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
 				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
 				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };

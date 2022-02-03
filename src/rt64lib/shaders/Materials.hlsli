@@ -17,7 +17,8 @@ struct MaterialProperties {
 	float refractionFactor;
 	float3 specularColor;
 	float specularExponent;
-    float roughnessFactor;					// A new material field :O
+    float roughnessFactor;
+    float metallicFactor;
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
 	float depthBias;

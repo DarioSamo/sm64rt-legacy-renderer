@@ -16,6 +16,21 @@
 #include "Lights.hlsli"
 #include "Fog.hlsli"
 
+float3 microfacetGGX(uint2 pixelPos, uint frameCount, float roughness, float3 normal)
+{
+    float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
+    float3 binormal = getPerpendicularVector(normal);
+    float3 tangent = cross(binormal, normal);
+	
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float cosThetaH = sqrt(max(0.0f, (1.0f - randVal.x) / ((a2 - 1.0f) * randVal.x + 1)));
+    float sinThetaH = sqrt(max(0.0f, 1.0f - cosThetaH * cosThetaH));
+    float phiH = randVal.y * 3.14159265f * 2.0f;
+
+    return tangent * (sinThetaH * cos(phiH)) + binormal * (sinThetaH * sin(phiH)) + normal * cosThetaH;
+}
+
 float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
 	float4 clipSpace = mul(viewProj, float4(worldPos, 1.0f));
 	float3 NDC = clipSpace.xyz / clipSpace.w;
@@ -90,7 +105,7 @@ void PrimaryRayGen() {
 	bool resTransparentLightComputed = false;
 	float4 resColor = float4(0, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
-	float resDepth = 1.0f;
+    float resDepth = 1.0f;
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
@@ -102,11 +117,16 @@ void PrimaryRayGen() {
 			bool applyLighting = usesLighting && (hitColor.a > APPLY_LIGHTS_MINIMUM_ALPHA);
             float vertexDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
             float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
-			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+            float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
 			float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
-			float refractionFactor = instanceMaterials[instanceId].refractionFactor;
+            float refractionFactor = instanceMaterials[instanceId].refractionFactor;
+            float roughnessFactor = instanceMaterials[instanceId].roughnessFactor / 3.3750f;
+            float metalness = instanceMaterials[instanceId].metallicFactor;
+            if (roughnessFactor >= EPSILON) {
+                vertexNormal = microfacetGGX(launchIndex, frameCount, roughnessFactor, vertexNormal);
+            }
 			   
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			bool storeHit = false;
@@ -134,10 +154,11 @@ void PrimaryRayGen() {
             {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
                 float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
+				
                 gReflection[launchIndex].a = fresnelAmount * alphaContrib;
-				alphaContrib *= (1.0f - fresnelAmount);
-				storeHit = true;
-			}
+                alphaContrib *= (1.0f - fresnelAmount * (1.0f - metalness));
+                storeHit = true;
+            }
 
 			// Add the color to the hit color or the transparent buffer if the lighting is disabled.
 			float3 resColorAdd = hitColor.rgb * alphaContrib;
@@ -151,7 +172,8 @@ void PrimaryRayGen() {
 			// has the same problem.
 			else if (usesLighting) {
 				if (!resTransparentLightComputed) {
-                    resTransparentLight = ComputeLightsRandom(launchIndex, rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+                    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+                    resTransparentLight = lightMatrix._11_12_13 + lightMatrix._21_22_23;
 					resTransparentLightComputed = true;
 				}
 
@@ -184,7 +206,7 @@ void PrimaryRayGen() {
 				resInstanceId = instanceId;
 				resFlow = (curPos - prevPos) * resolution.xy;
 				resDepth = projPos.z / projPos.w;
-			}
+            }
 		}
 
 		if (resColor.a <= EPSILON) {

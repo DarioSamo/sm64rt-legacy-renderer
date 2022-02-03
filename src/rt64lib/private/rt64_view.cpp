@@ -288,8 +288,8 @@ void RT64::View::createOutputBuffers() {
 
 	rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
-	resDesc.Width /= 8;
-	resDesc.Height /= 8;
+	resDesc.Width = rtWidth / 8;
+	resDesc.Height = rtHeight / 8;
 	rtOutputDownscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtBloom = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
@@ -1128,20 +1128,8 @@ void RT64::View::createShaderResourceHeap() {
 		textureSRVDesc.Texture2D.MipLevels = 1;
 		textureSRVDesc.Texture2D.MostDetailedMip = 0;
 		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		ID3D12Resource* inputResource = nullptr;
-
-		if (rtSharpenActive) {
-			inputResource = rtOutputSharpened.Get();
-		}
-		else if (rtUpscaleActive) {
-			inputResource = rtOutputUpscaled.Get();
-		}
-		else {
-			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
-		}
-
 		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for output image.
@@ -1232,39 +1220,37 @@ void RT64::View::createShaderResourceHeap() {
 		}
 	}
 
+	// Create the heap for the luminence averages.
 	{
-		// Create the heap for the luminence averages.
-		{
-			if (lumaAvgHeap == nullptr) {
-				uint32_t handleCount = 3;
-				lumaAvgHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
-			}
-
-			D3D12_CPU_DESCRIPTOR_HANDLE handle = lumaAvgHeap->GetCPUDescriptorHandleForHeapStart();
-
-			// UAV for input buffer
-			D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-			uavDesc.Format = DXGI_FORMAT_R32_UINT;
-			uavDesc.Buffer.FirstElement = 0;
-			uavDesc.Buffer.NumElements = 64;
-			scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLumaHistogram.Get(), nullptr, &uavDesc, handle);
-			handle.ptr += handleIncrement;
-
-			// UAV for output float.
-			D3D12_UNORDERED_ACCESS_VIEW_DESC textureUAVDesc = {};
-			textureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-			textureUAVDesc.Format = DXGI_FORMAT_R32_FLOAT;
-			scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLumaAvg.Get(), nullptr, &textureUAVDesc, handle);
-			handle.ptr += handleIncrement;
-
-			// CBV for sharpen parameters.
-			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-			cbvDesc.BufferLocation = lumaAvgParamBufferResource.Get()->GetGPUVirtualAddress();
-			cbvDesc.SizeInBytes = lumaAvgParamBufferSize;
-			scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
-			handle.ptr += handleIncrement;
+		if (lumaAvgHeap == nullptr) {
+			uint32_t handleCount = 3;
+			lumaAvgHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = lumaAvgHeap->GetCPUDescriptorHandleForHeapStart();
+
+		// UAV for input buffer
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		uavDesc.Format = DXGI_FORMAT_R32_UINT;
+		uavDesc.Buffer.FirstElement = 0;
+		uavDesc.Buffer.NumElements = 64;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLumaHistogram.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for output float.
+		D3D12_UNORDERED_ACCESS_VIEW_DESC textureUAVDesc = {};
+		textureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		textureUAVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLumaAvg.Get(), nullptr, &textureUAVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for sharpen parameters.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = lumaAvgParamBufferResource.Get()->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = lumaAvgParamBufferSize;
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
 	}
 }
 
@@ -1463,8 +1449,8 @@ void RT64::View::createLumaParamsBuffer() {
 
 void RT64::View::updateLumaParamsBuffer() {
 	LumaBuffer buffer = {};
-	buffer.inputWidth = rtWidth;
-	buffer.inputHeight = rtHeight;
+	buffer.inputWidth = rtWidth / 8;
+	buffer.inputHeight = rtHeight / 8;
 	buffer.minLogLuminance = minLogLuminance;
 	buffer.oneOverLogLuminanceRange = 1.0f / logLuminanceRange;
 
@@ -1489,7 +1475,7 @@ void RT64::View::createLumaAvgParamsBuffer() {
 
 void RT64::View::updateLumaAvgParamsBuffer() {
 	LumaAvgBuffer buffer = {};
-	buffer.pixelCount = rtWidth * rtHeight;
+	buffer.pixelCount = (rtWidth) * (rtHeight);
 	buffer.minLogLuminance = minLogLuminance;
 	buffer.logLuminanceRange = logLuminanceRange;
 	buffer.timeDelta = deltaTime;
@@ -1549,8 +1535,8 @@ void RT64::View::createBloomBlurParamsBuffer() {
 
 void RT64::View::updateBloomBlurParamsBuffer() {
 	FilterCB cb;
-	cb.TextureSize[0] = scene->getDevice()->getWidth() / 8;
-	cb.TextureSize[1] = scene->getDevice()->getHeight() / 8;
+	cb.TextureSize[0] = rtWidth / 8;
+	cb.TextureSize[1] = rtHeight / 8;
 	cb.TexelSize.x = 1.0f / cb.TextureSize[0];
 	cb.TexelSize.y = 1.0f / cb.TextureSize[1];
 
@@ -1572,10 +1558,10 @@ void RT64::View::createHDRDownsampleParamsBuffer() {
 
 void RT64::View::updateHDRDownsampleParamsBuffer() {
 	BicubicCB cb;
-	cb.InputResolution[0] = scene->getDevice()->getWidth();
-	cb.InputResolution[1] = scene->getDevice()->getHeight();
-	cb.OutputResolution[0] = scene->getDevice()->getWidth() / 8;
-	cb.OutputResolution[1] = scene->getDevice()->getHeight() / 8;
+	cb.InputResolution[0] = rtWidth;
+	cb.InputResolution[1] = rtHeight;
+	cb.OutputResolution[0] = rtWidth / 8;
+	cb.OutputResolution[1] = rtHeight / 8;
 
 	uint8_t* pData;
 	D3D12_CHECK(hdrDownscaleParamBufferResource.Get()->Map(0, nullptr, (void**)&pData));
@@ -2146,7 +2132,6 @@ void RT64::View::render() {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredDirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtBloom.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
@@ -2241,8 +2226,8 @@ void RT64::View::render() {
 		{
 			// Execute the compute shader for the downscaled HDR image.
 			static const int threadGroupWorkRegionDim = 8;
-			int dispatchX = screenWidth / 8 / threadGroupWorkRegionDim;
-			int dispatchY = screenHeight / 8 / threadGroupWorkRegionDim;
+			int dispatchX = rtWidth / 8 / threadGroupWorkRegionDim + (((rtWidth / 8) % threadGroupWorkRegionDim) ? 1 : 0);
+			int dispatchY = rtHeight / 8 / threadGroupWorkRegionDim + (((rtHeight / 8) % threadGroupWorkRegionDim) ? 1 : 0);
 			d3dCommandList->SetPipelineState(scene->getDevice()->getBicubicScalingPipelineState());
 			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getBicubicScalingRootSignature());
 			d3dCommandList->SetDescriptorHeaps(1, &bloomHeap[0]);
@@ -2282,8 +2267,8 @@ void RT64::View::render() {
 		{
 			// Execute the compute shader for the luminance histogram.
 			static const int threadGroupWorkRegionDim = 8;
-			int dispatchX = screenWidth / 8 / threadGroupWorkRegionDim;
-			int dispatchY = screenWidth / 8 / threadGroupWorkRegionDim;
+			int dispatchX = rtWidth / 8 / threadGroupWorkRegionDim + (((rtWidth / 8) % threadGroupWorkRegionDim) ? 1 : 0);
+			int dispatchY = rtHeight / 8 / threadGroupWorkRegionDim + (((rtHeight / 8) % threadGroupWorkRegionDim) ? 1 : 0);
 			d3dCommandList->SetPipelineState(scene->getDevice()->getLuminanceHistogramPipelineState());
 			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getLuminanceHistogramRootSignature());
 			d3dCommandList->SetDescriptorHeaps(1, &lumaHeap);
@@ -2297,14 +2282,11 @@ void RT64::View::render() {
 			// Execute the compute shader for the luminance histogram average.
 			std::vector<ID3D12DescriptorHeap*> vLumaAvgHeap = { lumaAvgHeap };
 			static const int threadGroupWorkRegionDim = 8;
-			int dispatchX = threadGroupWorkRegionDim;
-			int dispatchY = threadGroupWorkRegionDim;
 			d3dCommandList->SetPipelineState(scene->getDevice()->getHistogramAveragePipelineState());
 			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getHistogramAverageRootSignature());
 			d3dCommandList->SetDescriptorHeaps(1, &lumaAvgHeap);
 			d3dCommandList->SetComputeRootDescriptorTable(0, lumaAvgHeap->GetGPUDescriptorHandleForHeapStart());
-			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
-			scene->getDevice()->waitForGPU();
+			d3dCommandList->Dispatch(threadGroupWorkRegionDim, threadGroupWorkRegionDim, 1);
 		}
 
 		RT64_LOG_PRINTF("Do the histogram clear shader");
@@ -2312,13 +2294,11 @@ void RT64::View::render() {
 			// Execute the compute shader for clearing the luminance histogram.
 			std::vector<ID3D12DescriptorHeap*> vLumaAvgHeap = { lumaAvgHeap };
 			static const int threadGroupWorkRegionDim = 8;
-			int dispatchX = threadGroupWorkRegionDim;
-			int dispatchY = threadGroupWorkRegionDim;
 			d3dCommandList->SetPipelineState(scene->getDevice()->getHistogramClearPipelineState());
 			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getHistogramClearRootSignature());
 			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(vLumaAvgHeap.size()), vLumaAvgHeap.data());
 			d3dCommandList->SetComputeRootDescriptorTable(0, lumaAvgHeap->GetGPUDescriptorHandleForHeapStart());
-			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
+			d3dCommandList->Dispatch(threadGroupWorkRegionDim, threadGroupWorkRegionDim, 1);
 		}
 
 		// Set the final render target.

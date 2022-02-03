@@ -64,7 +64,7 @@ float CalculateLightIntensitySimple(uint l, float3 position, float3 normal, floa
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, const bool checkShadows) {
+float2x3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, const bool checkShadows) {
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
 	float shadowRayBias = instanceMaterials[instanceId].shadowRayBias;
@@ -109,11 +109,17 @@ float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uin
 		samples--;
 	}
 
-	return (SceneLights[lightIndex].diffuseColor * lLambertFactor + SceneLights[lightIndex].specularColor * lSpecularityFactor) * lShadowFactor;
+    float2x3 resColor = 
+	{	SceneLights[lightIndex].diffuseColor * lLambertFactor,
+		SceneLights[lightIndex].specularColor * lSpecularityFactor	};
+    return resColor * lShadowFactor;
 }
 
-float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLightCount, uint lightGroupMaskBits, float ignoreNormalFactor, const bool checkShadows) {
-	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
+float2x3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLightCount, uint lightGroupMaskBits, float ignoreNormalFactor, const bool checkShadows) {
+    float2x3 resultLight = 
+	{	0.0, 0.0, 0.0,
+		0.0, 0.0, 0.0	};
+	
 	if (lightGroupMaskBits > 0) {
 		uint sLightCount = 0;
 		uint gLightCount, gLightStride;
