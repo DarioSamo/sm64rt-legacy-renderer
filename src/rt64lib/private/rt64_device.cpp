@@ -667,7 +667,8 @@ void RT64::Device::loadAssets() {
 			{ 6, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6 },
 			{ 7, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7 },
 			{ 8, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8 },
-			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 9 }
+			{ 9, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 9 },
+			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 10 }
 		});
 
 		// Fill out the sampler.
@@ -756,6 +757,7 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gFilteredDirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredDirectLight) },
 			{ UAV_INDEX(gFilteredIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredIndirectLight) },
 			{ UAV_INDEX(gFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFog) },
+			{ UAV_INDEX(gSpecularLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gSpecularLightAccum) },
 			{ UAV_INDEX(gReflection), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gReflection) },
 			{ UAV_INDEX(gRefraction), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gRefraction) },
 			{ UAV_INDEX(gTransparent), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gTransparent) },
@@ -1177,6 +1179,8 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ UAV_INDEX(gFilteredDirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredDirectLight) },
 		{ UAV_INDEX(gFilteredIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredIndirectLight) },
 		{ UAV_INDEX(gFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFog) },
+		{ UAV_INDEX(gSpecularLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gSpecularLightAccum) },
+		{ UAV_INDEX(gPrevSpecularLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gPrevSpecularLight) },
 		{ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },

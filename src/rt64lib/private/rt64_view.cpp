@@ -262,6 +262,8 @@ void RT64::View::createOutputBuffers() {
 	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtSpecularLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtSpecularLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 
 	resDesc.Width = rtWidth / 4;
 	resDesc.Height= rtHeight / 4;
@@ -361,6 +363,8 @@ void RT64::View::createOutputBuffers() {
 	rtLumaAvg.SetName(L"rtLumaAvg");
 	rtOutputDownscaled.SetName(L"rtOutputDownscaled");
 	rtBloom.SetName(L"rtBloom");
+	rtSpecularLightAccum[0].SetName(L"rtSpecularLightAccum[0]");
+	rtSpecularLightAccum[1].SetName(L"rtSpecularLightAccum[1]");
 #endif
 
 	// Create the RTVs.
@@ -409,6 +413,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtTransparent.Release();
 	rtVolumetrics.Release();
 	rtFog.Release();
+	rtSpecularLightAccum[0].Release();
+	rtSpecularLightAccum[1].Release();
 	rtFlow.Release();
 	rtDepth[0].Release();
 	rtDepth[1].Release();
@@ -650,8 +656,16 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFilteredIndirectLight[1].Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// UAV for filtered volumetric fog.
+		// UAV for filtered scene fog.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFog.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for specular light buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtSpecularLightAccum[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for previous specular light buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDirectLightAccum[rtSwap ? 0 : 1].Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for hit distance and world flow buffer.
@@ -813,7 +827,7 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
-			uint32_t handleCount = 10;		// Imagine not realizing this value needed to be increased by 1 for fuckin' hours lmao
+			uint32_t handleCount = 11;		// Imagine not realizing this value needed to be increased by 1 for fuckin' hours lmao
 			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
@@ -865,9 +879,14 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtTransparent.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// SRV for transparent buffer.
+		// SRV for fog buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFog.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for specular light buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtSpecularLightAccum[rtSwap ? 0 : 1].Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.

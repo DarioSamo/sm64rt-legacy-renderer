@@ -24,5 +24,7 @@ RWTexture2D<float4> gPrevIndirectLightAccum : register(u18);
 RWTexture2D<float4> gFilteredDirectLight : register(u19);
 RWTexture2D<float4> gFilteredIndirectLight : register(u20);
 RWTexture2D<float4> gFog : register(u21);
+RWTexture2D<float4> gSpecularLightAccum : register(u22);
+RWTexture2D<float4> gPrevSpecularLight : register(u23);
 
 Texture2D<float4> gBackground : register(t1);

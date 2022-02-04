@@ -2,6 +2,7 @@
 // RT64
 //
 
+#include "Color.hlsli"
 #include "Constants.hlsli"
 #include "GlobalBuffers.hlsli"
 #include "GlobalParams.hlsli"
@@ -17,6 +18,7 @@ void DirectRayGen() {
 	int instanceId = gInstanceId[launchIndex];
 	if (instanceId < 0) {
 		gDirectLightAccum[launchIndex] = float4(1.0f, 1.0f, 1.0f, 0.0f);
+		gSpecularLightAccum[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 		return;
 	}
 
@@ -29,6 +31,7 @@ void DirectRayGen() {
 	float4 specular = gShadingSpecular[launchIndex];
 
 	float3 newDirect = float3(0.0f, 0.0f, 0.0f);
+	float3 newSpecular = float3(0.0f, 0.0f, 0.0f);
 	float historyLength = 0.0f;
 
 	// Reproject previous direct.
@@ -39,28 +42,34 @@ void DirectRayGen() {
 		float prevDepth = gPrevDepth[prevIndex];
 		float3 prevNormal = gPrevNormal[prevIndex].xyz;
 		float4 prevDirectAccum = gPrevDirectLightAccum[prevIndex];
+		float4 prevSpecularAccum = gPrevSpecularLight[prevIndex];
 		float depth = gDepth[launchIndex];
 		float weightDepth = abs(depth - prevDepth) / 0.01f;
 		float weightNormal = pow(saturate(dot(prevNormal, normal)), WeightNormalExponent);
 		float historyWeight = exp(-weightDepth) * weightNormal;
 		newDirect = prevDirectAccum.rgb;
-		historyLength = prevDirectAccum.a * historyWeight;
+        newSpecular = prevSpecularAccum.rgb;
+        historyLength = saturate(prevDirectAccum.a + prevSpecularAccum.a) * historyWeight;
     }
 	
     float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
-    float3 resDirect = lightMatrix._11_12_13 + lightMatrix._21_22_23;
+    float3 resDirect = lightMatrix._11_12_13;
+    float3 resSpecular = lightMatrix._21_22_23;
 	resDirect += instanceMaterials[instanceId].selfLight;
+    resSpecular *= RGBtoLuminance(resDirect);
 
 	// Add the eye light.
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
     float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
     float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
     float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection))), specularExponent);
-	resDirect += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
+    resSpecular += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 
 	// Accumulate.
 	historyLength = min(historyLength + 1.0f, 64.0f);
 	newDirect = lerp(newDirect.rgb, resDirect, 1.0f / historyLength);
+    newSpecular = lerp(newSpecular.rgb, resSpecular, 1.0f / historyLength);
 
 	gDirectLightAccum[launchIndex] = float4(newDirect, historyLength);
+    gSpecularLightAccum[launchIndex] = float4(newSpecular, historyLength);
 }

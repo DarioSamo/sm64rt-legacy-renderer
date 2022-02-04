@@ -79,6 +79,10 @@ float4 getDirectLightFiltered(float2 pos) {
     return float4(gFilteredDirectLight[pos].rgb, 1.0f);
 }
 
+float4 getSpecularLightRaw(float2 pos) {
+    return float4(gSpecularLightAccum[pos].rgb, 1.0f);
+}
+
 float4 getIndirectLightRaw(float2 pos) {
     return float4(gIndirectLightAccum[pos].rgb, 1.0f);
 }
@@ -143,6 +147,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getVolumetrics(uv * resolution.xy, false);
     case VISUALIZATION_MODE_VOLUMETRICS_FILTERED:
         return getVolumetrics(uv * resolution.xy, true);
+    case VISUALIZATION_MODE_SPECULAR_LIGHT_RAW:
+        return getSpecularLightRaw(uv * resolution.xy);
     default:
         return float4(0.5f, 0.5f, 0.5f, 1.0f);
     }

@@ -135,12 +135,13 @@ void IndirectRayGen() {
             float3 resIndirect = ambientBaseColor.rgb;
             if (resInstanceId >= 0) {
                 float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
-                float3 directLight = lightMatrix._11_12_13 + lightMatrix._21_22_23 + instanceMaterials[resInstanceId].selfLight;
+                float3 directLight = lightMatrix._11_12_13 + instanceMaterials[resInstanceId].selfLight;
+                float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
                 if ((processingFlags & 0x4) == 0x4) {
-                    float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * directLight * giDiffuseStrength;
+                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * directLight + specularLight) * giDiffuseStrength;
                     resIndirect = indirectLight;
                 } else {
-                    float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
+                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) + specularLight) * giDiffuseStrength;
                     resIndirect += indirectLight;
                 }
             }

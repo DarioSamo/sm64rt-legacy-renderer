@@ -51,6 +51,18 @@ float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, f
 	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
+float MetalAmount(float colorA, float colorB, float metalness)
+{
+    if (colorB >= EPSILON)
+    {
+        return colorA * pow(colorB, metalness);
+    }
+    else
+    {
+        return colorA * (1.0 - metalness);
+    }
+}
+
 [shader("raygeneration")]
 void ReflectionRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
@@ -160,7 +172,7 @@ void ReflectionRayGen() {
 	if (resInstanceId >= 0) {
         float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, false);
         float3 directLight = lightMatrix._11_12_13 + instanceMaterials[resInstanceId].selfLight;
-        float3 specularLight = lightMatrix._21_22_23;
+        float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
         resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
         resColor.rgb += specularLight;
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
@@ -172,11 +184,9 @@ void ReflectionRayGen() {
 	// Blend with the background.
 	resColor.rgb += bgColor * resColor.a + resTransparent;
 	resColor.a = 1.0f;
-    if (RGBtoLuminance(gDiffuse[launchIndex].rgb) >= EPSILON) {
-        resColor.rgb *= pow(gDiffuse[launchIndex].rgb, instanceMaterials[instanceId].metallicFactor);
-    } else {
-        resColor.rgb *= (1.0 - instanceMaterials[instanceId].metallicFactor);
-    }
+    resColor.r = MetalAmount(resColor.r, gDiffuse[launchIndex].r, instanceMaterials[instanceId].metallicFactor);
+    resColor.g = MetalAmount(resColor.g, gDiffuse[launchIndex].g, instanceMaterials[instanceId].metallicFactor);
+    resColor.b = MetalAmount(resColor.b, gDiffuse[launchIndex].b, instanceMaterials[instanceId].metallicFactor);
 
 	// Artificial shine factor.
 	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);

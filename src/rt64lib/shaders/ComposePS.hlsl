@@ -16,6 +16,7 @@ Texture2D<float4> gReflection : register(t5);
 Texture2D<float4> gRefraction : register(t6);
 Texture2D<float4> gTransparent : register(t7);
 Texture2D<float4> gFog : register(t8);
+Texture2D<float4> gSpecularLight : register(t9);
 
 SamplerState gSampler : register(s0);
 
@@ -23,6 +24,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     float4 diffuse = gDiffuse.SampleLevel(gSampler, uv, 0);
     if (diffuse.a > EPSILON) {
         float3 directLight = gDirectLight.SampleLevel(gSampler, uv, 0).rgb;
+        float3 specularLight = gSpecularLight.SampleLevel(gSampler, uv, 0).rgb;
         float3 indirectLight = gIndirectLight.SampleLevel(gSampler, uv, 0).rgb;
         float3 reflection = gReflection.SampleLevel(gSampler, uv, 0).rgb;
         float3 refraction = gRefraction.SampleLevel(gSampler, uv, 0).rgb;
@@ -33,6 +35,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         fog.a *= volumetrics.a;
         float4 result = float4(diffuse.rgb, 1.f);
         result.rgb *= (directLight + indirectLight);
+        result.rgb += specularLight;
         result.rgb = lerp(diffuse.rgb, result.rgb, diffuse.a);
         result.rgb += reflection;
         result.rgb += refraction;

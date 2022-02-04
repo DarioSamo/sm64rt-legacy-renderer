@@ -117,6 +117,7 @@ namespace RT64 {
 		AllocatedResource rtTransparent;
 		AllocatedResource rtVolumetrics;
 		AllocatedResource rtFog;
+		AllocatedResource rtSpecularLightAccum[2];
 		AllocatedResource rtFlow;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];
