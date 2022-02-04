@@ -16,20 +16,6 @@
 #include "Fog.hlsli"
 #include "BgSky.hlsli"
 
-float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 hitNorm, float roughness)
-{
-    float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
-
-	// Cosine weighted hemisphere sample from RNG
-    float3 bitangent = getPerpendicularVector(hitNorm);
-    float3 tangent = cross(bitangent, hitNorm);
-    float r = sqrt(randVal.x);
-    float phi = 2.0f * 3.14159265f * randVal.y;
-
-	// Get our cosine-weighted hemisphere lobe sample direction
-    return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
-}
-
 [shader("raygeneration")]
 void RefractionRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
@@ -46,10 +32,6 @@ void RefractionRayGen() {
 	float3 shadingNormal = gShadingNormal[launchIndex].xyz;
 	float refractionFactor = instanceMaterials[instanceId].refractionFactor;
     float3 rayDirection = refract(viewDirection, shadingNormal, refractionFactor);
-    float roughness = instanceMaterials[instanceId].roughnessFactor;
-    if (roughness >= EPSILON) {
-        rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount, shadingNormal, roughness);
-    }
 
 	// Mix background and sky color together.
 	float2 screenUV = (float2)(launchIndex) / (float2)(launchDims);
