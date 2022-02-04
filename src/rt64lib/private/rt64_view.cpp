@@ -76,7 +76,7 @@ RT64::View::View(Scene *scene) {
 	// Tonemapper parameters
 	globalParamsBufferData.tonemapMode = 4;
 	globalParamsBufferData.tonemapExposure = 1.0f;
-	globalParamsBufferData.tonemapWhite = 0.875f;
+	globalParamsBufferData.tonemapWhite = 1.0f;
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
@@ -86,8 +86,8 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.eyeAdaptionBrightnessFactor = 10.0f;
 
 	// Eye adaption parameters
-	minLogLuminance = -5.0;
-	logLuminanceRange = 7.0;
+	minLogLuminance = -17.0;
+	logLuminanceRange = 11.0;
 	lumaUpdateTime = 5.0;
 	globalParamsBufferSize = 0;
 
@@ -298,7 +298,7 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	resDesc.Width = 1;
 	resDesc.Height = 1;
-	rtLumaAvg = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtLumaAvg = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	{
 		D3D12_RESOURCE_DESC bufferDesc = { };
 		bufferDesc.Width = 256;
@@ -2150,7 +2150,6 @@ void RT64::View::render() {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredDirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
@@ -2243,6 +2242,10 @@ void RT64::View::render() {
 
 		RT64_LOG_PRINTF("Do the downscaling shader");
 		{
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeDownscaleBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeDownscaleBarrier);
+
 			// Execute the compute shader for the downscaled HDR image.
 			static const int threadGroupWorkRegionDim = 8;
 			int dispatchX = rtWidth / 8 / threadGroupWorkRegionDim + (((rtWidth / 8) % threadGroupWorkRegionDim) ? 1 : 0);
@@ -2284,6 +2287,10 @@ void RT64::View::render() {
 
 		RT64_LOG_PRINTF("Do the luminance histogram shader");
 		{
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeLumaBarrier);
+
 			// Execute the compute shader for the luminance histogram.
 			static const int threadGroupWorkRegionDim = 8;
 			int dispatchX = rtWidth / 8 / threadGroupWorkRegionDim + (((rtWidth / 8) % threadGroupWorkRegionDim) ? 1 : 0);
@@ -2293,11 +2300,18 @@ void RT64::View::render() {
 			d3dCommandList->SetDescriptorHeaps(1, &lumaHeap);
 			d3dCommandList->SetComputeRootDescriptorTable(0, lumaHeap->GetGPUDescriptorHandleForHeapStart());
 			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
-			scene->getDevice()->waitForGPU();
+
+			// Switch output to SRV.
+			CD3DX12_RESOURCE_BARRIER afterLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterLumaBarrier);
 		}
 
 		RT64_LOG_PRINTF("Do the luminance average shader");
 		{
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtLumaAvg.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeLumaBarrier);
+
 			// Execute the compute shader for the luminance histogram average.
 			std::vector<ID3D12DescriptorHeap*> vLumaAvgHeap = { lumaAvgHeap };
 			static const int threadGroupWorkRegionDim = 8;
@@ -2306,6 +2320,10 @@ void RT64::View::render() {
 			d3dCommandList->SetDescriptorHeaps(1, &lumaAvgHeap);
 			d3dCommandList->SetComputeRootDescriptorTable(0, lumaAvgHeap->GetGPUDescriptorHandleForHeapStart());
 			d3dCommandList->Dispatch(threadGroupWorkRegionDim, threadGroupWorkRegionDim, 1);
+
+			// Switch output to SRV.
+			CD3DX12_RESOURCE_BARRIER afterLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtLumaAvg.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterLumaBarrier);
 		}
 
 		RT64_LOG_PRINTF("Do the histogram clear shader");

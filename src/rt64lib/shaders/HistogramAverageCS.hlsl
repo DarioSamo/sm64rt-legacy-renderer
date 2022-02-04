@@ -43,6 +43,6 @@ void mainCS(uint groupIndex : SV_GroupIndex)
         float weightedAverageLuminance = exp2(((weightedLogAverage / 62.0) * logLuminanceRange) + minLogLuminance);
 		float luminanceLastFrame = LuminanceOutput[uint2(0, 0)];
 		float adaptedLuminance = luminanceLastFrame + (weightedAverageLuminance - luminanceLastFrame) * (1 - exp(-timeDelta * tau));
-        LuminanceOutput[uint2(0, 0)] = weightedAverageLuminance;
+        LuminanceOutput[uint2(0, 0)] = adaptedLuminance;
     }
 }
