@@ -91,6 +91,7 @@
     <ClCompile Include="private\rt64_view.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="shaders\Common.hlsli" />
     <None Include="shaders\BicubicFiltering.hlsli" />
     <None Include="shaders\BlueNoise.hlsli" />
     <None Include="shaders\Color.hlsli" />

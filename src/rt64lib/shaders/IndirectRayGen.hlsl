@@ -15,34 +15,7 @@
 #include "Lights.hlsli"
 #include "BgSky.hlsli"
 
-float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 hitNorm)
-{
-    float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
-
-	// Cosine weighted hemisphere sample from RNG
-    float3 bitangent = getPerpendicularVector(hitNorm);
-    float3 tangent = cross(bitangent, hitNorm);
-    float r = sqrt(randVal.x);
-    float phi = 2.0f * 3.14159265f * randVal.y;
-
-	// Get our cosine-weighted hemisphere lobe sample direction
-    return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
-}
-
-float3 microfacetGGX(uint2 pixelPos, uint frameCount, float roughness, float3 normal)
-{
-    float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
-    float3 binormal = getPerpendicularVector(normal);
-    float3 tangent = cross(binormal, normal);
-	
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float cosThetaH = sqrt(max(0.0f, (1.0f - randVal.x) / ((a2 - 1.0f) * randVal.x + 1)));
-    float sinThetaH = sqrt(max(0.0f, 1.0f - cosThetaH * cosThetaH));
-    float phiH = randVal.y * 3.14159265f * 2.0f;
-
-    return tangent * (sinThetaH * cos(phiH)) + binormal * (sinThetaH * sin(phiH)) + normal * cosThetaH;
-}
+#include "Common.hlsli"
 
 [shader("raygeneration")]
 void IndirectRayGen() {
@@ -137,6 +110,14 @@ void IndirectRayGen() {
                 float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
                 float3 directLight = lightMatrix._11_12_13 + instanceMaterials[resInstanceId].selfLight;
                 float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
+                if ((processingFlags & 0x8) == 0x8)
+                {
+                    specularLight *= RGBtoLuminance(directLight);
+                    specularLight.r = MetalAmount(specularLight.r, resColor.r, instanceMaterials[resInstanceId].metallicFactor);
+                    specularLight.g = MetalAmount(specularLight.g, resColor.g, instanceMaterials[resInstanceId].metallicFactor);
+                    specularLight.b = MetalAmount(specularLight.b, resColor.b, instanceMaterials[resInstanceId].metallicFactor);
+                }
+				
                 if ((processingFlags & 0x4) == 0x4) {
                     float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * directLight + specularLight) * giDiffuseStrength;
                     resIndirect = indirectLight;

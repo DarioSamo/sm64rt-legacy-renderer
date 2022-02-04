@@ -22,7 +22,7 @@
 // White point: 1.0
 // Eye Adaption Minimum Luminence: -17.0
 // Eye Adaption Luminance Range: 11.0
-// Eye Adaption Update Time: 5.0
+// Eye Adaption Update Time: 50.0
 // Eye Adaption Brightening Factor: 10.0
 
 Texture2D<float4> gOutput : register(t0);

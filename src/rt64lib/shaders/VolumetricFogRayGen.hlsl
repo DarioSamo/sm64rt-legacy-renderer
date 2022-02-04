@@ -54,7 +54,7 @@ void VolumetricFogRayGen()
     float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
 	
     if (instanceId < 0) {
-        gVolumetrics[launchIndex] = CalculateVolumetrics(rayOrigin, rayDirection, RAY_MAX_DISTANCE / 500.0, launchIndex, 0x0000FFFF);
+        gVolumetrics[launchIndex] = CalculateVolumetrics(rayOrigin, rayDirection, RAY_MAX_DISTANCE / 100.0, launchIndex, 0x0000FFFF);
         return;
     }
 	

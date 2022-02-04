@@ -83,14 +83,14 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.processingFlags = 0x6;
 	globalParamsBufferData.volumetricMaxSamples = 32;
 	globalParamsBufferData.volumetricIntensity = 1.0f;
-	globalParamsBufferData.eyeAdaptionBrightnessFactor = 10.0f;
 
 	// Eye adaption parameters
-	minLogLuminance = -17.0;
-	logLuminanceRange = 11.0;
-	lumaUpdateTime = 25.0;
-	globalParamsBufferSize = 0;
+	minLogLuminance = -5;
+	logLuminanceRange = 7;
+	lumaUpdateTime = 100.0;
+	globalParamsBufferData.eyeAdaptionBrightnessFactor = 1.0f;
 
+	globalParamsBufferSize = 0;
 	rtSwap = false;
 	rtWidth = 0;
 	rtHeight = 0;
@@ -259,11 +259,10 @@ void RT64::View::createOutputBuffers() {
 	rtFilteredDirectLight[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFilteredIndirectLight[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFilteredIndirectLight[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtSpecularLightAccum = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	rtSpecularLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	rtSpecularLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 
 	resDesc.Width = rtWidth / 4;
 	resDesc.Height= rtHeight / 4;
@@ -363,8 +362,7 @@ void RT64::View::createOutputBuffers() {
 	rtLumaAvg.SetName(L"rtLumaAvg");
 	rtOutputDownscaled.SetName(L"rtOutputDownscaled");
 	rtBloom.SetName(L"rtBloom");
-	rtSpecularLightAccum[0].SetName(L"rtSpecularLightAccum[0]");
-	rtSpecularLightAccum[1].SetName(L"rtSpecularLightAccum[1]");
+	rtSpecularLightAccum.SetName(L"rtSpecularLightAccum");
 #endif
 
 	// Create the RTVs.
@@ -413,8 +411,7 @@ void RT64::View::releaseOutputBuffers() {
 	rtTransparent.Release();
 	rtVolumetrics.Release();
 	rtFog.Release();
-	rtSpecularLightAccum[0].Release();
-	rtSpecularLightAccum[1].Release();
+	rtSpecularLightAccum.Release();
 	rtFlow.Release();
 	rtDepth[0].Release();
 	rtDepth[1].Release();
@@ -661,11 +658,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 
 		// UAV for specular light buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtSpecularLightAccum[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for previous specular light buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDirectLightAccum[rtSwap ? 0 : 1].Get(), nullptr, &uavDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtSpecularLightAccum.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for hit distance and world flow buffer.
@@ -886,7 +879,7 @@ void RT64::View::createShaderResourceHeap() {
 
 		// SRV for specular light buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtSpecularLightAccum[rtSwap ? 0 : 1].Get(), &textureSRVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtSpecularLightAccum.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.
@@ -2707,6 +2700,19 @@ bool RT64::View::getDenoiserEnabled() const {
 	return denoiserEnabled;
 }
 
+void RT64::View::setAlternateSpecularEnabled(bool v) {
+	if (v) {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 0x8);
+	}
+	else {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFF7);
+	}
+}
+
+bool RT64::View::getAlternateSpecularEnabled() const {
+	return (globalParamsBufferData.processingFlags & 0x8) == 0x8;
+}
+
 void RT64::View::setEyeAdaptionBrightnessFactor(float v) {
 	globalParamsBufferData.eyeAdaptionBrightnessFactor = v;
 }
@@ -2922,6 +2928,7 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setEyeAdaptionEnabledFlag(viewDesc.eyeAdaptionEnabled);
 	view->setEyeAdaptionBrightnessFactor(viewDesc.eyeAdaptionBrightnessFactor);
 	view->setAlternateIndirectFlag(viewDesc.alternateIndirectLight);
+	view->setAlternateSpecularEnabled(viewDesc.alternateSpecularEnabled);
 #ifdef RT64_DLSS
 	view->setUpscaleMode((viewDesc.dlssMode != RT64_DLSS_MODE_OFF) ? RT64::UpscaleMode::DLSS : RT64::UpscaleMode::Bilinear);
 	switch (viewDesc.dlssMode) {

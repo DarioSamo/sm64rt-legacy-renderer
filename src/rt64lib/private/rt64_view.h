@@ -117,7 +117,7 @@ namespace RT64 {
 		AllocatedResource rtTransparent;
 		AllocatedResource rtVolumetrics;
 		AllocatedResource rtFog;
-		AllocatedResource rtSpecularLightAccum[2];
+		AllocatedResource rtSpecularLightAccum;
 		AllocatedResource rtFlow;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];
@@ -152,6 +152,7 @@ namespace RT64 {
 		bool rtSkipReprojection;
 		bool denoiserEnabled;
 		bool volumetricsEnabled;
+		bool alternateSpecularEnabled;
 		UINT rtFirstInstanceIdRowWidth;
 		bool rtFirstInstanceIdReadbackUpdated;
 		UINT outputRtvDescriptorSize;
@@ -293,6 +294,8 @@ namespace RT64 {
 		int getMaxReflections() const;
 		void setDenoiserEnabled(bool v);
 		bool getDenoiserEnabled() const;
+		void setAlternateSpecularEnabled(bool v);
+		bool getAlternateSpecularEnabled() const;
 		void setEyeAdaptionBrightnessFactor(float v);
 		float getEyeAdaptionBrightnessFactor() const;
 		void setUpscaleMode(UpscaleMode v);

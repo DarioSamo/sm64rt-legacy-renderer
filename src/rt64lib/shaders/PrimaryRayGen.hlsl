@@ -16,31 +16,19 @@
 #include "Lights.hlsli"
 #include "Fog.hlsli"
 
-float3 microfacetGGX(uint2 pixelPos, uint frameCount, float roughness, float3 normal)
-{
-    float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
-    float3 binormal = getPerpendicularVector(normal);
-    float3 tangent = cross(binormal, normal);
-	
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float cosThetaH = sqrt(max(0.0f, (1.0f - randVal.x) / ((a2 - 1.0f) * randVal.x + 1)));
-    float sinThetaH = sqrt(max(0.0f, 1.0f - cosThetaH * cosThetaH));
-    float phiH = randVal.y * 3.14159265f * 2.0f;
+#include "Common.hlsli"
 
-    return tangent * (sinThetaH * cos(phiH)) + binormal * (sinThetaH * sin(phiH)) + normal * cosThetaH;
+float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier)
+{
+	// TODO: Probably use a more accurate approximation than this.
+    float ret = pow(max(1.0f + dot(normal, incident), EPSILON), 5.0f);
+    return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
 float2 WorldToScreenPos(float4x4 viewProj, float3 worldPos) {
 	float4 clipSpace = mul(viewProj, float4(worldPos, 1.0f));
 	float3 NDC = clipSpace.xyz / clipSpace.w;
 	return (0.5f + NDC.xy / 2.0f);
-}
-
-float FresnelReflectAmount(float3 normal, float3 incident, float reflectivity, float fresnelMultiplier) {
-	// TODO: Probably use a more accurate approximation than this.
-	float ret = pow(max(1.0f + dot(normal, incident), EPSILON), 5.0f);
-	return reflectivity + ((1.0 - reflectivity) * ret * fresnelMultiplier);
 }
 
 [shader("raygeneration")]
@@ -122,8 +110,10 @@ void PrimaryRayGen() {
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
 			float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
             float refractionFactor = instanceMaterials[instanceId].refractionFactor;
-            float roughnessFactor = instanceMaterials[instanceId].roughnessFactor / 3.3750f;
+            float roughnessFactor = instanceMaterials[instanceId].roughnessFactor / 2.0f;
             float metalness = instanceMaterials[instanceId].metallicFactor;
+			
+			// Roughness
             if (roughnessFactor >= EPSILON) {
                 vertexNormal = microfacetGGX(launchIndex, frameCount, roughnessFactor, vertexNormal);
             }

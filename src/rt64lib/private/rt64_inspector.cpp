@@ -128,6 +128,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     int upscaleMode = (int)(view->getUpscaleMode());
     bool denoiser = view->getDenoiserEnabled();
     bool volumetricEnabled = view->getVolumetricEnabledFlag();
+    bool alternateSpecularLight = view->getAlternateSpecularEnabled();
 
     ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI samples", &giSamples, 0.1f, 0, 32);
@@ -182,6 +183,7 @@ void RT64::Inspector::renderViewParams(View *view) {
 
     ImGui::Checkbox("Denoiser", &denoiser);
     ImGui::Checkbox("Volumetrics", &volumetricEnabled);
+    ImGui::Checkbox("Alternate Specular Light", &alternateSpecularLight);
     if (giSamples > 0) {
         bool alternateIndirect = view->getAlternateIndirectFlag();
         ImGui::Checkbox("Alternate Indirect Lighting", &alternateIndirect);
@@ -225,6 +227,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setUpscaleMode((UpscaleMode)(upscaleMode));
     view->setDenoiserEnabled(denoiser);
     view->setVolumetricEnabledFlag(volumetricEnabled);
+    view->setAlternateSpecularEnabled(alternateSpecularLight);
 
     ImGui::End();
 }

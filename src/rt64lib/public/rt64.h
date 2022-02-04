@@ -195,6 +195,7 @@ typedef struct {
 	float volumetricIntensity;
 	bool eyeAdaptionEnabled;
 	bool alternateIndirectLight;
+	bool alternateSpecularEnabled;
 	float eyeAdaptionBrightnessFactor;
 } RT64_VIEW_DESC;
 
