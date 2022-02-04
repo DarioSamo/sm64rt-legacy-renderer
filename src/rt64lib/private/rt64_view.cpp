@@ -88,7 +88,7 @@ RT64::View::View(Scene *scene) {
 	// Eye adaption parameters
 	minLogLuminance = -17.0;
 	logLuminanceRange = 11.0;
-	lumaUpdateTime = 5.0;
+	lumaUpdateTime = 25.0;
 	globalParamsBufferSize = 0;
 
 	rtSwap = false;

@@ -18,11 +18,12 @@
 
 // Reccommended settings for tonemapping
 // Tonemapper: Unchared 2
-// Exposure: 2.0
-// White point: 0.825
-// Eye Adaption Minimum Luminence: -5.0
-// Eye Adaption Luminance Range: 7.0
+// Exposure: 1.0
+// White point: 1.0
+// Eye Adaption Minimum Luminence: -17.0
+// Eye Adaption Luminance Range: 11.0
 // Eye Adaption Update Time: 5.0
+// Eye Adaption Brightening Factor: 10.0
 
 Texture2D<float4> gOutput : register(t0);
 Texture2D<float4> gFlow : register(t1);
@@ -163,7 +164,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     }
     
     // Tonemap the image
-    float avgLuma = gLumaAvg.Sample(gSampler, float2(0.0, 0.0)) * 10.0 + EPSILON;
+    float avgLuma = gLumaAvg.Sample(gSampler, float2(0.0, 0.0)) * eyeAdaptionBrightnessFactor + EPSILON;
     if ((processingFlags & 0x2) == 0) {
         avgLuma = 1.0f;
     }
