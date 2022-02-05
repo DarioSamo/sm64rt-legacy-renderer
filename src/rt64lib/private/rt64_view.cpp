@@ -80,7 +80,7 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
-	globalParamsBufferData.processingFlags = 0x6;
+	globalParamsBufferData.processingFlags = 0x2;
 	globalParamsBufferData.volumetricMaxSamples = 32;
 	globalParamsBufferData.volumetricIntensity = 1.0f;
 

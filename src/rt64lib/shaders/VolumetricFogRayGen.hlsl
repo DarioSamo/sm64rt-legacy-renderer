@@ -24,7 +24,7 @@ float4 CalculateVolumetrics(float3 rayOrigin, float3 rayDirection, float3 vertex
     float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
 	
 	// Get the light level at each sample
-    for (int shaftSample = 0; shaftSample < volumetricMaxSamples; shaftSample++)
+    for (int shaftSample = 1; shaftSample <= volumetricMaxSamples; shaftSample++)
     {
         float3 samplePosition = rayOrigin + rayDirection * vertexDistance * (float(shaftSample) / float(volumetricMaxSamples));
         resColor.rgb += ComputeLightAtPointRandom(launchIndex, samplePosition, maxLights, lightGroupMaskBits, true);
@@ -40,50 +40,27 @@ float4 CalculateVolumetrics(float3 rayOrigin, float3 rayDirection, float3 vertex
 void VolumetricFogRayGen()
 {
     uint2 launchIndex = DispatchRaysIndex().xy;
-    int instanceId = gInstanceId[launchIndex * 4];
     if ((processingFlags & 0x1) == 0) {
         gVolumetrics[launchIndex] = float4(0, 0, 0, 1);
-		return;
-	}
-	
-	uint2 launchDims = DispatchRaysDimensions().xy;
-	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
-	float3 nonNormRayDir = d.x * cameraU.xyz + d.y * cameraV.xyz + cameraW.xyz;
-	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
-	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
+        return;
+    }
+
+    uint2 launchDims = DispatchRaysDimensions().xy;
+    float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
+    float3 nonNormRayDir = d.x * cameraU.xyz + d.y * cameraV.xyz + cameraW.xyz;
+    float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
+    float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
     float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
-	
+    int instanceId = gInstanceId[launchIndex * 4];
     if (instanceId < 0) {
+        // TODO: Can probably just use a rough estimation according to the fog factors here.
         gVolumetrics[launchIndex] = CalculateVolumetrics(rayOrigin, rayDirection, RAY_MAX_DISTANCE / 100.0, launchIndex, 0x0000FFFF);
         return;
     }
-	
-	// Compute ray differentials.
-	RayDiff rayDiff;
-	rayDiff.dOdx = float3(0.0f, 0.0f, 0.0f);
-	rayDiff.dOdy = float3(0.0f, 0.0f, 0.0f);
-	computeRayDiffs(nonNormRayDir, cameraU.xyz, cameraV.xyz, resolution.zw, rayDiff.dDdx, rayDiff.dDdy);
 
-	// Trace.
-	RayDesc ray;
-	ray.Origin = rayOrigin;
-	ray.Direction = rayDirection;
-	ray.TMin = RAY_MIN_DISTANCE;
-	ray.TMax = RAY_MAX_DISTANCE;
-	HitInfo payload;
-	payload.nhits = 0;
-	payload.rayDiff = rayDiff;
-
-	// End trace upon hit
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
-	
-	float4 resColor = float4(0, 0, 0, 0);
-	// Just go straight into calculating the volumetrics, since there's only gonna be 1 hit
-	if (payload.nhits > 0)
-	{
-		uint hitBufferIndex = getHitBufferIndex(0, launchIndex, launchDims);
-		float vertexDistance = WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
-	
-        gVolumetrics[launchIndex] = CalculateVolumetrics(rayOrigin, rayDirection, vertexDistance, launchIndex, instanceMaterials[instanceId].lightGroupMaskBits & 0x0000FFFF); // Groups 8-16 aren't in the volumetrics
-    }
+    float3 position = gShadingPosition[launchIndex * 4].xyz;
+    float3 rayToPos = position - rayOrigin;
+    float vertexDistance = length(rayToPos) - RAY_MIN_DISTANCE;
+    rayDirection = normalize(rayToPos);
+    gVolumetrics[launchIndex] = CalculateVolumetrics(rayOrigin, rayDirection, vertexDistance, launchIndex, instanceMaterials[instanceId].lightGroupMaskBits & 0x0000FFFF);
 }

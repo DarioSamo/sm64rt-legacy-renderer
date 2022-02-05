@@ -55,22 +55,21 @@ void DirectRayGen() {
     float3 resDirect = lightMatrix._11_12_13;
     float3 resSpecular = lightMatrix._21_22_23;
 	resDirect += instanceMaterials[instanceId].selfLight;
-
-	// Add the eye light.
-	float specularExponent = instanceMaterials[instanceId].specularExponent;
-    float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
-    float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
-    float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection))), specularExponent);
-    resSpecular += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
 	
-	// Process the metalness if using the alternate specular lighting
-    if ((processingFlags & 0x8) == 0x8)
-    {
+    if ((processingFlags & 0x8) == 0x8) {
+		// Process the metalness if using the experimental specular lighting
         resSpecular *= RGBtoLuminance(resDirect);
         resSpecular.r = MetalAmount(resSpecular.r, gDiffuse[launchIndex].r, instanceMaterials[instanceId].metallicFactor);
         resSpecular.g = MetalAmount(resSpecular.g, gDiffuse[launchIndex].g, instanceMaterials[instanceId].metallicFactor);
         resSpecular.b = MetalAmount(resSpecular.b, gDiffuse[launchIndex].b, instanceMaterials[instanceId].metallicFactor);
-    }
+    } else {
+		// Add the eye light if using the original specular lighting
+		float specularExponent = instanceMaterials[instanceId].specularExponent;
+		float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
+		float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
+		float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection))), specularExponent);
+		resSpecular += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
+	}
 
 	// Accumulate.
 	historyLength = min(historyLength + 1.0f, 64.0f);
