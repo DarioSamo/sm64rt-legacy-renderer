@@ -104,6 +104,7 @@ namespace RT64 {
 		AllocatedResource rtShadingPosition;
 		AllocatedResource rtShadingNormal;
 		AllocatedResource rtShadingSpecular;
+		AllocatedResource rtShadingEmissive;
 		AllocatedResource rtDiffuse;
 		AllocatedResource rtInstanceId;
 		AllocatedResource rtFirstInstanceId;
@@ -126,6 +127,7 @@ namespace RT64 {
 		AllocatedResource rtHitNormal;
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
+		AllocatedResource rtHitEmissive;
 		AllocatedResource rtOutputUpscaled;
 		AllocatedResource rtOutputSharpened;
 		AllocatedResource rtOutputDownscaled;

@@ -50,15 +50,16 @@
 #define RT64_MESH_RAYTRACE_COMPACT				0x8
 
 // Shader flags.
-#define RT64_SHADER_FILTER_POINT				0x0
-#define RT64_SHADER_FILTER_LINEAR				0x1
-#define RT64_SHADER_ADDRESSING_WRAP				0x0
-#define RT64_SHADER_ADDRESSING_MIRROR			0x1
-#define RT64_SHADER_ADDRESSING_CLAMP			0x2
-#define RT64_SHADER_RASTER_ENABLED				0x1
-#define RT64_SHADER_RAYTRACE_ENABLED			0x2
-#define RT64_SHADER_NORMAL_MAP_ENABLED			0x4
-#define RT64_SHADER_SPECULAR_MAP_ENABLED		0x8
+#define RT64_SHADER_FILTER_POINT				0x00
+#define RT64_SHADER_FILTER_LINEAR				0x01
+#define RT64_SHADER_ADDRESSING_WRAP				0x00
+#define RT64_SHADER_ADDRESSING_MIRROR			0x01
+#define RT64_SHADER_ADDRESSING_CLAMP			0x02
+#define RT64_SHADER_RASTER_ENABLED				0x01
+#define RT64_SHADER_RAYTRACE_ENABLED			0x02
+#define RT64_SHADER_NORMAL_MAP_ENABLED			0x04
+#define RT64_SHADER_SPECULAR_MAP_ENABLED		0x08
+#define RT64_SHADER_EMISSIVE_MAP_ENABLED		0x10
 
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1
@@ -118,6 +119,7 @@ typedef struct {
 	int diffuseTexIndex;
 	int normalTexIndex;
 	int specularTexIndex;
+	int emissiveTexIndex;
 	float ignoreNormalFactor;
 	float uvDetailScale;
 	float reflectionFactor;
@@ -206,6 +208,7 @@ typedef struct {
 	RT64_TEXTURE *diffuseTexture;
 	RT64_TEXTURE *normalTexture;
 	RT64_TEXTURE *specularTexture;
+	RT64_TEXTURE *emissiveTexture;
 	RT64_SHADER *shader;
 	RT64_MATERIAL material;
 	RT64_RECT scissorRect;

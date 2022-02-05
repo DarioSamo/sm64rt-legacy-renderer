@@ -19,6 +19,7 @@ namespace RT64 {
 		Texture *diffuseTexture;
 		Texture* normalTexture;
 		Texture* specularTexture;
+		Texture* emissiveTexture;
 		XMMATRIX transform;
 		XMMATRIX previousTransform;
 		RT64_MATERIAL material;
@@ -41,6 +42,8 @@ namespace RT64 {
 		Texture* getNormalTexture() const;
 		void setSpecularTexture(Texture* texture);
 		Texture* getSpecularTexture() const;
+		void setEmissiveTexture(Texture* texture);
+		Texture* getEmissiveTexture() const;
 		void setTransform(float m[4][4]);
 		XMMATRIX getTransform() const;
 		void setPreviousTransform(float m[4][4]);

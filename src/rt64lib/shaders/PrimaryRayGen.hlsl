@@ -88,6 +88,7 @@ void PrimaryRayGen() {
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
 	float3 resNormal = -rayDirection;
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
+    float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
     float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
@@ -107,6 +108,7 @@ void PrimaryRayGen() {
             float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
             float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+			float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
 			float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
             float refractionFactor = instanceMaterials[instanceId].refractionFactor;
@@ -167,13 +169,13 @@ void PrimaryRayGen() {
 					resTransparentLightComputed = true;
 				}
 
-				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight + resTransparentLight);
+				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive + resTransparentLight);
 			}
 			// Cheap case: we ignore the geometry entirely from the lighting pass and just add
 			// it to the transparency buffer directly.
 			else {
-				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight);
-			}
+                resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive);
+            }
 
 			resColor.a *= (1.0 - hitColor.a);
 
@@ -193,6 +195,7 @@ void PrimaryRayGen() {
 				resPosition = vertexPosition;
 				resNormal = vertexNormal;
 				resSpecular = specular;
+                resEmissive = emissive;
 				resInstanceId = instanceId;
 				resFlow = (curPos - prevPos) * resolution.xy;
 				resDepth = projPos.z / projPos.w;
@@ -218,6 +221,7 @@ void PrimaryRayGen() {
 	gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 	gShadingNormal[launchIndex] = float4(resNormal, 0.0f);
 	gShadingSpecular[launchIndex] = float4(resSpecular, 0.0f);
+	gShadingEmissive[launchIndex] = float4(resEmissive, 0.0f);
 	gDiffuse[launchIndex] = resColor;
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);

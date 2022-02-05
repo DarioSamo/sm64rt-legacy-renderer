@@ -116,7 +116,7 @@ void RefractionRayGen() {
 
 	if (resInstanceId >= 0) {
 		float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
-        float3 directLight = lightMatrix._11_12_13 + lightMatrix._21_22_23 + instanceMaterials[resInstanceId].selfLight;
+        float3 directLight = lightMatrix._11_12_13 + lightMatrix._21_22_23 + gShadingEmissive[launchIndex].rgb;
         resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
     }
 

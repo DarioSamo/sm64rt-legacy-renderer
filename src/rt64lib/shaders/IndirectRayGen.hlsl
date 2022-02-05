@@ -108,7 +108,7 @@ void IndirectRayGen() {
             float3 resIndirect = ambientBaseColor.rgb;
             if (resInstanceId >= 0) {
                 float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
-                float3 directLight = lightMatrix._11_12_13 + instanceMaterials[resInstanceId].selfLight;
+                float3 directLight = lightMatrix._11_12_13 + gShadingEmissive[launchIndex].rgb;
                 float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
                 if ((processingFlags & 0x8) == 0x8)
                 {

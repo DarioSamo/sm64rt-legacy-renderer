@@ -40,6 +40,7 @@ namespace RT64 {
 		gShadingPosition,
 		gShadingNormal,
 		gShadingSpecular,
+		gShadingEmissive,
 		gDiffuse,
 		gInstanceId,
 		gDirectLightAccum,
@@ -64,6 +65,7 @@ namespace RT64 {
 		gHitNormal,
 		gHitSpecular,
 		gHitInstanceId,
+		gHitEmissive,
 		gBackground,
 		gParams,
 		SceneBVH,
@@ -80,6 +82,7 @@ namespace RT64 {
 		gShadingPosition,
 		gShadingNormal,
 		gShadingSpecular,
+		gShadingEmissive,
 		gDiffuse,
 		gInstanceId,
 		gDirectLightAccum,
@@ -104,6 +107,7 @@ namespace RT64 {
 		gHitNormal,
 		gHitSpecular,
 		gHitInstanceId,
+		gHitEmissive,
 		MAX
 	};
 

@@ -101,12 +101,14 @@ RT64::Shader::Shader(Device *device, unsigned int shaderId, Filter filter, Addre
 
 	bool normalMapEnabled = flags & RT64_SHADER_NORMAL_MAP_ENABLED;
 	bool specularMapEnabled = flags & RT64_SHADER_SPECULAR_MAP_ENABLED;
+	bool emissiveMapEnabled = flags & RT64_SHADER_EMISSIVE_MAP_ENABLED;
 	const std::string baseName =
 		"Shader_" +
 		std::to_string(shaderId) +
 		"_" + std::to_string(uniqueSamplerRegisterIndex(filter, hAddr, vAddr)) +
 		(normalMapEnabled ? "_Nrm" : "") +
-		(specularMapEnabled ? "_Spc" : "");
+		(specularMapEnabled ? "_Spc" : "") +
+		(emissiveMapEnabled ? "_Ems" : "");
 
 	if (flags & RT64_SHADER_RASTER_ENABLED) {
 		const std::string vertexShader = baseName + "VS";
@@ -121,7 +123,7 @@ RT64::Shader::Shader(Device *device, unsigned int shaderId, Filter filter, Addre
 		const std::string shadowHitGroup = baseName + "ShadowHitGroup";
 		const std::string shadowClosestHit = baseName + "ShadowClosestHit";
 		const std::string shadowAnyHit = baseName + "ShadowAnyHit";
-		generateSurfaceHitGroup(shaderId, filter, hAddr, vAddr, normalMapEnabled, specularMapEnabled, hitGroup, closestHit, anyHit);
+		generateSurfaceHitGroup(shaderId, filter, hAddr, vAddr, normalMapEnabled, specularMapEnabled, emissiveMapEnabled, hitGroup, closestHit, anyHit);
 		generateShadowHitGroup(shaderId, filter, hAddr, vAddr, shadowHitGroup, shadowClosestHit, shadowAnyHit);
 	}
 
@@ -441,7 +443,7 @@ void RT64::Shader::generateRasterGroup(unsigned int shaderId, Filter filter, Add
 	D3D12_CHECK(device->getD3D12Device()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&rasterGroup.pipelineState)));
 }
 
-void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, bool specularMapEnabled, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName) {
+void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, bool specularMapEnabled, bool emissiveMapEnabled, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName) {
 	ColorCombinerParams cc(shaderId);
 
 	std::stringstream ss;
@@ -535,6 +537,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f));");
 	SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f));");
 	SS("	float3 vertexFlow = curWorldPos - prevWorldPos;");
+
 	SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
 	if (vertexUV && specularMapEnabled) {
 		SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
@@ -544,6 +547,14 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 		SS("    }");
 	}
 
+	SS("    float3 vertexEmission = float3(1.0f, 1.0f, 1.0f);");
+	if (vertexUV && emissiveMapEnabled) {
+		SS("    int emissiveTexIndex = instanceMaterials[instanceId].emissiveTexIndex;");
+		SS("    if (emissiveTexIndex >= 0) {");
+		SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
+		SS("        vertexEmission = gTextures[NonUniformResourceIndex(emissiveTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).rgb;");
+		SS("    }");
+	}
 	SS("    uint2 pixelIdx = DispatchRaysIndex().xy;");
 	SS("    uint2 pixelDims = DispatchRaysDimensions().xy;");
 	SS("    uint hitStride = pixelDims.x * pixelDims.y;");
@@ -559,6 +570,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("        gHitColor[hi] = gHitColor[lo];");
 	SS("        gHitNormal[hi] = gHitNormal[lo];");
 	SS("        gHitSpecular[hi] = gHitSpecular[lo];");
+	SS("        gHitEmissive[hi] = gHitEmissive[lo];");
 	SS("        gHitInstanceId[hi] = gHitInstanceId[lo];");
 	SS("        hi -= hitStride;");
 	SS("        lo -= hitStride;");
@@ -569,6 +581,7 @@ void RT64::Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter,
 	SS("        gHitColor[hi] = resultColor;");
 	SS("        gHitNormal[hi] = float4(vertexNormal, 1.0f);");
 	SS("        gHitSpecular[hi] = float4(vertexSpecular, 1.0f);");
+	SS("        gHitEmissive[hi] = float4(vertexEmission, 1.0f);");
 	SS("        gHitInstanceId[hi] = instanceId;");
 	SS("        ++payload.nhits;");
 	SS("        if (hitPos != MAX_HIT_QUERIES - 1) {");
@@ -709,6 +722,7 @@ ID3D12RootSignature *RT64::Shader::generateHitRootSignature(Filter filter, Addre
 			heapRanges.push_back({ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) });
 			heapRanges.push_back({ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) });
 			heapRanges.push_back({ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) });
+			heapRanges.push_back({ UAV_INDEX(gHitEmissive), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitEmissive) });
 		}
 
 		heapRanges.push_back({ SRV_INDEX(instanceTransforms), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(instanceTransforms) });

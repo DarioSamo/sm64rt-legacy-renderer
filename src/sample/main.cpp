@@ -55,6 +55,7 @@ struct {
 	RT64_TEXTURE *textureDif = nullptr;
 	RT64_TEXTURE *textureNrm = nullptr;
 	RT64_TEXTURE *textureSpc = nullptr;
+	RT64_TEXTURE *textureEms = nullptr;
 	RT64_MATERIAL baseMaterial;
 	RT64_MATERIAL frameMaterial;
 	RT64_MATERIAL materialMods;
@@ -120,6 +121,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			instDesc.diffuseTexture = RT64.textureDif;
 			instDesc.normalTexture = RT64.textureNrm;
 			instDesc.specularTexture = RT64.textureSpc;
+			instDesc.emissiveTexture = RT64.textureEms;
 			instDesc.material = RT64.frameMaterial;
 			instDesc.shader = RT64.shader;
 			instDesc.flags = 0;
@@ -218,7 +220,7 @@ void setupRT64Scene() {
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
-	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED | RT64_SHADER_EMISSIVE_MAP_ENABLED;
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
@@ -242,6 +244,7 @@ void setupRT64Scene() {
 	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
 	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
 	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
+	RT64.textureEms = loadTexturePNG("res/grass_ems.png");
 	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
@@ -268,11 +271,11 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/hires_sphere.obj", nullptr, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/sphere.obj", nullptr, true);
 	assert(loaded);
 	
-	float size = 4;
-	float yOffset = 0;
+	float size = 1;
+	float yOffset = 2;
 	for (size_t i = 0; i < shapes.size(); i++) {
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
@@ -335,6 +338,7 @@ void setupRT64Scene() {
 	RT64_TEXTURE *altTexture = loadTexturePNG("res/tiles_dif.png");
 	RT64_TEXTURE* normalTexture = loadTexturePNG("res/tiles_nrm.png");
 	RT64_TEXTURE* specularTexture = loadTexturePNG("res/tiles_spc.png");
+	RT64_TEXTURE* emissiveTexture = nullptr;
 
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
@@ -355,6 +359,7 @@ void setupRT64Scene() {
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
+	instDesc.emissiveTexture = nullptr;
 	instDesc.material = RT64.baseMaterial;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
@@ -369,6 +374,7 @@ void setupRT64Scene() {
 	instDesc.diffuseTexture = RT64.textureDif;
 	instDesc.normalTexture = RT64.textureNrm;
 	instDesc.specularTexture = RT64.textureSpc;
+	instDesc.emissiveTexture = nullptr;
 	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 
 	// Create HUD A Instance.
@@ -376,6 +382,7 @@ void setupRT64Scene() {
 	instDesc.mesh = mesh;
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
+	instDesc.emissiveTexture = nullptr;
 	instDesc.flags = RT64_INSTANCE_RASTER_BACKGROUND;
 	RT64.lib.SetInstanceDescription(instanceA, instDesc);
 
@@ -412,6 +419,7 @@ void setupRT64Scene() {
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;
+	instDesc.emissiveTexture = emissiveTexture;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);

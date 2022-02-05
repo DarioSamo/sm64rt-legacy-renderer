@@ -54,7 +54,7 @@ void DirectRayGen() {
     float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
     float3 resDirect = lightMatrix._11_12_13;
     float3 resSpecular = lightMatrix._21_22_23;
-	resDirect += instanceMaterials[instanceId].selfLight;
+    resDirect += gShadingEmissive[launchIndex].rgb;
 	
     if ((processingFlags & 0x8) == 0x8) {
 		// Process the metalness if using the experimental specular lighting
