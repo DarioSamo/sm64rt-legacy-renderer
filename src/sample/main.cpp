@@ -243,9 +243,9 @@ void setupRT64Scene() {
 	// Load textures.
 	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
 	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
-	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
+	RT64.textureSpc = loadTexturePNG("res/grass_spc.png"); 
 	RT64.textureEms = loadTexturePNG("res/grass_ems.png");
-	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds");
+	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds"); 
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.

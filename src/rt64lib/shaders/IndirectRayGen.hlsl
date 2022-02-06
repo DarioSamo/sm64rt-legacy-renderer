@@ -76,6 +76,7 @@ void IndirectRayGen() {
             float3 resPosition = float3(0.0f, 0.0f, 0.0f);
             float3 resNormal = float3(0.0f, 0.0f, 0.0f);
             float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
+            float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
             float4 resColor = float4(0, 0, 0, 1);
             int resInstanceId = -1;
             for (uint hit = 0; hit < payload.nhits; hit++)
@@ -88,6 +89,7 @@ void IndirectRayGen() {
                     float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
                     float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
                     float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+                    float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
                     float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
 					
                     resColor.rgb += hitColor.rgb * alphaContrib;
@@ -97,6 +99,7 @@ void IndirectRayGen() {
                     resNormal = vertexNormal;
                     resSpecular = specular;
                     resInstanceId = instanceId;
+                    resEmissive = emissive;
                 }
 
                 if (resColor.a <= EPSILON) {
@@ -108,7 +111,7 @@ void IndirectRayGen() {
             float3 resIndirect = ambientBaseColor.rgb;
             if (resInstanceId >= 0) {
                 float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
-                float3 directLight = lightMatrix._11_12_13 + gShadingEmissive[launchIndex].rgb;
+                float3 directLight = lightMatrix._11_12_13 + resEmissive;
                 float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
                 if ((processingFlags & 0x8) == 0x8)
                 {

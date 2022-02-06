@@ -69,6 +69,7 @@ void ReflectionRayGen() {
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
 	float3 resNormal = float3(0.0f, 0.0f, 0.0f);
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
+	float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
 	int resInstanceId = -1;
     float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
@@ -82,6 +83,7 @@ void ReflectionRayGen() {
             bool usesLighting = (instanceMaterials[hitInstanceId].lightGroupMaskBits > 0);
             float3 metalness = 1 - pow(hitColor.rgb, instanceMaterials[hitInstanceId].metallicFactor);		// Metalness implementation
 			float3 vertexPosition = shadingPosition + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, hitInstanceId);
+            float3 emissive = gHitEmissive[hitInstanceId].rgb * instanceMaterials[hitInstanceId].selfLight;
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			/*
@@ -114,7 +116,8 @@ void ReflectionRayGen() {
 
 			if (usesLighting) {
 				resColor.rgb += hitColor.rgb  * alphaContrib;
-			}
+                resEmissive.rgb += emissive;
+            }
 			else {
 				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
 			}
@@ -133,7 +136,7 @@ void ReflectionRayGen() {
 
 	if (resInstanceId >= 0) {
         float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, false);
-        float3 directLight = lightMatrix._11_12_13 + gShadingEmissive[launchIndex].rgb;
+        float3 directLight = lightMatrix._11_12_13;
         float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
         resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
         resColor.rgb += specularLight;
