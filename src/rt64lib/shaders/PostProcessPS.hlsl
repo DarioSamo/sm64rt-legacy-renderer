@@ -164,7 +164,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     }
     
     // Tonemap the image
-    float avgLuma = gLumaAvg.Sample(gSampler, float2(0.0, 0.0)) * eyeAdaptionBrightnessFactor + EPSILON;
+    float avgLuma = gLumaAvg.Sample(gSampler, float2(0.0, 0.0));
     if ((processingFlags & 0x2) == 0) {
         avgLuma = 1.0f;
     }
