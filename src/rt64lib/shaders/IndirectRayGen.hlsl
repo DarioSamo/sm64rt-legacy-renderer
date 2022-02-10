@@ -77,6 +77,8 @@ void IndirectRayGen() {
             float3 resNormal = float3(0.0f, 0.0f, 0.0f);
             float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
             float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
+            float resMetalness = 0.0f;
+            float resAmbient = 0.0f;
             float4 resColor = float4(0, 0, 0, 1);
             int resInstanceId = -1;
             for (uint hit = 0; hit < payload.nhits; hit++)
@@ -89,8 +91,11 @@ void IndirectRayGen() {
                     float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
                     float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
                     float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+                    float vertexMetalness = gHitMetalness[hitBufferIndex] * instanceMaterials[instanceId].metallicFactor;
+                    float vertexAmbient = gHitAmbient[hitBufferIndex];
                     float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
                     float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
+                    float3 normal = microfacetGGX(launchIndex, frameCount + maxSamples * blueNoiseMult, gHitRoughness[hitBufferIndex] * instanceMaterials[instanceId].roughnessFactor, vertexNormal);
 					
                     resColor.rgb += hitColor.rgb * alphaContrib;
                     resColor.a *= (1.0 - hitColor.a);
@@ -100,6 +105,8 @@ void IndirectRayGen() {
                     resSpecular = specular;
                     resInstanceId = instanceId;
                     resEmissive = emissive;
+                    resMetalness = vertexMetalness;
+                    resAmbient = vertexAmbient;
                 }
 
                 if (resColor.a <= EPSILON) {
@@ -116,18 +123,19 @@ void IndirectRayGen() {
                 if ((processingFlags & 0x8) == 0x8)
                 {
                     specularLight *= RGBtoLuminance(directLight);
-                    specularLight.r = MetalAmount(specularLight.r, resColor.r, instanceMaterials[resInstanceId].metallicFactor);
-                    specularLight.g = MetalAmount(specularLight.g, resColor.g, instanceMaterials[resInstanceId].metallicFactor);
-                    specularLight.b = MetalAmount(specularLight.b, resColor.b, instanceMaterials[resInstanceId].metallicFactor);
+                    specularLight.r = MetalAmount(specularLight.r, resColor.r, resMetalness);
+                    specularLight.g = MetalAmount(specularLight.g, resColor.g, resMetalness);
+                    specularLight.b = MetalAmount(specularLight.b, resColor.b, resMetalness);
                 }
 				
                 if ((processingFlags & 0x4) == 0x4) {
                     float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * directLight + specularLight) * giDiffuseStrength;
                     resIndirect = indirectLight;
                 } else {
-                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) + specularLight) * giDiffuseStrength;
+                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) + specularLight) * giDiffuseStrength ;
                     resIndirect += indirectLight;
                 }
+                resIndirect = max(resIndirect - (1.0 - resAmbient), 0.0);
             }
 			
             resIndirect += bgColor * giSkyStrength * resColor.a;
@@ -139,9 +147,9 @@ void IndirectRayGen() {
             maxSamples--;
         }
 		
-		gIndirectLightAccum[launchIndex] = float4(newIndirect, historyLength);
-	}
+        gIndirectLightAccum[launchIndex] = float4(newIndirect, historyLength);
+    }
 	else {
-		gIndirectLightAccum[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 0.0f);
-	}
+        gIndirectLightAccum[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 0.0f);
+    }
 }

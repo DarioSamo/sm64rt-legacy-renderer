@@ -10,6 +10,9 @@ struct MaterialProperties {
 	int normalTexIndex;
 	int specularTexIndex;
 	int emissiveTexIndex;
+	int roughnessTexIndex;
+	int metalnessTexIndex;
+	int ambientTexIndex;
 	float ignoreNormalFactor;
 	float uvDetailScale;
 	float reflectionFactor;

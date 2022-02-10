@@ -409,7 +409,7 @@ void RT64::Inspector::renderLightInspector() {
                 ImGui::DragFloat("Point radius", &lights[i].pointRadius);
                 Im3d::SetColor(lights[i].diffuseColor.x * 0.5f, lights[i].diffuseColor.y * 0.5f, lights[i].diffuseColor.z * 0.5f);
                 Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].pointRadius, SphereDetail);
-                ImGui::DragFloat3("Specular color", &lights[i].specularColor.x, 0.01f);
+                ImGui::DragFloat3("Specular highlight color", &lights[i].specularColor.x, 0.01f);
                 ImGui::DragFloat("Shadow offset", &lights[i].shadowOffset);
                 Im3d::SetColor(Im3d::Color_Black);
                 Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].shadowOffset, SphereDetail);

@@ -81,9 +81,7 @@ void ReflectionRayGen() {
 		if (alphaContrib >= EPSILON) {
 			uint hitInstanceId = gHitInstanceId[hitBufferIndex];
             bool usesLighting = (instanceMaterials[hitInstanceId].lightGroupMaskBits > 0);
-            float3 metalness = 1 - pow(hitColor.rgb, instanceMaterials[hitInstanceId].metallicFactor);		// Metalness implementation
 			float3 vertexPosition = shadingPosition + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, hitInstanceId);
-            float3 emissive = gHitEmissive[hitInstanceId].rgb * instanceMaterials[hitInstanceId].selfLight;
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			/*
@@ -106,11 +104,21 @@ void ReflectionRayGen() {
 
 			float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
-			float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
-			float reflectionFactor = instanceMaterials[hitInstanceId].reflectionFactor;
+            float3 vertexEmissive = gHitEmissive[hitBufferIndex].rgb;
+            float vertexRoughness = gHitRoughness[hitBufferIndex];
+            float vertexMetalness = gHitMetalness[hitBufferIndex];
+            float roughness = vertexRoughness * instanceMaterials[hitInstanceId].roughnessFactor;
+            float3 normal = vertexNormal;
+            if (roughness >= EPSILON) {
+                normal = microfacetGGX(launchIndex, frameCount, roughness, vertexNormal);
+            }
+            float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
+            float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
+            float metalness = vertexMetalness * instanceMaterials[instanceId].metallicFactor;
+            float reflectionFactor = instanceMaterials[hitInstanceId].reflectionFactor * max(RGBtoLuminance(specular), metalness);
 			if (reflectionFactor > EPSILON) {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
-				float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
+                float fresnelAmount = FresnelReflectAmount(normal, rayDirection, reflectionFactor, reflectionFresnelFactor);
 				newReflectionAlpha += fresnelAmount * alphaContrib * reflectionAlpha;
 			}
 
@@ -119,11 +127,11 @@ void ReflectionRayGen() {
                 resEmissive.rgb += emissive;
             }
 			else {
-				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
-			}
+                resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive);
+            }
 
 			resPosition = vertexPosition;
-			resNormal = vertexNormal;
+            resNormal = normal;
 			resSpecular = specular;
 			resInstanceId = hitInstanceId;
 			resColor.a *= (1.0 - hitColor.a);
@@ -148,10 +156,16 @@ void ReflectionRayGen() {
 
 	// Blend with the background.
 	resColor.rgb += bgColor * resColor.a + resTransparent;
-	resColor.a = 1.0f;
-    resColor.r = MetalAmount(resColor.r, gDiffuse[launchIndex].r, instanceMaterials[instanceId].metallicFactor);
-    resColor.g = MetalAmount(resColor.g, gDiffuse[launchIndex].g, instanceMaterials[instanceId].metallicFactor);
-    resColor.b = MetalAmount(resColor.b, gDiffuse[launchIndex].b, instanceMaterials[instanceId].metallicFactor);
+    resColor.a = 1.0f;
+    if (instanceMaterials[instanceId].metallicFactor > EPSILON || (instanceMaterials[instanceId].metallicFactor > EPSILON && instanceMaterials[instanceId].metalnessTexIndex >= 0)) {
+        resColor.rgb *= gDiffuse[launchIndex] * gShadingMetalness[launchIndex] * instanceMaterials[instanceId].reflectionFactor;
+        gDiffuse[launchIndex].rgb *= (1.0 - gShadingMetalness[launchIndex] * instanceMaterials[instanceId].reflectionFactor);
+    }
+    else
+    {
+        resColor.rgb *= gShadingSpecular[launchIndex].rgb;
+        gDiffuse[launchIndex].rgb *= (1.0 - instanceMaterials[instanceId].reflectionFactor);
+    }
 
 	// Artificial shine factor.
 	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);

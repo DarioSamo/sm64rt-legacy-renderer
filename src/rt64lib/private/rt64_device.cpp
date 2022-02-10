@@ -619,6 +619,9 @@ void RT64::Device::loadAssets() {
 			{ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) },
 			{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 			{ UAV_INDEX(gHitEmissive), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitEmissive) },
+			{ UAV_INDEX(gHitRoughness), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitRoughness) },
+			{ UAV_INDEX(gHitMetalness), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitMetalness) },
+			{ UAV_INDEX(gHitAmbient), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitAmbient) },
 			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, HEAP_INDEX(gParams) }
 		});
 
@@ -669,7 +672,8 @@ void RT64::Device::loadAssets() {
 			{ 7, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7 },
 			{ 8, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8 },
 			{ 9, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 9 },
-			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 10 }
+			{ 10, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10 },
+			{ CBV_INDEX(gParams), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 11 }
 		});
 
 		// Fill out the sampler.
@@ -1183,12 +1187,18 @@ ID3D12RootSignature *RT64::Device::createRayGenSignature() {
 		{ UAV_INDEX(gFilteredIndirectLight), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFilteredIndirectLight) },
 		{ UAV_INDEX(gFog), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gFog) },
 		{ UAV_INDEX(gSpecularLightAccum), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gSpecularLightAccum) },
+		{ UAV_INDEX(gShadingRoughness), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingRoughness) },
+		{ UAV_INDEX(gShadingMetalness), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingMetalness) },
+		{ UAV_INDEX(gShadingAmbient), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gShadingAmbient) },
 		{ UAV_INDEX(gHitDistAndFlow), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitDistAndFlow) },
 		{ UAV_INDEX(gHitColor), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitColor) },
 		{ UAV_INDEX(gHitNormal), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitNormal) },
 		{ UAV_INDEX(gHitSpecular), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitSpecular) },
 		{ UAV_INDEX(gHitInstanceId), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitInstanceId) },
 		{ UAV_INDEX(gHitEmissive), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitEmissive) },
+		{ UAV_INDEX(gHitRoughness), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitRoughness) },
+		{ UAV_INDEX(gHitMetalness), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitMetalness) },
+		{ UAV_INDEX(gHitAmbient), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, HEAP_INDEX(gHitAmbient) },
 		{ SRV_INDEX(gBackground), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(gBackground) },
 		{ SRV_INDEX(SceneBVH), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneBVH) },
 		{ SRV_INDEX(SceneLights), 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, HEAP_INDEX(SceneLights) },

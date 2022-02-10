@@ -56,6 +56,9 @@ struct {
 	RT64_TEXTURE *textureNrm = nullptr;
 	RT64_TEXTURE *textureSpc = nullptr;
 	RT64_TEXTURE *textureEms = nullptr;
+	RT64_TEXTURE *textureRgh = nullptr;
+	RT64_TEXTURE *textureMtl = nullptr;
+	RT64_TEXTURE *textureAmb = nullptr;
 	RT64_MATERIAL baseMaterial;
 	RT64_MATERIAL frameMaterial;
 	RT64_MATERIAL materialMods;
@@ -122,6 +125,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			instDesc.normalTexture = RT64.textureNrm;
 			instDesc.specularTexture = RT64.textureSpc;
 			instDesc.emissiveTexture = RT64.textureEms;
+			instDesc.roughnessTexture = RT64.textureRgh;
+			instDesc.metalnessTexture = RT64.textureMtl;
+			instDesc.ambientTexture = RT64.textureAmb;
 			instDesc.material = RT64.frameMaterial;
 			instDesc.shader = RT64.shader;
 			instDesc.flags = 0;
@@ -220,7 +226,7 @@ void setupRT64Scene() {
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
-	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED | RT64_SHADER_EMISSIVE_MAP_ENABLED;
+	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED | RT64_SHADER_EMISSIVE_MAP_ENABLED | RT64_SHADER_ROUGHNESS_MAP_ENABLED | RT64_SHADER_METALNESS_MAP_ENABLED | RT64_SHADER_AMBIENT_MAP_ENABLED;
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
@@ -241,10 +247,13 @@ void setupRT64Scene() {
 	RT64.view = RT64.lib.CreateView(RT64.scene);
 
 	// Load textures.
-	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
-	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
-	RT64.textureSpc = loadTexturePNG("res/grass_spc.png"); 
-	RT64.textureEms = loadTexturePNG("res/grass_ems.png");
+	RT64.textureDif = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.png");
+	RT64.textureNrm = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.nrm.png");
+	RT64.textureSpc = nullptr;
+	RT64.textureEms = nullptr;
+	RT64.textureRgh = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.rgh.png");
+	RT64.textureMtl = nullptr;
+	RT64.textureAmb = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.amb.png");
 	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds"); 
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
@@ -303,11 +312,13 @@ void setupRT64Scene() {
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.uvDetailScale = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
-	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
+	RT64.baseMaterial.reflectionFresnelFactor = 0.15f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
 	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
 	RT64.baseMaterial.specularExponent = 1.0f;
+	RT64.baseMaterial.roughnessFactor = 0.0f;
+	RT64.baseMaterial.metallicFactor = 0.0f;
 	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -335,10 +346,13 @@ void setupRT64Scene() {
 	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
-	RT64_TEXTURE *altTexture = loadTexturePNG("res/tiles_dif.png");
-	RT64_TEXTURE* normalTexture = loadTexturePNG("res/tiles_nrm.png");
-	RT64_TEXTURE* specularTexture = loadTexturePNG("res/tiles_spc.png");
+	RT64_TEXTURE *altTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_albedo.png");
+	RT64_TEXTURE* normalTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_normal.png");
+	RT64_TEXTURE* specularTexture = nullptr;
 	RT64_TEXTURE* emissiveTexture = nullptr;
+	RT64_TEXTURE* roughnessTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_roughness.png");
+	RT64_TEXTURE* metalnessTexture = nullptr;
+	RT64_TEXTURE* ambientTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_ao.png");
 
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
@@ -360,6 +374,9 @@ void setupRT64Scene() {
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
 	instDesc.emissiveTexture = nullptr;
+	instDesc.roughnessTexture = nullptr;
+	instDesc.metalnessTexture = nullptr;
+	instDesc.ambientTexture = nullptr;
 	instDesc.material = RT64.baseMaterial;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
@@ -375,6 +392,9 @@ void setupRT64Scene() {
 	instDesc.normalTexture = RT64.textureNrm;
 	instDesc.specularTexture = RT64.textureSpc;
 	instDesc.emissiveTexture = nullptr;
+	instDesc.roughnessTexture = nullptr;
+	instDesc.metalnessTexture = nullptr;
+	instDesc.ambientTexture = nullptr;
 	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 
 	// Create HUD A Instance.
@@ -383,6 +403,9 @@ void setupRT64Scene() {
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
 	instDesc.emissiveTexture = nullptr;
+	instDesc.roughnessTexture = nullptr;
+	instDesc.metalnessTexture = nullptr;
+	instDesc.ambientTexture = nullptr;
 	instDesc.flags = RT64_INSTANCE_RASTER_BACKGROUND;
 	RT64.lib.SetInstanceDescription(instanceA, instDesc);
 
@@ -420,6 +443,9 @@ void setupRT64Scene() {
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;
 	instDesc.emissiveTexture = emissiveTexture;
+	instDesc.roughnessTexture = roughnessTexture;
+	instDesc.metalnessTexture = metalnessTexture;
+	instDesc.ambientTexture = ambientTexture;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);

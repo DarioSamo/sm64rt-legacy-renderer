@@ -60,6 +60,9 @@
 #define RT64_SHADER_NORMAL_MAP_ENABLED			0x04
 #define RT64_SHADER_SPECULAR_MAP_ENABLED		0x08
 #define RT64_SHADER_EMISSIVE_MAP_ENABLED		0x10
+#define RT64_SHADER_ROUGHNESS_MAP_ENABLED		0x20
+#define RT64_SHADER_METALNESS_MAP_ENABLED		0x40
+#define RT64_SHADER_AMBIENT_MAP_ENABLED			0x80
 
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1
@@ -120,6 +123,9 @@ typedef struct {
 	int normalTexIndex;
 	int specularTexIndex;
 	int emissiveTexIndex;
+	int roughnessTexIndex;
+	int metalnessTexIndex;
+	int ambientTexIndex;
 	float ignoreNormalFactor;
 	float uvDetailScale;
 	float reflectionFactor;
@@ -209,6 +215,9 @@ typedef struct {
 	RT64_TEXTURE *normalTexture;
 	RT64_TEXTURE *specularTexture;
 	RT64_TEXTURE *emissiveTexture;
+	RT64_TEXTURE *roughnessTexture;
+	RT64_TEXTURE *metalnessTexture;
+	RT64_TEXTURE *ambientTexture;
 	RT64_SHADER *shader;
 	RT64_MATERIAL material;
 	RT64_RECT scissorRect;

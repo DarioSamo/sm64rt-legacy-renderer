@@ -86,15 +86,18 @@ void PrimaryRayGen() {
 
 	// Process hits.
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
-	float3 resNormal = -rayDirection;
+    float4 resNormal = float4(-rayDirection, 0.0);
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
     float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
+    float resMetalness = 0.0f;
+    float resAmbient = 0.0f;
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
     float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
 	float4 resColor = float4(0, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
     float resDepth = 1.0f;
+    float historyLength = 0.0f;
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
@@ -108,16 +111,23 @@ void PrimaryRayGen() {
             float3 vertexPosition = rayOrigin + rayDirection * vertexDistance;
             float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
 			float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
-			float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
+			float vertexRoughness = gHitRoughness[hitBufferIndex];
+			float vertexMetalness = gHitMetalness[hitBufferIndex];
+			float vertexAmbientOcclusion = gHitAmbient[hitBufferIndex];
+            float3 normal = vertexNormal;
 			float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
-			float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
+			float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
+            float roughness = vertexRoughness * instanceMaterials[instanceId].roughnessFactor;
+            float metalness = vertexMetalness * instanceMaterials[instanceId].metallicFactor;
+            float reflectionFactor = instanceMaterials[instanceId].reflectionFactor * RGBtoLuminance(specular);
+			if (metalness >= EPSILON) {
+                reflectionFactor = instanceMaterials[instanceId].reflectionFactor * metalness;
+            }
             float refractionFactor = instanceMaterials[instanceId].refractionFactor;
-            float roughnessFactor = instanceMaterials[instanceId].roughnessFactor / 2.0f;
-            float metalness = instanceMaterials[instanceId].metallicFactor;
 			
 			// Roughness
-            if (roughnessFactor >= EPSILON) {
-                vertexNormal = microfacetGGX(launchIndex, frameCount, roughnessFactor, vertexNormal);
+            if (roughness >= EPSILON) {				
+                normal = normalize(microfacetGGX(launchIndex, frameCount, roughness, vertexNormal));
             }
 			   
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
@@ -148,7 +158,6 @@ void PrimaryRayGen() {
                 float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
 				
                 gReflection[launchIndex].a = fresnelAmount * alphaContrib;
-                alphaContrib *= (1.0f - fresnelAmount * (1.0f - metalness));
                 storeHit = true;
             }
 
@@ -193,9 +202,11 @@ void PrimaryRayGen() {
 				float2 curPos = WorldToScreenPos(viewProj, vertexPosition);
 				float4 projPos = mul(viewProj, float4(vertexPosition, 1.0f));
 				resPosition = vertexPosition;
-				resNormal = vertexNormal;
+				resNormal.xyz = normal;
 				resSpecular = specular;
                 resEmissive = emissive;
+                resMetalness = metalness;
+                resAmbient = vertexAmbientOcclusion;
 				resInstanceId = instanceId;
 				resFlow = (curPos - prevPos) * resolution.xy;
 				resDepth = projPos.z / projPos.w;
@@ -211,22 +222,22 @@ void PrimaryRayGen() {
     resColor.rgb += bgColor * resColor.a; 
     resColor.a = 1.0f - resColor.a;
 	
-	/*
-    if ((bgColor.x + bgColor.y + bgColor.z) / 3.0f > 1.0f)
-    {
-        resColor = float4(1.0f, 0.0f, 1.0f, 1.0f);
-    }*/
+	// Accumulate
+    historyLength = min(historyLength + 1.0f, 64.0f);
+    resNormal.a = historyLength;
 
 	// Store shading information buffers.
 	gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
-	gShadingNormal[launchIndex] = float4(resNormal, 0.0f);
+    gShadingNormal[launchIndex] = resNormal;
 	gShadingSpecular[launchIndex] = float4(resSpecular, 0.0f);
 	gShadingEmissive[launchIndex] = float4(resEmissive, 0.0f);
+	gShadingMetalness[launchIndex] = resMetalness;
+    gShadingAmbient[launchIndex] = resAmbient;
 	gDiffuse[launchIndex] = resColor;
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float2(-resFlow.x, resFlow.y);
-	gNormal[launchIndex] = float4(resNormal, 0.0f);
+    gNormal[launchIndex] = resNormal;
 	gDepth[launchIndex] = resDepth;
 }
 

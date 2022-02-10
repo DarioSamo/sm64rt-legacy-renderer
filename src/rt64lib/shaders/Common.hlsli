@@ -8,7 +8,7 @@ float3 microfacetGGX(uint2 pixelPos, uint frameCount, float roughness, float3 no
     float3 binormal = getPerpendicularVector(normal);
     float3 tangent = cross(binormal, normal);
 	
-    float a = roughness * roughness;
+    float a = roughness;
     float a2 = a * a;
     float cosThetaH = sqrt(max(0.0f, (1.0f - randVal.x) / ((a2 - 1.0f) * randVal.x + 1)));
     float sinThetaH = sqrt(max(0.0f, 1.0f - cosThetaH * cosThetaH));

@@ -119,6 +119,9 @@ namespace RT64 {
 		AllocatedResource rtVolumetrics;
 		AllocatedResource rtFog;
 		AllocatedResource rtSpecularLightAccum;
+		AllocatedResource rtShadingRoughness;
+		AllocatedResource rtShadingMetalness;
+		AllocatedResource rtShadingAmbient;
 		AllocatedResource rtFlow;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];
@@ -128,6 +131,9 @@ namespace RT64 {
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtHitEmissive;
+		AllocatedResource rtHitRoughness;
+		AllocatedResource rtHitMetalness;
+		AllocatedResource rtHitAmbient;
 		AllocatedResource rtOutputUpscaled;
 		AllocatedResource rtOutputSharpened;
 		AllocatedResource rtOutputDownscaled;

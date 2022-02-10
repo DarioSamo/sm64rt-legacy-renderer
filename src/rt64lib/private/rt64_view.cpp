@@ -244,6 +244,11 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
+	resDesc.Format = DXGI_FORMAT_R16_UNORM;
+	rtShadingMetalness = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingAmbient = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingRoughness = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	rtDepth[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtDepth[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -322,6 +327,9 @@ void RT64::View::createOutputBuffers() {
 	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceId = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitEmissive = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitRoughness = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitMetalness = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitAmbient = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 #ifndef NDEBUG
 	rasterBg.SetName(L"rasterBg");
@@ -332,6 +340,9 @@ void RT64::View::createOutputBuffers() {
 	rtShadingNormal.SetName(L"rtShadingNormal");
 	rtShadingSpecular.SetName(L"rtShadingSpecular");
 	rtShadingEmissive.SetName(L"rtShadingEmissive");
+	rtShadingRoughness.SetName(L"rtShadingRoughness");
+	rtShadingMetalness.SetName(L"rtShadingMetalness");
+	rtShadingAmbient.SetName(L"rtShadingAmbient");
 	rtDiffuse.SetName(L"rtDiffuse");
 	rtNormal[0].SetName(L"rtNormal[0]");
 	rtNormal[1].SetName(L"rtNormal[1]");
@@ -360,6 +371,9 @@ void RT64::View::createOutputBuffers() {
 	rtHitSpecular.SetName(L"rtHitSpecular");
 	rtHitInstanceId.SetName(L"rtHitInstanceId");
 	rtHitEmissive.SetName(L"rtHitEmissive");
+	rtHitRoughness.SetName(L"rtHitRoughness");
+	rtHitMetalness.SetName(L"rtHitMetalness");
+	rtHitAmbient.SetName(L"rtHitAmbient");
 	rtOutputUpscaled.SetName(L"rtOutputUpscaled");
 	rtOutputSharpened.SetName(L"rtOutputSharpened");
 	rtLumaHistogram.SetName(L"rtLumaHistogram");
@@ -397,6 +411,9 @@ void RT64::View::releaseOutputBuffers() {
 	rtShadingNormal.Release();
 	rtShadingSpecular.Release();
 	rtShadingEmissive.Release();
+	rtShadingRoughness.Release();
+	rtShadingMetalness.Release();
+	rtShadingAmbient.Release();
 	rtDiffuse.Release();
 	rtNormal[0].Release();
 	rtNormal[1].Release();
@@ -426,6 +443,9 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitSpecular.Release();
 	rtHitInstanceId.Release();
 	rtHitEmissive.Release();
+	rtHitRoughness.Release();
+	rtHitMetalness.Release();
+	rtHitAmbient.Release();
 	rtOutputUpscaled.Release();
 	rtOutputSharpened.Release();
 	rtLumaHistogram.Release();
@@ -671,6 +691,18 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtSpecularLightAccum.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// UAV for shading roughness buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingRoughness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading metalness buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingMetalness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading ambient buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingAmbient.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// UAV for hit distance and world flow buffer.
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 		uavDesc.Buffer.FirstElement = 0;
@@ -702,6 +734,21 @@ void RT64::View::createShaderResourceHeap() {
 		// UAV for hit shading buffer.
 		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitEmissive.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for hit shading buffer.
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitRoughness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for hit shading buffer.
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitMetalness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for hit shading buffer.
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitAmbient.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for background texture.
@@ -835,7 +882,7 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
-			uint32_t handleCount = 11;		// Imagine not realizing this value needed to be increased by 1 for fuckin' hours lmao
+			uint32_t handleCount = 12;		// Imagine not realizing this value needed to be increased by 1 for fuckin' hours lmao
 			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
@@ -895,6 +942,11 @@ void RT64::View::createShaderResourceHeap() {
 		// SRV for specular light buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtSpecularLightAccum.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for ambient occlusion buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16_UNORM;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtShadingAmbient.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.
@@ -1657,6 +1709,9 @@ void RT64::View::update() {
 			renderInstance.material.normalTexIndex = getTextureIndex(instance->getNormalTexture());
 			renderInstance.material.specularTexIndex = getTextureIndex(instance->getSpecularTexture());
 			renderInstance.material.emissiveTexIndex = getTextureIndex(instance->getEmissiveTexture());
+			renderInstance.material.roughnessTexIndex = getTextureIndex(instance->getRoughnessTexture());
+			renderInstance.material.metalnessTexIndex = getTextureIndex(instance->getMetalnessTexture());
+			renderInstance.material.ambientTexIndex = getTextureIndex(instance->getAmbientTexture());
 
 			if (instance->hasScissorRect()) {
 				RT64_RECT rect = instance->getScissorRect();
@@ -1935,6 +1990,8 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingNormal.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingEmissive.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingMetalness.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingAmbient.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtRefraction.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal[rtSwap ? 1 : 0].Get()),
