@@ -89,8 +89,10 @@ void PrimaryRayGen() {
     float4 resNormal = float4(-rayDirection, 0.0);
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
     float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
+    float resRoughness = 0.0f;
     float resMetalness = 0.0f;
     float resAmbient = 0.0f;
+    float4 resReflective = float4(1.0, 1.0, 1.0, 0.0);
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
     float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
@@ -119,16 +121,9 @@ void PrimaryRayGen() {
 			float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
             float roughness = vertexRoughness * instanceMaterials[instanceId].roughnessFactor;
             float metalness = vertexMetalness * instanceMaterials[instanceId].metallicFactor;
-            float reflectionFactor = instanceMaterials[instanceId].reflectionFactor * RGBtoLuminance(specular);
-			if (metalness >= EPSILON) {
-                reflectionFactor = instanceMaterials[instanceId].reflectionFactor * metalness;
-            }
+            float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
             float refractionFactor = instanceMaterials[instanceId].refractionFactor;
-			
-			// Roughness
-            if (roughness >= EPSILON) {				
-                normal = normalize(microfacetGGX(launchIndex, frameCount, roughness, vertexNormal));
-            }
+            float3 reflectivity = specular * (1.0f - metalness) + hitColor.rgb * metalness;
 			   
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			bool storeHit = false;
@@ -157,7 +152,10 @@ void PrimaryRayGen() {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
                 float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
 				
-                gReflection[launchIndex].a = fresnelAmount * alphaContrib;
+                resReflective.a = fresnelAmount * alphaContrib;
+                if (instanceMaterials[instanceId].metalnessTexIndex >= 0) {
+                    resReflective.a *= metalness;
+                }
                 storeHit = true;
             }
 
@@ -173,7 +171,7 @@ void PrimaryRayGen() {
 			// has the same problem.
 			else if (usesLighting) {
 				if (!resTransparentLightComputed) {
-                    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, vertexPosition, vertexNormal, specular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+                    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, vertexPosition, vertexNormal, specular, roughness, rayOrigin, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
                     resTransparentLight = lightMatrix._11_12_13 + lightMatrix._21_22_23;
 					resTransparentLightComputed = true;
 				}
@@ -205,7 +203,9 @@ void PrimaryRayGen() {
 				resNormal.xyz = normal;
 				resSpecular = specular;
                 resEmissive = emissive;
+                resRoughness = roughness;
                 resMetalness = metalness;
+                resReflective.rgb *= reflectivity;
                 resAmbient = vertexAmbientOcclusion;
 				resInstanceId = instanceId;
 				resFlow = (curPos - prevPos) * resolution.xy;
@@ -231,8 +231,11 @@ void PrimaryRayGen() {
     gShadingNormal[launchIndex] = resNormal;
 	gShadingSpecular[launchIndex] = float4(resSpecular, 0.0f);
 	gShadingEmissive[launchIndex] = float4(resEmissive, 0.0f);
+    gShadingRoughness[launchIndex] = resRoughness;
 	gShadingMetalness[launchIndex] = resMetalness;
     gShadingAmbient[launchIndex] = resAmbient;
+    gReflection[launchIndex] = float4(0, 0, 0, resReflective.a);
+    gShadingReflective[launchIndex] = resReflective;
 	gDiffuse[launchIndex] = resColor;
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);

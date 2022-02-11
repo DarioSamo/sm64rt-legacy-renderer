@@ -29,5 +29,6 @@ RWTexture2D<float4> gSpecularLightAccum : register(u23);
 RWTexture2D<float> gShadingRoughness : register(u24);
 RWTexture2D<float> gShadingMetalness : register(u25);
 RWTexture2D<float> gShadingAmbient : register(u26);
+RWTexture2D<float4> gShadingReflective : register(u27);
 
 Texture2D<float4> gBackground : register(t1);

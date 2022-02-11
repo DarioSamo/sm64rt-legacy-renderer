@@ -80,7 +80,7 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
-	globalParamsBufferData.processingFlags = 0x2;
+	globalParamsBufferData.processingFlags = 0xE;
 	globalParamsBufferData.volumetricMaxSamples = 32;
 	globalParamsBufferData.volumetricIntensity = 1.0f;
 
@@ -249,6 +249,9 @@ void RT64::View::createOutputBuffers() {
 	rtShadingAmbient = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtShadingRoughness = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 
+	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rtShadingReflective = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	rtDepth[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtDepth[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -343,6 +346,7 @@ void RT64::View::createOutputBuffers() {
 	rtShadingRoughness.SetName(L"rtShadingRoughness");
 	rtShadingMetalness.SetName(L"rtShadingMetalness");
 	rtShadingAmbient.SetName(L"rtShadingAmbient");
+	rtShadingReflective.SetName(L"rtShadingReflective");
 	rtDiffuse.SetName(L"rtDiffuse");
 	rtNormal[0].SetName(L"rtNormal[0]");
 	rtNormal[1].SetName(L"rtNormal[1]");
@@ -414,6 +418,7 @@ void RT64::View::releaseOutputBuffers() {
 	rtShadingRoughness.Release();
 	rtShadingMetalness.Release();
 	rtShadingAmbient.Release();
+	rtShadingReflective.Release();
 	rtDiffuse.Release();
 	rtNormal[0].Release();
 	rtNormal[1].Release();
@@ -701,6 +706,10 @@ void RT64::View::createShaderResourceHeap() {
 
 		// UAV for shading ambient buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingAmbient.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading reflectivity buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingReflective.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for hit distance and world flow buffer.
@@ -1992,6 +2001,7 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingEmissive.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingMetalness.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingAmbient.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingReflective.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtRefraction.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal[rtSwap ? 1 : 0].Get()),

@@ -30,7 +30,7 @@ void ReflectionRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
     uint2 launchDims = DispatchRaysDimensions().xy;	
 	int instanceId = gInstanceId[launchIndex];
-	float reflectionAlpha = gReflection[launchIndex].a;
+    float reflectionAlpha = gReflection[launchIndex].a;
 	if ((instanceId < 0) || (reflectionAlpha <= EPSILON)) {
 		return;
     }
@@ -41,6 +41,11 @@ void ReflectionRayGen() {
     float3 shadingNormal = gShadingNormal[launchIndex].xyz;
     float3 rayDirection = reflect(viewDirection, shadingNormal);
     float newReflectionAlpha = 0.0f;
+			
+	// Roughness
+    if (gShadingRoughness[launchIndex] >= EPSILON) {
+        rayDirection = normalize(microfacetGGX(launchIndex, frameCount, gShadingRoughness[launchIndex] / 2.0f, rayDirection));
+    }
 
 	// Mix background and sky color together.
     float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
@@ -70,6 +75,7 @@ void ReflectionRayGen() {
 	float3 resNormal = float3(0.0f, 0.0f, 0.0f);
 	float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
 	float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
+    float resRoughness = 0.0f;
 	int resInstanceId = -1;
     float4 resColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
@@ -109,15 +115,14 @@ void ReflectionRayGen() {
             float vertexMetalness = gHitMetalness[hitBufferIndex];
             float roughness = vertexRoughness * instanceMaterials[hitInstanceId].roughnessFactor;
             float3 normal = vertexNormal;
-            if (roughness >= EPSILON) {
-                normal = microfacetGGX(launchIndex, frameCount, roughness, vertexNormal);
-            }
             float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
-            float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
-            float metalness = vertexMetalness * instanceMaterials[instanceId].metallicFactor;
-            float reflectionFactor = instanceMaterials[hitInstanceId].reflectionFactor * max(RGBtoLuminance(specular), metalness);
+            float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[hitInstanceId].selfLight;
+            float metalness = vertexMetalness * instanceMaterials[hitInstanceId].metallicFactor;
+            float reflectionFactor = instanceMaterials[hitInstanceId].reflectionFactor;
+            float3 reflectivity = (specular * (1.0f - metalness) + hitColor.rgb * metalness);
+			
 			if (reflectionFactor > EPSILON) {
-				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
+                float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
                 float fresnelAmount = FresnelReflectAmount(normal, rayDirection, reflectionFactor, reflectionFresnelFactor);
 				newReflectionAlpha += fresnelAmount * alphaContrib * reflectionAlpha;
 			}
@@ -133,6 +138,7 @@ void ReflectionRayGen() {
 			resPosition = vertexPosition;
             resNormal = normal;
 			resSpecular = specular;
+			resRoughness = roughness;
 			resInstanceId = hitInstanceId;
 			resColor.a *= (1.0 - hitColor.a);
         }
@@ -143,9 +149,9 @@ void ReflectionRayGen() {
 	}
 
 	if (resInstanceId >= 0) {
-        float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, false);
+        float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, resRoughness, shadingPosition, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, false);
         float3 directLight = lightMatrix._11_12_13;
-        float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
+        float3 specularLight = lightMatrix._21_22_23;
         resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
         resColor.rgb += specularLight;
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
@@ -157,15 +163,8 @@ void ReflectionRayGen() {
 	// Blend with the background.
 	resColor.rgb += bgColor * resColor.a + resTransparent;
     resColor.a = 1.0f;
-    if (instanceMaterials[instanceId].metallicFactor > EPSILON || (instanceMaterials[instanceId].metallicFactor > EPSILON && instanceMaterials[instanceId].metalnessTexIndex >= 0)) {
-        resColor.rgb *= gDiffuse[launchIndex] * gShadingMetalness[launchIndex] * instanceMaterials[instanceId].reflectionFactor;
-        gDiffuse[launchIndex].rgb *= (1.0 - gShadingMetalness[launchIndex] * instanceMaterials[instanceId].reflectionFactor);
-    }
-    else
-    {
-        resColor.rgb *= gShadingSpecular[launchIndex].rgb;
-        gDiffuse[launchIndex].rgb *= (1.0 - instanceMaterials[instanceId].reflectionFactor);
-    }
+    resColor.rgb *= gShadingReflective[launchIndex].rgb;
+    gDiffuse[launchIndex].rgb *= (1.0 - gReflection[launchIndex].a);
 
 	// Artificial shine factor.
 	const float3 HighlightColor = float3(1.0f, 1.05f, 1.2f);

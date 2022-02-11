@@ -71,17 +71,18 @@ float NormalDistributionGGX(float roughness, float3 N, float3 H)
     float NdotH = max(dot(N, H), 0.0);
     float denom = NdotH * NdotH * (rough2 - 1.0) + 1.0;
     return rough2 / max(M_PI * denom * denom, EPSILON);
-    }
+}
 
-float2 CalculateSpecularity(float3 normal, float3 vertexPosition, float3 viewPosition, float3 lightPosition, float roughness, float specularExponent)
+// Cook-Torrence Specular function
+float2 CalculateSpecularity(float3 normal, float3 vertexPosition, float3 viewPosition, float3 lightPosition, float roughness, float fresnelFactor)
 {
-    float3 N = normalize(normal);
-    float3 V = normalize(viewPosition);
-    float3 L = normalize(lightPosition - viewPosition);
+    float3 N = normal;
+    float3 V = normalize(viewPosition - vertexPosition);
+    float3 L = normalize(lightPosition - vertexPosition);
     float3 H = normalize(V + L);
     float sampleSpecularityFactor = NormalDistributionGGX(roughness, N, H);
     sampleSpecularityFactor *= GeometryShadowingGGX(N, V, roughness) * GeometryShadowingGGX(N, L, roughness);
-    float ks = FresnelSpecularAmount(V, H, specularExponent, 1.0);
+    float ks = FresnelSpecularAmount(V, H, fresnelFactor, 1.0);
     sampleSpecularityFactor /= max(4 * max(dot(V, N), 0.0) * max(dot(L, N), 0.0), EPSILON);
     return float2(sampleSpecularityFactor, ks);
 }
@@ -99,7 +100,7 @@ float CalculateLightIntensitySimple(uint l, float3 position, float3 normal, floa
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float2x4 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, const bool checkShadows) {
+float2x3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, float roughness, float3 viewPosition, const bool checkShadows) {
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
 	float shadowRayBias = instanceMaterials[instanceId].shadowRayBias;
@@ -109,7 +110,6 @@ float2x4 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, u
 	float lightRadius = SceneLights[lightIndex].attenuationRadius;
 	float lightAttenuation = SceneLights[lightIndex].attenuationExponent;
 	float lightPointRadius = (diSamples > 0) ? SceneLights[lightIndex].pointRadius : 0.0f;
-    float roughness = gHitRoughness[instanceId];
 	float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
 	if (all(perpX == 0.0f)) {
 		perpX.x = 1.0;
@@ -133,35 +133,47 @@ float2x4 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, u
 		float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
 		float3 reflectedLight = reflect(-sampleDirection, normal);
 		float NdotL = max(dot(normal, sampleDirection), 0.0f);
-        float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor ;
-        float sampleSpecularityFactor = pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+        float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
+        float2 sampleSpecularFactor = float2(0, 0);
+        if (processingFlags & 0x8) {
+			sampleSpecularFactor = pow(CalculateSpecularity(normal, position, viewPosition, samplePosition, roughness, fresnelFactor) * sampleIntensityFactor, max(specularExponent, EPSILON));
+        } else {
+            sampleSpecularFactor.x = pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+        }
         float sampleShadowFactor = 1.0f;
 		if (checkShadows) {
 			sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
 		}
 		
-		// Cook-Torrence Specular function
-        float2 spec = CalculateSpecularity(normal, position, mul(viewI, float4(0, 0, 0, 1)).xyz, samplePosition, roughness, 0.0);
         lLambertFactor += sampleLambertFactor / maxSamples;
-        lSpecularityFactor += sampleSpecularityFactor / maxSamples;
+        lSpecularityFactor += sampleSpecularFactor.x / maxSamples;
 		lShadowFactor += sampleShadowFactor / maxSamples;
-        lFresnelFactor += spec.y / maxSamples;
+        lFresnelFactor += sampleSpecularFactor.y / maxSamples;
 		
 		samples--;
 	}
 	
-    float2x4 resColor =
+    float ks = 1.0;
+    float kd = 1.0;
+    float pi = 1.0;
+	if (processingFlags & 0x8) {
+        ks = lFresnelFactor;
+        kd = 1.0 - ks;
+        pi = M_PI;
+    }
+    float2x3 resColor =
     {
-        float4(SceneLights[lightIndex].diffuseColor * lLambertFactor * lShadowFactor, 0.0),
-		float4(SceneLights[lightIndex].specularColor * specular * lSpecularityFactor * lShadowFactor, lFresnelFactor)
+        SceneLights[lightIndex].diffuseColor * (kd * lLambertFactor) * lShadowFactor,
+		SceneLights[lightIndex].specularColor * specular * (ks * lSpecularityFactor * pi) * lShadowFactor
     };
     return resColor ;
 }
 
-float2x4 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLightCount, uint lightGroupMaskBits, float ignoreNormalFactor, const bool checkShadows) {
-    float2x4 resultLight = 
-	{	0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0	};
+float2x3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, float roughness, float3 viewPosition, uint maxLightCount, uint lightGroupMaskBits, float ignoreNormalFactor, const bool checkShadows)
+{
+    float2x3 resultLight = 
+	{	0.0, 0.0, 0.0, 
+		0.0, 0.0, 0.0, };
 	
 	if (lightGroupMaskBits > 0) {
 		uint sLightCount = 0;
@@ -207,8 +219,8 @@ float2x4 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instan
 			randomRange -= cLightIntensity;
 
 			// Compute and add the light.
-			resultLight += ComputeLight(launchIndex, cLightIndex, rayDirection, instanceId, position, normal, specular, checkShadows) * invProbability;
-		}
+            resultLight += ComputeLight(launchIndex, cLightIndex, rayDirection, instanceId, position, normal, specular, roughness, viewPosition, checkShadows) * invProbability;
+        }
 	}
 
 	return resultLight;

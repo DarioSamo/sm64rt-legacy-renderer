@@ -27,11 +27,13 @@ void DirectRayGen() {
 
 	uint2 launchDims = DispatchRaysDimensions().xy;
 	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
-	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
+    float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
+    float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
 	float4 position = gShadingPosition[launchIndex];
 	float3 normal = gShadingNormal[launchIndex].xyz;
-	float4 specular = gShadingSpecular[launchIndex];
+    float4 specular = gShadingSpecular[launchIndex];
+    float roughness = gShadingRoughness[launchIndex];
 
 	float3 newDirect = float3(0.0f, 0.0f, 0.0f);
 	float historyLength = 0.0f;
@@ -52,17 +54,14 @@ void DirectRayGen() {
         historyLength = saturate(prevDirectAccum.a) * historyWeight;
     }
 	
-    float2x4 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, roughness, rayOrigin, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
     float3 resDirect = lightMatrix._11_12_13;
     float3 resSpecular = lightMatrix._21_22_23;
     resDirect += gShadingEmissive[launchIndex].rgb;
 	
     if ((processingFlags & 0x8) == 0x8) {
 		// Process the metalness if using the experimental specular lighting
-        resSpecular *= RGBtoLuminance(resDirect);
-        resSpecular.r = MetalAmount(resSpecular.r, gDiffuse[launchIndex].r, gShadingMetalness[launchIndex]);
-        resSpecular.g = MetalAmount(resSpecular.g, gDiffuse[launchIndex].g, gShadingMetalness[launchIndex]);
-        resSpecular.b = MetalAmount(resSpecular.b, gDiffuse[launchIndex].b, gShadingMetalness[launchIndex]);
+        resSpecular *= gShadingReflective[launchIndex].rgb;
     } else {
 		// Add the eye light if using the original specular lighting
 		float specularExponent = instanceMaterials[instanceId].specularExponent;
@@ -75,7 +74,8 @@ void DirectRayGen() {
 	// Accumulate.
 	historyLength = min(historyLength + 1.0f, 64.0f);
 	newDirect = lerp(newDirect.rgb, resDirect, 1.0f / historyLength);
+    resSpecular = lerp(resSpecular.rgb, resSpecular, 1.0f / historyLength);
 
 	gDirectLightAccum[launchIndex] = float4(newDirect, historyLength);
-    gSpecularLightAccum[launchIndex] = float4(resSpecular, lightMatrix._24);
+    gSpecularLightAccum[launchIndex] = float4(resSpecular, historyLength);
 }

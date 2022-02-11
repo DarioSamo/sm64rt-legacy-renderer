@@ -122,6 +122,7 @@ namespace RT64 {
 		AllocatedResource rtShadingRoughness;
 		AllocatedResource rtShadingMetalness;
 		AllocatedResource rtShadingAmbient;
+		AllocatedResource rtShadingReflective;
 		AllocatedResource rtFlow;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];

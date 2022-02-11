@@ -247,13 +247,13 @@ void setupRT64Scene() {
 	RT64.view = RT64.lib.CreateView(RT64.scene);
 
 	// Load textures.
-	RT64.textureDif = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.png");
-	RT64.textureNrm = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.nrm.png");
+	RT64.textureDif = loadTexturePNG("res/steelplate1-bl/steelplate1_albedo.png");
+	RT64.textureNrm = loadTexturePNG("res/steelplate1-bl/steelplate1_normal-ogl.png");
 	RT64.textureSpc = nullptr;
 	RT64.textureEms = nullptr;
-	RT64.textureRgh = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.rgh.png");
-	RT64.textureMtl = nullptr;
-	RT64.textureAmb = loadTexturePNG("res/wf_textures.00800.rgba16/wf_textures.00800.rgba16.amb.png");
+	RT64.textureRgh = loadTexturePNG("res/steelplate1-bl/steelplate1_roughness.png");
+	RT64.textureMtl = loadTexturePNG("res/steelplate1-bl/steelplate1_metallic.png");
+	RT64.textureAmb = loadTexturePNG("res/steelplate1-bl/steelplate1_ao.png");
 	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds"); 
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
@@ -312,12 +312,12 @@ void setupRT64Scene() {
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.uvDetailScale = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
-	RT64.baseMaterial.reflectionFresnelFactor = 0.15f;
+	RT64.baseMaterial.reflectionFresnelFactor = 0.5f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
 	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
 	RT64.baseMaterial.specularExponent = 1.0f;
-	RT64.baseMaterial.roughnessFactor = 0.0f;
+	RT64.baseMaterial.roughnessFactor = 0.25f;
 	RT64.baseMaterial.metallicFactor = 0.0f;
 	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;

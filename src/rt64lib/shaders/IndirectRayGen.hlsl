@@ -77,6 +77,7 @@ void IndirectRayGen() {
             float3 resNormal = float3(0.0f, 0.0f, 0.0f);
             float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
             float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
+            float resRoughness = 0.0f;
             float resMetalness = 0.0f;
             float resAmbient = 0.0f;
             float4 resColor = float4(0, 0, 0, 1);
@@ -91,6 +92,7 @@ void IndirectRayGen() {
                     float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
                     float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
                     float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+                    float vertexRoughness = gHitRoughness[hitBufferIndex] * instanceMaterials[instanceId].roughnessFactor;
                     float vertexMetalness = gHitMetalness[hitBufferIndex] * instanceMaterials[instanceId].metallicFactor;
                     float vertexAmbient = gHitAmbient[hitBufferIndex];
                     float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
@@ -105,6 +107,7 @@ void IndirectRayGen() {
                     resSpecular = specular;
                     resInstanceId = instanceId;
                     resEmissive = emissive;
+                    resRoughness = vertexRoughness;
                     resMetalness = vertexMetalness;
                     resAmbient = vertexAmbient;
                 }
@@ -117,7 +120,7 @@ void IndirectRayGen() {
 			// Add diffuse bounce as indirect light.
             float3 resIndirect = ambientBaseColor.rgb;
             if (resInstanceId >= 0) {
-                float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+                float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, resRoughness, rayOrigin, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
                 float3 directLight = lightMatrix._11_12_13 + resEmissive;
                 float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
                 if ((processingFlags & 0x8) == 0x8)

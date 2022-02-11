@@ -25,9 +25,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     float4 diffuse = gDiffuse.SampleLevel(gSampler, uv, 0);
     if (diffuse.a > EPSILON) {
         float3 directLight = gDirectLight.SampleLevel(gSampler, uv, 0).rgb;
-        float4 specular = gSpecularLight.SampleLevel(gSampler, uv, 0);
-        float3 specularLight = specular.rgb;
-        float kd = 1.0f - specular.a;
+        float3 specularLight = gSpecularLight.SampleLevel(gSampler, uv, 0).rgb;
         float3 indirectLight = gIndirectLight.SampleLevel(gSampler, uv, 0).rgb;
         float ambient = saturate(gAmbientOcclusion.SampleLevel(gSampler, uv, 0) + RGBtoLuminance(directLight + specularLight + indirectLight));
         indirectLight *= ambient;
@@ -38,7 +36,9 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         float4 fog = gFog.SampleLevel(gSampler, uv, 0);
         fog.rgb += BlendAOverB(fog, volumetrics).rgb;
         fog.a *= volumetrics.a;
+        //float4 result = float4(diffuse.rgb, 1.f);
         float4 result = float4(diffuse.rgb, 1.f);
+        
         if ((processingFlags & 0x8) == 0x8) {
             result.rgb *= (directLight + indirectLight);
             result.rgb += specularLight;
