@@ -42,6 +42,7 @@
 #define RT64_ATTRIBUTE_SELF_LIGHT					0x04000
 #define RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS		0x08000
 #define RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX			0x10000
+#define RT64_ATTRIBUTE_SPECULAR_FRESNEL_FACTOR		0x20000
 
 // Mesh flags.
 #define RT64_MESH_RAYTRACE_ENABLED				0x1
@@ -147,6 +148,7 @@ typedef struct {
 	float fogMul;
 	float fogOffset;
 	unsigned int fogEnabled;
+	float specularFresnelFactor;
 
 	// Flag containing all attributes that are actually used by this material.
 	int enabledAttributes;
@@ -301,6 +303,10 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 
 	if (src->enabledAttributes & RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX) {
 		dst->diffuseColorMix = src->diffuseColorMix;
+	}
+
+	if (src->enabledAttributes & RT64_ATTRIBUTE_SPECULAR_FRESNEL_FACTOR) {
+		dst->specularFresnelFactor = src->specularFresnelFactor;
 	}
 }
 

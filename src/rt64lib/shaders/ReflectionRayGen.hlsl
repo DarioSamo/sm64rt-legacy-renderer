@@ -114,7 +114,6 @@ void ReflectionRayGen() {
             float vertexRoughness = gHitRoughness[hitBufferIndex];
             float vertexMetalness = gHitMetalness[hitBufferIndex];
             float roughness = vertexRoughness * instanceMaterials[hitInstanceId].roughnessFactor;
-            float3 normal = vertexNormal;
             float3 specular = instanceMaterials[hitInstanceId].specularColor * vertexSpecular.rgb;
             float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[hitInstanceId].selfLight;
             float metalness = vertexMetalness * instanceMaterials[hitInstanceId].metallicFactor;
@@ -123,11 +122,12 @@ void ReflectionRayGen() {
 			
 			if (reflectionFactor > EPSILON) {
                 float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
-                float fresnelAmount = FresnelReflectAmount(normal, rayDirection, reflectionFactor, reflectionFresnelFactor);
+                float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
 				newReflectionAlpha += fresnelAmount * alphaContrib * reflectionAlpha;
 			}
 
-			if (usesLighting) {
+            if (usesLighting)
+            {
 				resColor.rgb += hitColor.rgb  * alphaContrib;
                 resEmissive.rgb += emissive;
             }
@@ -136,7 +136,7 @@ void ReflectionRayGen() {
             }
 
 			resPosition = vertexPosition;
-            resNormal = normal;
+            resNormal = vertexNormal;
 			resSpecular = specular;
 			resRoughness = roughness;
 			resInstanceId = hitInstanceId;

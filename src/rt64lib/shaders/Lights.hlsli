@@ -54,7 +54,7 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 float FresnelSpecularAmount(float3 V, float3 H, float specularity, float fresnelMultiplier)
 {	
 	// TODO: Probably use a more accurate approximation than this.
-    float ret = pow(max(1.0f - max(dot(V, H), 0.0), EPSILON), 5.0f);
+    float ret = pow(max(1.0f - max(dot(V, H), 0.005), EPSILON), 5.0f);
     return specularity + ((1.0 - specularity) * ret * fresnelMultiplier);
 }
 
@@ -73,7 +73,7 @@ float NormalDistributionGGX(float roughness, float3 N, float3 H)
     return rough2 / max(M_PI * denom * denom, EPSILON);
 }
 
-// Cook-Torrence Specular function
+// Cook-Torrance Specular function
 float2 CalculateSpecularity(float3 normal, float3 vertexPosition, float3 viewPosition, float3 lightPosition, float roughness, float fresnelFactor)
 {
     float3 N = normal;
@@ -104,7 +104,7 @@ float2x3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, u
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
 	float shadowRayBias = instanceMaterials[instanceId].shadowRayBias;
-    float fresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
+    float fresnelFactor = instanceMaterials[instanceId].specularFresnelFactor;
 	float3 lightPosition = SceneLights[lightIndex].position;
 	float3 lightDirection = normalize(lightPosition - position);
 	float lightRadius = SceneLights[lightIndex].attenuationRadius;

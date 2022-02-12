@@ -35,6 +35,7 @@ struct MaterialProperties {
 	float fogMul;
 	float fogOffset;
     uint fogEnabled;
+	float specularFresnelFactor;
 	
 	uint _reserved;
 };
