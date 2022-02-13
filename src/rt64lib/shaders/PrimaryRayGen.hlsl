@@ -92,7 +92,6 @@ void PrimaryRayGen() {
     float resRoughness = 0.0f;
     float resMetalness = 0.0f;
     float resAmbient = 0.0f;
-    float4 resReflective = float4(1.0, 1.0, 1.0, 0.0);
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
     float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
@@ -123,7 +122,7 @@ void PrimaryRayGen() {
             float metalness = vertexMetalness * instanceMaterials[instanceId].metallicFactor;
             float reflectionFactor = instanceMaterials[instanceId].reflectionFactor;
             float refractionFactor = instanceMaterials[instanceId].refractionFactor;
-            float3 reflectivity = specular * (1.0f - metalness) + hitColor.rgb * metalness;
+            specular = specular * (1.0f - metalness) + hitColor.rgb * metalness;
 			   
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			bool storeHit = false;
@@ -152,9 +151,9 @@ void PrimaryRayGen() {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
                 float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
 				
-                resReflective.a = fresnelAmount * alphaContrib;
+                gReflection[launchIndex].a = fresnelAmount * alphaContrib;
                 if (instanceMaterials[instanceId].metalnessTexIndex >= 0) {
-                    resReflective.a *= metalness;
+                    gReflection[launchIndex].a *= metalness;
                 }
                 storeHit = true;
             }
@@ -205,7 +204,6 @@ void PrimaryRayGen() {
                 resEmissive = emissive;
                 resRoughness = roughness;
                 resMetalness = metalness;
-                resReflective.rgb *= reflectivity;
                 resAmbient = vertexAmbientOcclusion;
 				resInstanceId = instanceId;
 				resFlow = (curPos - prevPos) * resolution.xy;
@@ -234,8 +232,6 @@ void PrimaryRayGen() {
     gShadingRoughness[launchIndex] = resRoughness;
 	gShadingMetalness[launchIndex] = resMetalness;
     gShadingAmbient[launchIndex] = resAmbient;
-    gReflection[launchIndex] = float4(0, 0, 0, resReflective.a);
-    gShadingReflective[launchIndex] = resReflective;
 	gDiffuse[launchIndex] = resColor;
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);

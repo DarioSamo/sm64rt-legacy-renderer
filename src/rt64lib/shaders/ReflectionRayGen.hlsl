@@ -163,7 +163,7 @@ void ReflectionRayGen() {
 	// Blend with the background.
 	resColor.rgb += bgColor * resColor.a + resTransparent;
     resColor.a = 1.0f;
-    resColor.rgb *= gShadingReflective[launchIndex].rgb;
+    resColor.rgb *= gShadingSpecular[launchIndex].rgb;
     gDiffuse[launchIndex].rgb *= (1.0 - gReflection[launchIndex].a);
 
 	// Artificial shine factor.

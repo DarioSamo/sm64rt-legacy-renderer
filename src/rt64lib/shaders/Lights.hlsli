@@ -136,7 +136,7 @@ float2x3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, u
         float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
         float2 sampleSpecularFactor = float2(0, 0);
         if (processingFlags & 0x8) {
-			sampleSpecularFactor = pow(CalculateSpecularity(normal, position, viewPosition, samplePosition, roughness, fresnelFactor) * sampleIntensityFactor, max(specularExponent, EPSILON));
+            sampleSpecularFactor = pow(CalculateSpecularity(normal, position, viewPosition, samplePosition, max(roughness, 0.1f), fresnelFactor) * sampleIntensityFactor, max(specularExponent, EPSILON));
         } else {
             sampleSpecularFactor.x = pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
         }

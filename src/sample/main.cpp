@@ -247,14 +247,14 @@ void setupRT64Scene() {
 	RT64.view = RT64.lib.CreateView(RT64.scene);
 
 	// Load textures.
-	RT64.textureDif = loadTexturePNG("res/steelplate1-bl/steelplate1_albedo.png");
-	RT64.textureNrm = loadTexturePNG("res/steelplate1-bl/steelplate1_normal-ogl.png");
-	RT64.textureSpc = nullptr;
+	RT64.textureDif = loadTexturePNG("res/grass_dif.png");
+	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
+	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
 	RT64.textureEms = nullptr;
-	RT64.textureRgh = loadTexturePNG("res/steelplate1-bl/steelplate1_roughness.png");
-	RT64.textureMtl = loadTexturePNG("res/steelplate1-bl/steelplate1_metallic.png");
-	RT64.textureAmb = loadTexturePNG("res/steelplate1-bl/steelplate1_ao.png");
-	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds"); 
+	RT64.textureRgh = nullptr;
+	RT64.textureMtl = nullptr;
+	RT64.textureAmb = nullptr;
+	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
@@ -318,7 +318,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
 	RT64.baseMaterial.specularExponent = 1.0f;
 	RT64.baseMaterial.specularFresnelFactor = 0.1f;
-	RT64.baseMaterial.roughnessFactor = 0.1f;
+	RT64.baseMaterial.roughnessFactor = 0.0f;
 	RT64.baseMaterial.metallicFactor = 0.0f;
 	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
@@ -347,13 +347,13 @@ void setupRT64Scene() {
 	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
-	RT64_TEXTURE *altTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_albedo.png");
-	RT64_TEXTURE* normalTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_normal.png");
-	RT64_TEXTURE* specularTexture = nullptr;
+	RT64_TEXTURE *altTexture = loadTexturePNG("res/tiles_dif.png");
+	RT64_TEXTURE* normalTexture = loadTexturePNG("res/tiles_nrm.png");
+	RT64_TEXTURE* specularTexture = loadTexturePNG("res/tiles_spc.png");
 	RT64_TEXTURE* emissiveTexture = nullptr;
-	RT64_TEXTURE* roughnessTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_roughness.png");
+	RT64_TEXTURE* roughnessTexture = nullptr;
 	RT64_TEXTURE* metalnessTexture = nullptr;
-	RT64_TEXTURE* ambientTexture = loadTexturePNG("res/variable-blocks-vegetation/variable-blocks-vegetation_ao.png");
+	RT64_TEXTURE* ambientTexture = nullptr;
 
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));

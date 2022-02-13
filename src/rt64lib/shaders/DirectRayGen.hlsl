@@ -54,22 +54,31 @@ void DirectRayGen() {
         historyLength = saturate(prevDirectAccum.a) * historyWeight;
     }
 	
-    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, roughness, rayOrigin, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.rgb, roughness, rayOrigin, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
     float3 resDirect = lightMatrix._11_12_13;
     float3 resSpecular = lightMatrix._21_22_23;
     resDirect += gShadingEmissive[launchIndex].rgb;
 	
     if ((processingFlags & 0x8) == 0x8) {
-		// Process the metalness if using the experimental specular lighting
-        resSpecular *= gShadingReflective[launchIndex].rgb;
+        float specularExponent = instanceMaterials[instanceId].specularExponent;
+        float fresnelFactor = instanceMaterials[instanceId].specularFresnelFactor;
+        float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
+        float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
+        float2 eyeLightSpecularFactor = pow(CalculateSpecularity(normal, position.xyz, rayOrigin, rayOrigin, max(roughness, 0.1f), fresnelFactor), max(specularExponent, EPSILON));
+        resDirect += eyeLightDiffuseColor.rgb * eyeLightLambertFactor * (1.0 - eyeLightSpecularFactor.y);
+        resSpecular += specular.rgb * eyeLightSpecularColor.rgb * eyeLightSpecularFactor.x * eyeLightSpecularFactor.y * M_PI;
     } else {
-		// Add the eye light if using the original specular lighting
 		float specularExponent = instanceMaterials[instanceId].specularExponent;
 		float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
 		float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
-		float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection))), specularExponent);
-		resSpecular += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
-	}
+		float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection))), specularExponent * 7.0f);
+        resDirect += eyeLightDiffuseColor.rgb * eyeLightLambertFactor;
+        resSpecular += specular.rgb * eyeLightSpecularColor.rgb * eyeLightSpecularFactor;
+        resSpecular *= gDiffuse[launchIndex].rgb;
+    }
+	
+	// Process the metalness on the direct light
+    resDirect *= (1.0f - gShadingMetalness[launchIndex]);
 
 	// Accumulate.
 	historyLength = min(historyLength + 1.0f, 64.0f);

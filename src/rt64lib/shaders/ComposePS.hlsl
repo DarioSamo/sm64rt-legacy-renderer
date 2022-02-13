@@ -39,12 +39,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         //float4 result = float4(diffuse.rgb, 1.f);
         float4 result = float4(diffuse.rgb, 1.f);
         
-        if ((processingFlags & 0x8) == 0x8) {
-            result.rgb *= (directLight + indirectLight);
-            result.rgb += specularLight;
-        } else { 
-            result.rgb *= (directLight + specularLight + indirectLight);
-        }
+        result.rgb *= (directLight + indirectLight);
+        result.rgb += specularLight;
         result.rgb = lerp(diffuse.rgb, result.rgb, diffuse.a);
         result.rgb += reflection;
         result.rgb += refraction;
