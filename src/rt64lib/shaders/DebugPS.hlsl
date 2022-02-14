@@ -113,6 +113,24 @@ float4 getVolumetrics(float2 pos, bool filtered) {
     return float4(color.rgb * color.a, 1.0f);
 }
 
+float4 getShadingRoughness(float2 pos)
+{
+    float color = gShadingRoughness[pos];
+    return float4(color, color, color, 1.0f);
+}
+
+float4 getShadingMetalness(float2 pos)
+{
+    float color = gShadingMetalness[pos];
+    return float4(color, color, color, 1.0f);
+}
+
+float4 getShadingAmbient(float2 pos)
+{
+    float color = gShadingAmbient[pos];
+    return float4(color, color, color, 1.0f);
+}
+
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     switch (visualizationMode) {
     case VISUALIZATION_MODE_SHADING_POSITION:
@@ -149,6 +167,12 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getVolumetrics(uv * resolution.xy, true);
     case VISUALIZATION_MODE_SPECULAR_LIGHT_RAW:
         return getSpecularLightRaw(uv * resolution.xy);
+    case VISUALIZATION_MODE_SHADING_ROUGHNESS:
+        return getShadingRoughness(uv * resolution.xy);
+    case VISUALIZATION_MODE_SHADING_METALNESS:
+        return getShadingMetalness(uv * resolution.xy);
+    case VISUALIZATION_MODE_SHADING_AMBIENT:
+        return getShadingAmbient(uv * resolution.xy);
     default:
         return float4(0.5f, 0.5f, 0.5f, 1.0f);
     }

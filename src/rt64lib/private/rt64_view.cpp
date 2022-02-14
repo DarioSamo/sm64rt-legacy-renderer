@@ -85,8 +85,8 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.volumetricIntensity = 1.0f;
 
 	// Eye adaption parameters
-	minLogLuminance = -5;
-	logLuminanceRange = 7;
+	minLogLuminance = 5;
+	logLuminanceRange = -7;
 	lumaUpdateTime = 100.0;
 	globalParamsBufferData.eyeAdaptionBrightnessFactor = 1.0f;
 

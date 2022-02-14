@@ -248,8 +248,8 @@ void setupRT64Scene() {
 
 	// Load textures.
 	RT64.textureDif = loadTexturePNG("res/grass_dif.png");
-	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
-	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
+	RT64.textureNrm = nullptr;
+	RT64.textureSpc = nullptr;
 	RT64.textureEms = nullptr;
 	RT64.textureRgh = nullptr;
 	RT64.textureMtl = nullptr;
@@ -280,11 +280,11 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/sphere.obj", nullptr, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/teapot.obj", nullptr, true);
 	assert(loaded);
 	
-	float size = 1;
-	float yOffset = 2;
+	float size = 0.25;
+	float yOffset = 0;
 	for (size_t i = 0; i < shapes.size(); i++) {
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {

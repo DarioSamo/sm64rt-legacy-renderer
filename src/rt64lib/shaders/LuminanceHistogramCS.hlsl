@@ -34,7 +34,7 @@ uint HDRToHistogramBin(float3 hdrColor)
 		return 0;
 	}
 	
-	float logLuminance = saturate((log2(luminance) - minLogLuminance) * oneOverLogLuminanceRange);
+    float logLuminance = saturate((luminance - minLogLuminance) * oneOverLogLuminanceRange);
     return (uint) (logLuminance * 62.0 + 1.0);
 }
 
