@@ -36,8 +36,8 @@ void RefractionRayGen() {
 
 	// Mix background and sky color together.
 	float2 screenUV = (float2)(launchIndex) / (float2)(launchDims);
-	float3 bgColor = SampleBackground2D(screenUV);
-	float4 skyColor = SampleSky2D(screenUV);
+	float3 bgColor = SrgbToLinear(SampleBackground2D(screenUV));
+	float4 skyColor = SrgbToLinear(SampleSky2D(screenUV));
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 	// Ray differential.
@@ -67,7 +67,7 @@ void RefractionRayGen() {
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
-		float4 hitColor = gHitColor[hitBufferIndex];
+		float4 hitColor = SrgbToLinear(gHitColor[hitBufferIndex]);
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint hitInstanceId = gHitInstanceId[hitBufferIndex];
@@ -76,7 +76,7 @@ void RefractionRayGen() {
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			if (instanceMaterials[hitInstanceId].fogEnabled) {
-				float4 fogColor = ComputeFogFromCamera(hitInstanceId, vertexPosition);
+				float4 fogColor = SrgbToLinear(ComputeFogFromCamera(hitInstanceId, vertexPosition));
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);
 			}

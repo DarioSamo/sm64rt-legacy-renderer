@@ -79,8 +79,8 @@ void IndirectRayGen() {
 			TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
 			// Mix background and sky color together.
-			float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
-			float4 skyColor = SampleSkyPlane(rayDirection);
+			float3 bgColor = SrgbToLinear(SampleBackgroundAsEnvMap(rayDirection));
+			float4 skyColor = SrgbToLinear(SampleSkyPlane(rayDirection));
 			bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 			// Process hits.
@@ -91,7 +91,7 @@ void IndirectRayGen() {
 			int resInstanceId = -1;
 			for (uint hit = 0; hit < payload.nhits; hit++) {
 				uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
-				float4 hitColor = gHitColor[hitBufferIndex];
+				float4 hitColor = SrgbToLinear(gHitColor[hitBufferIndex]);
 				float alphaContrib = (resColor.a * hitColor.a);
 				if (alphaContrib >= EPSILON) {
 					uint instanceId = gHitInstanceId[hitBufferIndex];

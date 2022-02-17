@@ -3,6 +3,7 @@
 //
 
 #include "Constants.hlsli"
+#include "Color.hlsli"
 #include "GlobalParams.hlsli"
 
 Texture2D<float4> gFlow : register(t0);
@@ -29,9 +30,9 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         result += reflection;
         result += refraction;
         result += transparent;
-        return float4(result, 1.0f);
+        return LinearToSrgb(float4(result, 1.0f));
     }
     else {
-        return float4(diffuse.rgb, 1.0f);
+        return LinearToSrgb(float4(diffuse.rgb, 1.0f));
     }
 }

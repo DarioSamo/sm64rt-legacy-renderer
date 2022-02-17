@@ -45,8 +45,8 @@ void PrimaryRayGen() {
 
 	// Sample the background.
 	float2 screenUV = float2(launchIndex.x, launchIndex.y) / float2(launchDims.x, launchDims.y);
-	float3 bgColor = SampleBackground2D(screenUV);
-	float4 skyColor = SampleSky2D(screenUV);
+	float3 bgColor = SrgbToLinear(SampleBackground2D(screenUV));
+	float4 skyColor = SrgbToLinear(SampleSky2D(screenUV));
 	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
 	float2 prevBgPos = WorldToScreenPos(prevViewProj, bgPosition);
 	float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);
@@ -83,7 +83,7 @@ void PrimaryRayGen() {
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
-		float4 hitColor = gHitColor[hitBufferIndex];
+		float4 hitColor = SrgbToLinear(gHitColor[hitBufferIndex]);
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
@@ -99,7 +99,7 @@ void PrimaryRayGen() {
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			bool storeHit = false;
 			if (instanceMaterials[instanceId].fogEnabled) {
-				float4 fogColor = ComputeFogFromCamera(instanceId, vertexPosition);
+				float4 fogColor = SrgbToLinear(ComputeFogFromCamera(instanceId, vertexPosition));
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);
 			}
