@@ -91,7 +91,7 @@ void IndirectRayGen() {
 			int resInstanceId = -1;
 			for (uint hit = 0; hit < payload.nhits; hit++) {
 				uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
-				float4 hitColor = SrgbToLinear(gHitColor[hitBufferIndex]);
+				float4 hitColor = gHitColor[hitBufferIndex];
 				float alphaContrib = (resColor.a * hitColor.a);
 				if (alphaContrib >= EPSILON) {
 					uint instanceId = gHitInstanceId[hitBufferIndex];
@@ -116,7 +116,7 @@ void IndirectRayGen() {
 			float3 resIndirect = ambientBaseColor.rgb;
 			if (resInstanceId >= 0) {
 				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
-				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
+				float3 indirectLight = SrgbToLinear(resColor.rgb) * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
 				resIndirect += indirectLight;
 			}
 

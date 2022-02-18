@@ -40,8 +40,8 @@ void ReflectionRayGen() {
 	float newReflectionAlpha = 0.0f;
 
 	// Mix background and sky color together.
-	float3 bgColor = SrgbToLinear(SampleBackgroundAsEnvMap(rayDirection));
-	float4 skyColor = SrgbToLinear(SampleSkyPlane(rayDirection));
+	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
+	float4 skyColor = SampleSkyPlane(rayDirection);
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 	// Ray differential.
@@ -71,7 +71,7 @@ void ReflectionRayGen() {
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
 	for (uint hit = 0; hit < payload.nhits; hit++) {
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
-		float4 hitColor = SrgbToLinear(gHitColor[hitBufferIndex]);
+		float4 hitColor = gHitColor[hitBufferIndex];
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint hitInstanceId = gHitInstanceId[hitBufferIndex];
@@ -80,7 +80,7 @@ void ReflectionRayGen() {
 
 			// Calculate the fog for the resulting color using the camera data if the option is enabled.
 			if (instanceMaterials[hitInstanceId].fogEnabled) {
-				float4 fogColor = SrgbToLinear(ComputeFogFromOrigin(hitInstanceId, vertexPosition, shadingPosition));
+				float4 fogColor = ComputeFogFromOrigin(hitInstanceId, vertexPosition, shadingPosition);
 				resTransparent += fogColor.rgb * fogColor.a * alphaContrib;
 				alphaContrib *= (1.0f - fogColor.a);
 			}
@@ -99,7 +99,7 @@ void ReflectionRayGen() {
 				resColor.rgb += hitColor.rgb * alphaContrib;
 			}
 			else {
-				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
+				resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight)) * alphaContrib;
 			}
 
 			resPosition = vertexPosition;
@@ -116,7 +116,7 @@ void ReflectionRayGen() {
 
 	if (resInstanceId >= 0) {
 		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, false) + instanceMaterials[resInstanceId].selfLight;
-		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
+		resColor.rgb = LinearToSrgb(SrgbToLinear(resColor).rgb * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight));
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 		gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
 		gShadingNormal[launchIndex] = float4(resNormal, 0.0f);
