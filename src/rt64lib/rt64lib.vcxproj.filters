@@ -81,6 +81,9 @@
     <ClInclude Include="contrib\im3d\im3d_math.h">
       <Filter>contrib\im3d</Filter>
     </ClInclude>
+    <ClInclude Include="contrib\d3dx12.h">
+      <Filter>contrib</Filter>
+    </ClInclude>
     <ClInclude Include="contrib\imgui\imstb_truetype.h">
       <Filter>contrib\imgui</Filter>
     </ClInclude>
@@ -138,24 +141,6 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="res\bluenoise\LDR_64_64_64_RGB1.h">
       <Filter>res\bluenoise</Filter>
-    </ClInclude>
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx.h">
-      <Filter>contrib\nvngx_dlss_sdk</Filter>
-    </ClInclude>
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_defs.h">
-      <Filter>contrib\nvngx_dlss_sdk</Filter>
-    </ClInclude>
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_helpers.h">
-      <Filter>contrib\nvngx_dlss_sdk</Filter>
-    </ClInclude>
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_helpers_vk.h">
-      <Filter>contrib\nvngx_dlss_sdk</Filter>
-    </ClInclude>
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_params.h">
-      <Filter>contrib\nvngx_dlss_sdk</Filter>
-    </ClInclude>
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_vk.h">
-      <Filter>contrib\nvngx_dlss_sdk</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

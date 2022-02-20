@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="contrib\D3D12MemoryAllocator\D3D12MemAlloc.h" />
+    <ClInclude Include="contrib\d3dx12.h" />
     <ClInclude Include="contrib\DDSTextureLoader\DDSTextureLoader12.h" />
     <ClInclude Include="contrib\im3d\im3d.h" />
     <ClInclude Include="contrib\im3d\im3d_config.h" />
@@ -36,12 +37,6 @@
     <ClInclude Include="contrib\imgui\imstb_rectpack.h" />
     <ClInclude Include="contrib\imgui\imstb_textedit.h" />
     <ClInclude Include="contrib\imgui\imstb_truetype.h" />
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx.h" />
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_defs.h" />
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_helpers.h" />
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_helpers_vk.h" />
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_params.h" />
-    <ClInclude Include="contrib\nvngx_dlss_sdk\Include\nvsdk_ngx_vk.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\BottomLevelASGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
     <ClInclude Include="contrib\nv_helpers_dx12\RootSignatureGenerator.h" />

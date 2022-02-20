@@ -11,6 +11,7 @@
 #define WINDOW_TITLE "RT64 Sample"
 
 #include <Windows.h>
+#include <chrono>
 
 static void infoMessage(HWND hWnd, const char *message) {
 	MessageBox(hWnd, message, WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
@@ -503,10 +504,15 @@ int main(int argc, char *argv[]) {
 	MSG msg = {};
 	while (msg.message != WM_QUIT) {
 		// Process any messages in the queue.
+		std::chrono::time_point t1 = std::chrono::high_resolution_clock::now();
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+
+		std::chrono::time_point t2 = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float> time_span = std::chrono::duration_cast<std::chrono::duration<float>>(t2 - t1);
+		RT64.lib.SetDeltaTime(RT64.view, time_span.count());
 	}
 
 	destroyRT64();

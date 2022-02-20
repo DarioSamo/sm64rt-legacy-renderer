@@ -47,7 +47,7 @@ void IndirectRayGen() {
 		uint maxSamples = giSamples;
 		const uint blueNoiseMult = 64 / giSamples;
 		while (maxSamples > 0) {
-            float3 rayDirection = microfacetGGX(launchIndex, frameCount + maxSamples * blueNoiseMult, 1.0, shadingNormal);
+            float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxSamples * blueNoiseMult, 1.0, shadingNormal);
 
 			// Ray differential.
 			RayDiff rayDiff;
@@ -97,7 +97,6 @@ void IndirectRayGen() {
                     float vertexAmbient = gHitAmbient[hitBufferIndex];
                     float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
                     float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
-                    float3 normal = microfacetGGX(launchIndex, frameCount + maxSamples * blueNoiseMult, gHitRoughness[hitBufferIndex] * instanceMaterials[instanceId].roughnessFactor, vertexNormal);
 					
                     resColor.rgb += hitColor.rgb * alphaContrib;
                     resColor.a *= (1.0 - hitColor.a);
@@ -123,21 +122,12 @@ void IndirectRayGen() {
                 float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, resRoughness, rayOrigin, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
                 float3 directLight = lightMatrix._11_12_13 + resEmissive;
                 float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
-                if ((processingFlags & 0x8) == 0x8)
-                {
-                    specularLight *= RGBtoLuminance(directLight);
-                    specularLight.r = MetalAmount(specularLight.r, resColor.r, resMetalness);
-                    specularLight.g = MetalAmount(specularLight.g, resColor.g, resMetalness);
-                    specularLight.b = MetalAmount(specularLight.b, resColor.b, resMetalness);
+                if (!(processingFlags & 0x8)) {
+                    resSpecular *= gDiffuse[launchIndex].rgb;
                 }
 				
-                if ((processingFlags & 0x4) == 0x4) {
-                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * directLight + specularLight) * giDiffuseStrength;
-                    resIndirect = indirectLight;
-                } else {
-                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) + specularLight) * giDiffuseStrength ;
-                    resIndirect += indirectLight;
-                }
+                float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientNoGIColor.rgb + directLight + specularLight)) * giDiffuseStrength;
+                resIndirect = indirectLight;
                 resIndirect = max(resIndirect - (1.0 - resAmbient), 0.0);
             }
 			

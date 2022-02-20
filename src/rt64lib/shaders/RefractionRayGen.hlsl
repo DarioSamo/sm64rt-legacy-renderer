@@ -37,7 +37,7 @@ void RefractionRayGen() {
 			
 	// Roughness
     if (gShadingRoughness[launchIndex] >= EPSILON) {
-        rayDirection = normalize(microfacetGGX(launchIndex, frameCount, gShadingRoughness[launchIndex] / 2.0f, rayDirection));
+        rayDirection = normalize(getCosHemisphereSampleBlueNoise(launchIndex, frameCount, gShadingRoughness[launchIndex] / 3.0f, rayDirection));
     }
 
 	// Mix background and sky color together.

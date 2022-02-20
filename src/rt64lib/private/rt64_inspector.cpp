@@ -136,7 +136,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Specular light\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0Volumetrics\0Scene Fog\0Shading Roughness\0Shading Metalness\0Ambient Occlusion\0");
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Shading Emission\0Shading Roughness\0Shading Metalness\0Shading Ambient Occlusion\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Specular light\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0Volumetrics\0Scene Fog\0");
 
 #ifdef RT64_DLSS
     // Only show DLSS option if supported by the hardware.
@@ -192,14 +192,20 @@ void RT64::Inspector::renderViewParams(View *view) {
 
     if (volumetricEnabled)
     {
-        int volumetricMaxSamples = view->getVolumetricMaxSamples();
+        float volumetricDistance = view->getVolumetricDistance();
+        float volumetricSteps = view->getVolumetricSteps();
         float volumetricIntensity = view->getVolumetricIntensity();
+        float volumetricResolution = view->getVolumetricResolution();
 
-        ImGui::DragInt("Volumetric Samples", &volumetricMaxSamples, 0.1f, 32, 1028);
+        ImGui::DragFloat("Volumetric Distance", &volumetricDistance, 1.0f, 1.0f, 100000.0f);
+        ImGui::DragFloat("Volumetric Steps", &volumetricSteps, 0.1f, 0.1f, 1000.0f);
         ImGui::DragFloat("Volumetric Intensity", &volumetricIntensity, 0.01f, 0.0, 1.0);
+        ImGui::DragFloat("Volumetric Resolution", &volumetricResolution, 0.01f, 0.0, 1.0);
 
-        view->setVolumetricMaxSamples(volumetricMaxSamples);
+        view->setVolumetricDistance(volumetricDistance);
+        view->setVolumetricSteps(volumetricSteps);
         view->setVolumetricIntensity(volumetricIntensity);
+        view->setVolumetricResolution(volumetricResolution);
     }
 
     // Dumping toggle.

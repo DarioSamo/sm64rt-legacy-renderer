@@ -133,38 +133,40 @@ float2x3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, u
 		float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
 		float3 reflectedLight = reflect(-sampleDirection, normal);
 		float NdotL = max(dot(normal, sampleDirection), 0.0f);
-        float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
+        float lerpedNdotL = lerp(NdotL, 1.0f, ignoreNormalFactor);
+        float sampleLambertFactor = lerpedNdotL * sampleIntensityFactor;
         float2 sampleSpecularFactor = float2(0, 0);
+        // TODO: Instead of a global flag, make this material driven
         if (processingFlags & 0x8) {
-            sampleSpecularFactor = pow(CalculateSpecularity(normal, position, viewPosition, samplePosition, max(roughness, 0.1f), fresnelFactor) * sampleIntensityFactor, max(specularExponent, EPSILON));
+            sampleSpecularFactor = pow(CalculateSpecularity(normal, position, viewPosition, samplePosition, (roughness * .9 + .1), fresnelFactor) * lerpedNdotL * sampleIntensityFactor, max(specularExponent, EPSILON));
         } else {
             sampleSpecularFactor.x = pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
         }
         float sampleShadowFactor = 1.0f;
 		if (checkShadows) {
 			sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
-		}
+        }
+	
+        float ks = 1.0;
+        float kd = 1.0;
+        float pi = 1.0;
+        if (processingFlags & 0x8)
+        {
+            ks = sampleSpecularFactor.y;
+            kd = 1.0 - ks;
+            pi = M_PI;
+        }
 		
-        lLambertFactor += sampleLambertFactor / maxSamples;
-        lSpecularityFactor += sampleSpecularFactor.x / maxSamples;
+        lLambertFactor += kd * sampleLambertFactor / maxSamples;
+        lSpecularityFactor += ks * sampleSpecularFactor.x * pi / maxSamples;
 		lShadowFactor += sampleShadowFactor / maxSamples;
-        lFresnelFactor += sampleSpecularFactor.y / maxSamples;
 		
 		samples--;
 	}
-	
-    float ks = 1.0;
-    float kd = 1.0;
-    float pi = 1.0;
-	if (processingFlags & 0x8) {
-        ks = lFresnelFactor;
-        kd = 1.0 - ks;
-        pi = M_PI;
-    }
     float2x3 resColor =
     {
-        SceneLights[lightIndex].diffuseColor * (kd * lLambertFactor) * lShadowFactor,
-		SceneLights[lightIndex].specularColor * specular * (ks * lSpecularityFactor * pi) * lShadowFactor
+        SceneLights[lightIndex].diffuseColor * lLambertFactor * lShadowFactor,
+		SceneLights[lightIndex].specularColor * specular * lSpecularityFactor * lShadowFactor
     };
     return resColor ;
 }
@@ -234,8 +236,7 @@ float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position,
     float lightAttenuation = SceneLights[lightIndex].attenuationExponent;
     float lightPointRadius = (diSamples > 0) ? SceneLights[lightIndex].pointRadius : 0.0f;
     float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
-    if (all(perpX == 0.0f))
-    {
+    if (all(perpX == 0.0f)) {
         perpX.x = 1.0;
     }
 
@@ -243,7 +244,7 @@ float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position,
     float shadowOffset = SceneLights[lightIndex].shadowOffset;
     const uint maxSamples = max(diSamples, 1);
     uint samples = maxSamples;
-    float lLambertFactor = 0.0f;
+    float lIntensityFactor = 0.0f;
     float lShadowFactor = 0.0f;
     while (samples > 0)
     {
@@ -259,13 +260,13 @@ float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position,
             sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
         }
 		
-        lLambertFactor += sampleIntensityFactor / maxSamples;
+        lIntensityFactor += sampleIntensityFactor / maxSamples;
         lShadowFactor += sampleShadowFactor / maxSamples;
 
         samples--;
     }
 
-    return (SceneLights[lightIndex].diffuseColor * lLambertFactor) * lShadowFactor;
+    return float3(SceneLights[lightIndex].diffuseColor * lIntensityFactor * lShadowFactor);
 }
 
 float CalculateLightIntensityNoNormal(uint l, float3 position)
@@ -279,7 +280,7 @@ float CalculateLightIntensityNoNormal(uint l, float3 position)
     return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLightAtPointRandom(uint2 launchIndex, float3 position, uint maxLightCount, uint lightGroupMaskBits, const bool checkShadows)
+float3 ComputeLightRandomNoNormal(uint2 launchIndex, float3 position, uint maxLightCount, uint lightGroupMaskBits, const bool checkShadows)
 {
     float3 resultLight = float3(0.0f, 0.0f, 0.0f);
     if (lightGroupMaskBits > 0)

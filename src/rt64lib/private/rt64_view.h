@@ -83,7 +83,9 @@ namespace RT64 {
 			unsigned int visualizationMode;
 			unsigned int frameCount;
 			unsigned int processingFlags;
-			unsigned int volumetricMaxSamples;
+			float volumetricDistance;
+			float volumetricSteps;
+			float volumetricResolution;
 			float volumetricIntensity;
 			float eyeAdaptionBrightnessFactor;
 		};
@@ -110,6 +112,7 @@ namespace RT64 {
 		AllocatedResource rtFirstInstanceId;
 		AllocatedResource rtFirstInstanceIdReadback;
 		AllocatedResource rtDirectLightAccum[2];
+		AllocatedResource rtSpecularLightAccum;
 		AllocatedResource rtFilteredDirectLight[2];
 		AllocatedResource rtIndirectLightAccum[2];
 		AllocatedResource rtFilteredIndirectLight[2];
@@ -118,7 +121,6 @@ namespace RT64 {
 		AllocatedResource rtTransparent;
 		AllocatedResource rtVolumetrics;
 		AllocatedResource rtFog;
-		AllocatedResource rtSpecularLightAccum;
 		AllocatedResource rtShadingRoughness;
 		AllocatedResource rtShadingMetalness;
 		AllocatedResource rtShadingAmbient;
@@ -284,8 +286,12 @@ namespace RT64 {
 		float getToneMapBlackLevel() const;
 		float getToneMapSaturation() const;
 		float getToneMapGamma() const;
-		void setVolumetricMaxSamples(int v);
-		int getVolumetricMaxSamples() const;
+		void setVolumetricDistance(float v);
+		float getVolumetricDistance() const;
+		void setVolumetricSteps(float v);
+		float getVolumetricSteps() const;
+		void setVolumetricResolution(float v);
+		float getVolumetricResolution() const;
 		void setVolumetricEnabledFlag(bool v);
 		bool getVolumetricEnabledFlag() const;
 		void setEyeAdaptionEnabledFlag(bool v);
@@ -306,6 +312,7 @@ namespace RT64 {
 		bool getAlternateSpecularEnabled() const;
 		void setEyeAdaptionBrightnessFactor(float v);
 		float getEyeAdaptionBrightnessFactor() const;
+		void setDeltaTime(float v);
 		void setUpscaleMode(UpscaleMode v);
 		UpscaleMode getUpscaleMode() const;
 		void setSkyPlaneTexture(Texture *texture);

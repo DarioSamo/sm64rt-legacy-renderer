@@ -43,6 +43,7 @@
 #define RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS		0x08000
 #define RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX			0x10000
 #define RT64_ATTRIBUTE_SPECULAR_FRESNEL_FACTOR		0x20000
+#define RT64_ATTRIBUTE_COOK_TORRANCE_FLAG			0x40000
 
 // Mesh flags.
 #define RT64_MESH_RAYTRACE_ENABLED				0x1
@@ -81,6 +82,11 @@
 #define RT64_DLSS_MODE_BALANCED					0x3
 #define RT64_DLSS_MODE_MAX_PERFORMANCE			0x4
 #define RT64_DLSS_MODE_ULTRA_PERFORMANCE		0x5
+
+// View flags
+#define RT64_VIEW_VOLUMETRICS_FLAG				0x0001
+#define RT64_VIEW_EYE_ADAPTION_FLAG				0x0002
+#define RT64_VIEW_CONTACT_SHADOWS_FLAG			0x0004
 
 // Feature codes.
 #define RT64_FEATURE_DLSS						0x1
@@ -201,7 +207,9 @@ typedef struct {
 	unsigned char dlssMode;
 	bool denoiserEnabled;
 	bool volumetricEnabled;
-	unsigned int volumetricMaxSamples;
+	float volumetricDistance;
+	float volumetricSteps;
+	float volumetricResolution;
 	float volumetricIntensity;
 	bool eyeAdaptionEnabled;
 	bool alternateIndirectLight;
@@ -321,6 +329,7 @@ typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDes
 typedef void (*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);
 typedef bool (*GetViewFeatureSupportPtr)(RT64_VIEW *viewPtr, int feature);
+typedef void (*SetDeltaTimePtr)(RT64_VIEW* viewPtr, float deltaMs);
 typedef void (*DestroyViewPtr)(RT64_VIEW* viewPtr);
 typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
 typedef void (*SetSceneDescriptionPtr)(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc);
@@ -359,6 +368,7 @@ typedef struct {
 	SetViewSkyPlanePtr SetViewSkyPlane;
 	GetViewRaytracedInstanceAtPtr GetViewRaytracedInstanceAt;
 	GetViewFeatureSupportPtr GetViewFeatureSupport;
+	SetDeltaTimePtr SetDeltaTime;
 	DestroyViewPtr DestroyView;
 	CreateScenePtr CreateScene;
 	SetSceneDescriptionPtr SetSceneDescription;
@@ -411,6 +421,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
 		lib.GetViewFeatureSupport = (GetViewFeatureSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewFeatureSupport"));
+		lib.SetDeltaTime = (SetDeltaTimePtr)(GetProcAddress(lib.handle, "RT64_SetDeltaTime"));
 		lib.DestroyView = (DestroyViewPtr)(GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(GetProcAddress(lib.handle, "RT64_CreateScene"));
 		lib.SetSceneDescription = (SetSceneDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetSceneDescription"));

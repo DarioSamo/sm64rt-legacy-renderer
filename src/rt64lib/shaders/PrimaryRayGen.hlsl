@@ -41,7 +41,7 @@ void PrimaryRayGen() {
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
     float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
-    bool lightShafts = (processingFlags & 0x1) == 1;
+    bool lightShafts = processingFlags & RT64_VIEW_VOLUMETRICS_FLAG;
 
 	// Initialize the buffers.
 	gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
@@ -60,9 +60,6 @@ void PrimaryRayGen() {
 	// Calculate fog in background
 	{ 
         float4 fogColor = SceneFogFromOrigin(bgPosition, rayOrigin, ambientFogFactors.x, ambientFogFactors.y, ambientFogColor);
-        if (lightShafts) {
-            fogColor.a *= 1.50f;
-        }
         gFog[launchIndex] = fogColor;
     }
 
@@ -139,9 +136,6 @@ void PrimaryRayGen() {
                 float4 groundFog = SceneGroundFogFromOrigin(vertexPosition, rayOrigin, groundFogFactors.x, groundFogFactors.y, groundFogHeightFactors.x, groundFogHeightFactors.y, groundFogColor);
                 float4 combinedColor = float4(0.f, 0.f, 0.f, 0.f);
                 combinedColor = BlendAOverB(fogColor, groundFog);
-                if (lightShafts) {
-                    combinedColor.a *= 1.50f;
-                }
                 gFog[launchIndex] = combinedColor;
             } 
 
@@ -175,8 +169,8 @@ void PrimaryRayGen() {
 					resTransparentLightComputed = true;
 				}
 
-				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive + resTransparentLight);
-			}
+                resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive + resTransparentLight);
+            }
 			// Cheap case: we ignore the geometry entirely from the lighting pass and just add
 			// it to the transparency buffer directly.
 			else {

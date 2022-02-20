@@ -16,6 +16,7 @@
 *.idb
 *.hlsl.h
 *.bat
+*.vcxproj.user 
 imgui.ini
 .ignore/*
 /src/rt64lib/x64

@@ -80,14 +80,18 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.tonemapBlack = 0.0f;
 	globalParamsBufferData.tonemapSaturation = 1.0f;
 	globalParamsBufferData.tonemapGamma = 1.0f;
-	globalParamsBufferData.processingFlags = 0xE;
-	globalParamsBufferData.volumetricMaxSamples = 32;
+
+	globalParamsBufferData.volumetricDistance = 1000.0f;
+	globalParamsBufferData.volumetricSteps = 10.0f;
 	globalParamsBufferData.volumetricIntensity = 1.0f;
+	globalParamsBufferData.volumetricResolution = 0.25f;
+	globalParamsBufferData.processingFlags = 0xE;
 
 	// Eye adaption parameters
 	minLogLuminance = 5;
 	logLuminanceRange = -7;
-	lumaUpdateTime = 100.0;
+	lumaUpdateTime = 1.1f;
+	deltaTime = 0.333f;
 	globalParamsBufferData.eyeAdaptionBrightnessFactor = 1.0f;
 
 	globalParamsBufferSize = 0;
@@ -259,22 +263,18 @@ void RT64::View::createOutputBuffers() {
 	rtShadingEmissive = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtDirectLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtDirectLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtSpecularLightAccum = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtIndirectLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtIndirectLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFilteredDirectLight[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFilteredDirectLight[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFilteredIndirectLight[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFilteredIndirectLight[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	rtSpecularLightAccum = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtReflection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
-	resDesc.Width = rtWidth / 4;
-	resDesc.Height= rtHeight / 4;
 	rtVolumetrics = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
-	resDesc.Width = rtWidth;
-	resDesc.Height = rtHeight;
 	rtFog = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
@@ -351,6 +351,7 @@ void RT64::View::createOutputBuffers() {
 	rtFirstInstanceIdReadback.SetName(L"rtFirstInstanceIdReadback");
 	rtDirectLightAccum[0].SetName(L"rtDirectLightAccum[0]");
 	rtDirectLightAccum[1].SetName(L"rtDirectLightAccum[1]");
+	rtSpecularLightAccum.SetName(L"rtSpecularLightAccum");
 	rtIndirectLightAccum[0].SetName(L"rtIndirectLightAccum[0]");
 	rtIndirectLightAccum[1].SetName(L"rtIndirectLightAccum[1]");
 	rtVolumetrics.SetName(L"rtVolumetrics");
@@ -380,7 +381,6 @@ void RT64::View::createOutputBuffers() {
 	rtLumaAvg.SetName(L"rtLumaAvg");
 	rtOutputDownscaled.SetName(L"rtOutputDownscaled");
 	rtBloom.SetName(L"rtBloom");
-	rtSpecularLightAccum.SetName(L"rtSpecularLightAccum");
 #endif
 
 	// Create the RTVs.
@@ -422,6 +422,7 @@ void RT64::View::releaseOutputBuffers() {
 	rtFirstInstanceIdReadback.Release();
 	rtDirectLightAccum[0].Release();
 	rtDirectLightAccum[1].Release();
+	rtSpecularLightAccum.Release();
 	rtIndirectLightAccum[0].Release();
 	rtIndirectLightAccum[1].Release();
 	rtFilteredDirectLight[0].Release();
@@ -433,7 +434,6 @@ void RT64::View::releaseOutputBuffers() {
 	rtTransparent.Release();
 	rtVolumetrics.Release();
 	rtFog.Release();
-	rtSpecularLightAccum.Release();
 	rtFlow.Release();
 	rtDepth[0].Release();
 	rtDepth[1].Release();
@@ -615,6 +615,18 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingEmissive.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// UAV for shading roughness buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingRoughness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading metalness buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingMetalness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading ambient buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingAmbient.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// UAV for diffuse buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDiffuse.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
@@ -625,6 +637,10 @@ void RT64::View::createShaderResourceHeap() {
 
 		// UAV for direct light buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDirectLightAccum[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for specular light buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtSpecularLightAccum.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for indirect light buffer.
@@ -685,22 +701,6 @@ void RT64::View::createShaderResourceHeap() {
 
 		// UAV for filtered scene fog.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFog.Get(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for specular light buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtSpecularLightAccum.Get(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for shading roughness buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingRoughness.Get(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for shading metalness buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingMetalness.Get(), nullptr, &uavDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for shading ambient buffer.
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingAmbient.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for hit distance and world flow buffer.
@@ -909,6 +909,11 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFilteredDirectLight[1].Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// SRV for specular light buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtSpecularLightAccum.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// SRV for filtered indirect light buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFilteredIndirectLight[1].Get(), &textureSRVDesc, handle);
@@ -937,11 +942,6 @@ void RT64::View::createShaderResourceHeap() {
 		// SRV for fog buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFog.Get(), &textureSRVDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// SRV for specular light buffer.
-		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtSpecularLightAccum.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for ambient occlusion buffer.
@@ -1166,7 +1166,6 @@ void RT64::View::createShaderResourceHeap() {
 		D3D12_CPU_DESCRIPTOR_HANDLE handle = volumetricHeap->GetCPUDescriptorHandleForHeapStart();
 
 		// SRV for input image.
-		int inputDimensions[2] = { rtWidth / 4, rtHeight / 4 };
 		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
 		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		textureSRVDesc.Texture2D.MipLevels = 1;
@@ -1596,8 +1595,8 @@ void RT64::View::createVolumetricsBlurParamsBuffer() {
 
 void RT64::View::updateVolumetricsBlurParamsBuffer() {
 	FilterCB cb;
-	cb.TextureSize[0] = rtWidth / 4;
-	cb.TextureSize[1] = rtHeight / 4;
+	cb.TextureSize[0] = rtWidth;
+	cb.TextureSize[1] = rtHeight;
 	cb.TexelSize.x = 1.0f / cb.TextureSize[0];
 	cb.TexelSize.y = 1.0f / cb.TextureSize[1];
 
@@ -1785,7 +1784,6 @@ void RT64::View::render() {
 	if (descriptorHeap == nullptr) {
 		return;
 	}
-	std::chrono::time_point t1 = std::chrono::high_resolution_clock::now();
 	int screenWidth = scene->getDevice()->getWidth();
 	int screenHeight = scene->getDevice()->getHeight();
 
@@ -2020,9 +2018,10 @@ void RT64::View::render() {
 
 		// Dispatch rays for volumetrics.
 		RT64_LOG_PRINTF("Dispatching volumetric rays");
+		if (globalParamsBufferData.processingFlags & RT64_VIEW_VOLUMETRICS_FLAG)
 		{
-			desc.Width = rtWidth / 4;
-			desc.Height = rtHeight / 4;
+			desc.Width = lround(rtWidth * globalParamsBufferData.volumetricResolution);
+			desc.Height = lround(rtHeight * globalParamsBufferData.volumetricResolution);
 			desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 3;
 			d3dCommandList->DispatchRays(&desc);
 			desc.Width = rtWidth;
@@ -2161,14 +2160,14 @@ void RT64::View::render() {
 		}
 
 		// Apply that same compute shader for the volumetric fog.
-		if ((globalParamsBufferData.processingFlags & 0x1) == 1)
+		if (globalParamsBufferData.processingFlags & RT64_VIEW_VOLUMETRICS_FLAG)
 		{
 			for (int i = 0; i < 8; i++)
 			{
 				const int ThreadGroupWorkCount = 8;
 				int dispatchRes[2] = {
-					rtWidth / ThreadGroupWorkCount + ((rtWidth % ThreadGroupWorkCount) ? 1 : 0) ,
-					rtHeight / ThreadGroupWorkCount + ((rtHeight % ThreadGroupWorkCount) ? 1 : 0)
+					(int)(rtWidth * globalParamsBufferData.volumetricResolution) / ThreadGroupWorkCount + (((int)(rtWidth * globalParamsBufferData.volumetricResolution) % ThreadGroupWorkCount) ? 1 : 0) ,
+					(int)(rtHeight * globalParamsBufferData.volumetricResolution) / ThreadGroupWorkCount + (((int)(rtHeight * globalParamsBufferData.volumetricResolution) % ThreadGroupWorkCount) ? 1 : 0)
 				};
 				d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
 				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
@@ -2453,10 +2452,6 @@ void RT64::View::render() {
 	rtFirstInstanceIdReadbackUpdated = false;
 	globalParamsBufferData.frameCount++;
 
-	std::chrono::time_point t2 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<float> time_span = std::chrono::duration_cast<std::chrono::duration<float>>(t2 - t1);
-	deltaTime = time_span.count();
-
 	RT64_LOG_PRINTF("Finished view render");
 }
 
@@ -2693,50 +2688,66 @@ float RT64::View::getToneMapGamma() const {
 	return globalParamsBufferData.tonemapGamma;
 }
 
-void RT64::View::setVolumetricMaxSamples(int v) {
-	globalParamsBufferData.volumetricMaxSamples = v;
+void RT64::View::setVolumetricDistance(float v) {
+	globalParamsBufferData.volumetricDistance = v;
 }
 
-int RT64::View::getVolumetricMaxSamples() const {
-	return globalParamsBufferData.volumetricMaxSamples;
+float RT64::View::getVolumetricDistance() const {
+	return globalParamsBufferData.volumetricDistance;
+}
+
+void RT64::View::setVolumetricSteps(float v) {
+	globalParamsBufferData.volumetricSteps = v;
+}
+
+float RT64::View::getVolumetricSteps() const {
+	return globalParamsBufferData.volumetricSteps;
+}
+
+void RT64::View::setVolumetricResolution(float v) {
+	globalParamsBufferData.volumetricResolution = v;
+}
+
+float RT64::View::getVolumetricResolution() const {
+	return globalParamsBufferData.volumetricResolution;
 }
 
 void RT64::View::setVolumetricEnabledFlag(bool v) {
 	if (v) {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 1);
+		globalParamsBufferData.processingFlags |= RT64_VIEW_VOLUMETRICS_FLAG;
 	} else {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFFE);
+		globalParamsBufferData.processingFlags &= (0xFFFFFFFF ^ RT64_VIEW_VOLUMETRICS_FLAG);
 	}
 }
 
 bool RT64::View::getVolumetricEnabledFlag() const {
-	return (globalParamsBufferData.processingFlags & 0x1) == 1;
+	return globalParamsBufferData.processingFlags & RT64_VIEW_VOLUMETRICS_FLAG;
 }
 
 void RT64::View::setEyeAdaptionEnabledFlag(bool v) {
 	if (v) {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 2);
+		globalParamsBufferData.processingFlags |= RT64_VIEW_EYE_ADAPTION_FLAG;
 	}
 	else {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFFD);
+		globalParamsBufferData.processingFlags &= (0xFFFFFFFF ^ RT64_VIEW_EYE_ADAPTION_FLAG);
 	}
 }
 
 bool RT64::View::getEyeAdaptionEnabledFlag() const {
-	return (globalParamsBufferData.processingFlags & 0x2) == 0x2;
+	return globalParamsBufferData.processingFlags & RT64_VIEW_EYE_ADAPTION_FLAG;
 }
 
 void RT64::View::setAlternateIndirectFlag(bool v) {
 	if (v) {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 4);
+		globalParamsBufferData.processingFlags |= RT64_VIEW_CONTACT_SHADOWS_FLAG;
 	}
 	else {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFFB);
+		globalParamsBufferData.processingFlags &= (0xFFFFFFFF ^ RT64_VIEW_CONTACT_SHADOWS_FLAG);
 	}
 }
 
 bool RT64::View::getAlternateIndirectFlag() const {
-	return (globalParamsBufferData.processingFlags & 0x4) == 0x4;
+	return globalParamsBufferData.processingFlags & RT64_VIEW_CONTACT_SHADOWS_FLAG;
 }
 
 void RT64::View::setVolumetricIntensity(float v) {
@@ -2793,6 +2804,10 @@ void RT64::View::setEyeAdaptionBrightnessFactor(float v) {
 
 float RT64::View::getEyeAdaptionBrightnessFactor() const {
 	return globalParamsBufferData.eyeAdaptionBrightnessFactor;
+}
+
+void RT64::View::setDeltaTime(float v) {
+	this->deltaTime = v;
 }
 
 void RT64::View::setUpscaleMode(UpscaleMode v) {
@@ -2997,7 +3012,8 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setToneMappingMode(viewDesc.tonemapMode);
 	view->setTonemapperValues(viewDesc.tonemapExposure, viewDesc.tonemapWhite, viewDesc.tonemapBlack, viewDesc.tonemapSaturation, viewDesc.tonemapGamma);
 	view->setVolumetricEnabledFlag(viewDesc.volumetricEnabled);
-	view->setVolumetricMaxSamples(viewDesc.volumetricMaxSamples);
+	view->setVolumetricDistance(viewDesc.volumetricDistance);
+	view->setVolumetricSteps(viewDesc.volumetricSteps);
 	view->setVolumetricIntensity(viewDesc.volumetricIntensity);
 	view->setEyeAdaptionEnabledFlag(viewDesc.eyeAdaptionEnabled);
 	view->setEyeAdaptionBrightnessFactor(viewDesc.eyeAdaptionBrightnessFactor);
@@ -3050,6 +3066,11 @@ DLLEXPORT bool RT64_GetViewFeatureSupport(RT64_VIEW *viewPtr, int feature) {
 	default:
 		return false;
 	}
+}
+
+DLLEXPORT void RT64_SetDeltaTime(RT64_VIEW* viewPtr, float delta) {
+	RT64::View* view = (RT64::View*)viewPtr;
+	view->setDeltaTime(delta);
 }
 
 DLLEXPORT void RT64_DestroyView(RT64_VIEW *viewPtr) {
