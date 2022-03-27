@@ -4,8 +4,6 @@
 
 #pragma once
 
-#ifdef RT64_DLSS
-
 #include "rt64_common.h"
 
 namespace RT64 {
@@ -45,5 +43,3 @@ namespace RT64 {
 		bool isInitialized() const;
 	};
 };
-
-#endif
