@@ -2,8 +2,10 @@
 // RT64
 //
 
+#include "Color.hlsli"
 #include "Constants.hlsli"
 #include "GlobalBuffers.hlsli"
+#include "GlobalHitBuffers.hlsli"
 #include "GlobalParams.hlsli"
 #include "Materials.hlsli"
 #include "Instances.hlsli"
@@ -11,22 +13,27 @@
 #include "Random.hlsli"
 #include "Lights.hlsli"
 
+#include "Common.hlsli"
+
 [shader("raygeneration")]
 void DirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	int instanceId = gInstanceId[launchIndex];
 	if (instanceId < 0) {
 		gDirectLightAccum[launchIndex] = float4(1.0f, 1.0f, 1.0f, 0.0f);
+        gSpecularLightAccum[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 		return;
 	}
 
 	uint2 launchDims = DispatchRaysDimensions().xy;
 	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
-	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
+    float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
+    float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
 	float4 position = gShadingPosition[launchIndex];
 	float3 normal = gShadingNormal[launchIndex].xyz;
-	float4 specular = gShadingSpecular[launchIndex];
+    float4 specular = gShadingSpecular[launchIndex];
+    float roughness = gShadingRoughness[launchIndex];
 
 	float3 newDirect = float3(0.0f, 0.0f, 0.0f);
 	float historyLength = 0.0f;
@@ -41,25 +48,43 @@ void DirectRayGen() {
 		float4 prevDirectAccum = gPrevDirectLightAccum[prevIndex];
 		float depth = gDepth[launchIndex];
 		float weightDepth = abs(depth - prevDepth) / 0.01f;
-		float weightNormal = pow(max(0.0f, dot(prevNormal, normal)), WeightNormalExponent);
+		float weightNormal = normalize(pow(saturate(dot(prevNormal, normal)), WeightNormalExponent)); 
 		float historyWeight = exp(-weightDepth) * weightNormal;
 		newDirect = prevDirectAccum.rgb;
-		historyLength = prevDirectAccum.a * historyWeight;
-	}
-
-	float3 resDirect = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.xyz, maxLights, true);
-	resDirect += instanceMaterials[instanceId].selfLight;
-
-	// Add the eye light.
-	float specularExponent = instanceMaterials[instanceId].specularExponent;
-	float eyeLightLambertFactor = max(dot(normal.xyz, -rayDirection), 0.0f);
-	float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
-	float3 eyeLightSpecularFactor = specular.rgb * pow(max(saturate(dot(eyeLightReflected, -rayDirection)), 0.0f), specularExponent);
-	resDirect += (eyeLightDiffuseColor.rgb * eyeLightLambertFactor + eyeLightSpecularColor.rgb * eyeLightSpecularFactor);
+        historyLength = saturate(prevDirectAccum.a) * historyWeight;
+    }
+	
+    float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, instanceId, position.xyz, normal.xyz, specular.rgb, roughness, rayOrigin, maxLights, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+    float3 resDirect = lightMatrix._11_12_13;
+    float3 resSpecular = lightMatrix._21_22_23;
+    resDirect += gShadingEmissive[launchIndex].rgb;
+	
+    if ((processingFlags & 0x8) == 0x8) {
+        float specularExponent = instanceMaterials[instanceId].specularExponent;
+        float fresnelFactor = instanceMaterials[instanceId].specularFresnelFactor;
+        float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
+        float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
+        float2 eyeLightSpecularFactor = pow(CalculateSpecularity(normal, position.xyz, rayOrigin, rayOrigin, max(roughness, 0.1f), fresnelFactor), max(specularExponent, EPSILON));
+        resDirect += eyeLightDiffuseColor.rgb * eyeLightLambertFactor * (1.0 - eyeLightSpecularFactor.y);
+        resSpecular += specular.rgb * eyeLightSpecularColor.rgb * eyeLightSpecularFactor.x * eyeLightSpecularFactor.y * M_PI;
+    } else {
+		float specularExponent = instanceMaterials[instanceId].specularExponent;
+		float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
+		float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
+		float3 eyeLightSpecularFactor = specular.rgb * pow(saturate(dot(eyeLightReflected, -(rayDirection))), specularExponent * 7.0f);
+        resDirect += eyeLightDiffuseColor.rgb * eyeLightLambertFactor;
+        resSpecular += specular.rgb * eyeLightSpecularColor.rgb * eyeLightSpecularFactor;
+        resSpecular *= gDiffuse[launchIndex].rgb;
+    }
+	
+	// Process the metalness on the direct light
+    resDirect *= (1.0f - gShadingMetalness[launchIndex]);
 
 	// Accumulate.
 	historyLength = min(historyLength + 1.0f, 64.0f);
 	newDirect = lerp(newDirect.rgb, resDirect, 1.0f / historyLength);
+    resSpecular = lerp(resSpecular.rgb, resSpecular, 1.0f / historyLength);
 
 	gDirectLightAccum[launchIndex] = float4(newDirect, historyLength);
+    gSpecularLightAccum[launchIndex] = float4(resSpecular, historyLength);
 }

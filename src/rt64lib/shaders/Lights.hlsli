@@ -51,6 +51,42 @@ float TraceShadow(float3 rayOrigin, float3 rayDirection, float rayMinDist, float
 	return shadowPayload.shadowHit;
 }
 
+float FresnelSpecularAmount(float3 V, float3 H, float specularity, float fresnelMultiplier)
+{	
+	// TODO: Probably use a more accurate approximation than this.
+    float ret = pow(max(1.0f - max(dot(V, H), 0.005), EPSILON), 5.0f);
+    return specularity + ((1.0 - specularity) * ret * fresnelMultiplier);
+}
+
+float GeometryShadowingGGX(float3 N, float3 X, float roughness)
+{
+    float k = roughness / 2;
+    float NdotX = max(dot(N, X), 0.0);
+    return NdotX / max(NdotX * (1.0 - k) + k, EPSILON);
+}
+
+float NormalDistributionGGX(float roughness, float3 N, float3 H)
+{	
+    float rough2 = roughness * roughness;
+    float NdotH = max(dot(N, H), 0.0);
+    float denom = NdotH * NdotH * (rough2 - 1.0) + 1.0;
+    return rough2 / max(M_PI * denom * denom, EPSILON);
+}
+
+// Cook-Torrance Specular function
+float2 CalculateSpecularity(float3 normal, float3 vertexPosition, float3 viewPosition, float3 lightPosition, float roughness, float fresnelFactor)
+{
+    float3 N = normal;
+    float3 V = normalize(viewPosition - vertexPosition);
+    float3 L = normalize(lightPosition - vertexPosition);
+    float3 H = normalize(V + L);
+    float sampleSpecularityFactor = NormalDistributionGGX(roughness, N, H);
+    sampleSpecularityFactor *= GeometryShadowingGGX(N, V, roughness) * GeometryShadowingGGX(N, L, roughness);
+    float ks = FresnelSpecularAmount(V, H, fresnelFactor, 1.0);
+    sampleSpecularityFactor /= max(4 * max(dot(V, N), 0.0) * max(dot(L, N), 0.0), EPSILON);
+    return float2(sampleSpecularityFactor, ks);
+}
+
 float CalculateLightIntensitySimple(uint l, float3 position, float3 normal, float ignoreNormalFactor) {
 	float3 lightPosition = SceneLights[l].position;
 	float lightRadius = SceneLights[l].attenuationRadius;
@@ -64,10 +100,11 @@ float CalculateLightIntensitySimple(uint l, float3 position, float3 normal, floa
 	return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, const bool checkShadows) {
+float2x3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, float roughness, float3 viewPosition, const bool checkShadows) {
 	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
 	float specularExponent = instanceMaterials[instanceId].specularExponent;
 	float shadowRayBias = instanceMaterials[instanceId].shadowRayBias;
+    float fresnelFactor = instanceMaterials[instanceId].specularFresnelFactor;
 	float3 lightPosition = SceneLights[lightIndex].position;
 	float3 lightDirection = normalize(lightPosition - position);
 	float lightRadius = SceneLights[lightIndex].attenuationRadius;
@@ -83,8 +120,9 @@ float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uin
 	const uint maxSamples = max(diSamples, 1);
 	uint samples = maxSamples;
 	float lLambertFactor = 0.0f;
-	float3 lSpecularityFactor = 0.0f;
+	float lSpecularityFactor = 0.0f;
 	float lShadowFactor = 0.0f;
+    float lFresnelFactor = 0.f;
 	while (samples > 0) {
 		float2 sampleCoordinate = getBlueNoise(launchIndex, frameCount + samples).rg * 2.0f - 1.0f;
 		sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
@@ -95,27 +133,50 @@ float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uin
 		float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
 		float3 reflectedLight = reflect(-sampleDirection, normal);
 		float NdotL = max(dot(normal, sampleDirection), 0.0f);
-		float sampleLambertFactor = lerp(NdotL, 1.0f, ignoreNormalFactor) * sampleIntensityFactor;
-		float sampleShadowFactor = 1.0f;
+        float lerpedNdotL = lerp(NdotL, 1.0f, ignoreNormalFactor);
+        float sampleLambertFactor = lerpedNdotL * sampleIntensityFactor;
+        float2 sampleSpecularFactor = float2(0, 0);
+        // TODO: Instead of a global flag, make this material driven
+        if (processingFlags & 0x8) {
+            sampleSpecularFactor = pow(CalculateSpecularity(normal, position, viewPosition, samplePosition, (roughness * .9 + .1), fresnelFactor) * lerpedNdotL * sampleIntensityFactor, max(specularExponent, EPSILON));
+        } else {
+            sampleSpecularFactor.x = pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+        }
+        float sampleShadowFactor = 1.0f;
 		if (checkShadows) {
 			sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
-		}
-
-		float3 sampleSpecularityFactor = specular * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
-		lLambertFactor += sampleLambertFactor / maxSamples;
-		lSpecularityFactor += sampleSpecularityFactor / maxSamples;
+        }
+	
+        float ks = 1.0;
+        float kd = 1.0;
+        float pi = 1.0;
+        if (processingFlags & 0x8)
+        {
+            ks = sampleSpecularFactor.y;
+            kd = 1.0 - ks;
+            pi = M_PI;
+        }
+		
+        lLambertFactor += kd * sampleLambertFactor / maxSamples;
+        lSpecularityFactor += ks * sampleSpecularFactor.x * pi / maxSamples;
 		lShadowFactor += sampleShadowFactor / maxSamples;
-
+		
 		samples--;
 	}
-
-	return (SceneLights[lightIndex].diffuseColor * lLambertFactor + SceneLights[lightIndex].specularColor * lSpecularityFactor) * lShadowFactor;
+    float2x3 resColor =
+    {
+        SceneLights[lightIndex].diffuseColor * lLambertFactor * lShadowFactor,
+		SceneLights[lightIndex].specularColor * specular * lSpecularityFactor * lShadowFactor
+    };
+    return resColor ;
 }
 
-float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, uint maxLightCount, const bool checkShadows) {
-	float3 resultLight = float3(0.0f, 0.0f, 0.0f);
-	uint lightGroupMaskBits = instanceMaterials[instanceId].lightGroupMaskBits;
-	float ignoreNormalFactor = instanceMaterials[instanceId].ignoreNormalFactor;
+float2x3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instanceId, float3 position, float3 normal, float3 specular, float roughness, float3 viewPosition, uint maxLightCount, uint lightGroupMaskBits, float ignoreNormalFactor, const bool checkShadows)
+{
+    float2x3 resultLight = 
+	{	0.0, 0.0, 0.0, 
+		0.0, 0.0, 0.0, };
+	
 	if (lightGroupMaskBits > 0) {
 		uint sLightCount = 0;
 		uint gLightCount, gLightStride;
@@ -160,9 +221,121 @@ float3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instance
 			randomRange -= cLightIntensity;
 
 			// Compute and add the light.
-			resultLight += ComputeLight(launchIndex, cLightIndex, rayDirection, instanceId, position, normal, specular, checkShadows) * invProbability;
-		}
+            resultLight += ComputeLight(launchIndex, cLightIndex, rayDirection, instanceId, position, normal, specular, roughness, viewPosition, checkShadows) * invProbability;
+        }
 	}
 
 	return resultLight;
+}
+
+float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position, const bool checkShadows)
+{
+    float3 lightPosition = SceneLights[lightIndex].position;
+    float3 lightDirection = normalize(lightPosition - position);
+    float lightRadius = SceneLights[lightIndex].attenuationRadius;
+    float lightAttenuation = SceneLights[lightIndex].attenuationExponent;
+    float lightPointRadius = (diSamples > 0) ? SceneLights[lightIndex].pointRadius : 0.0f;
+    float3 perpX = cross(-lightDirection, float3(0.f, 1.0f, 0.f));
+    if (all(perpX == 0.0f)) {
+        perpX.x = 1.0;
+    }
+
+    float3 perpY = cross(perpX, -lightDirection);
+    float shadowOffset = SceneLights[lightIndex].shadowOffset;
+    const uint maxSamples = max(diSamples, 1);
+    uint samples = maxSamples;
+    float lIntensityFactor = 0.0f;
+    float lShadowFactor = 0.0f;
+    while (samples > 0)
+    {
+        float2 sampleCoordinate = getBlueNoise(launchIndex, frameCount + samples).rg * 2.0f - 1.0f;
+        sampleCoordinate = normalize(sampleCoordinate) * saturate(length(sampleCoordinate));
+
+        float3 samplePosition = lightPosition + perpX * sampleCoordinate.x * lightPointRadius + perpY * sampleCoordinate.y * lightPointRadius;
+        float sampleDistance = length(position - samplePosition);
+        float3 sampleDirection = normalize(samplePosition - position);
+        float sampleIntensityFactor = pow(max(1.0f - (sampleDistance / lightRadius), 0.0f), lightAttenuation);
+        float sampleShadowFactor = 1.0f;
+        if (checkShadows) {
+            sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE, (sampleDistance - shadowOffset));
+        }
+		
+        lIntensityFactor += sampleIntensityFactor / maxSamples;
+        lShadowFactor += sampleShadowFactor / maxSamples;
+
+        samples--;
+    }
+
+    return float3(SceneLights[lightIndex].diffuseColor * lIntensityFactor * lShadowFactor);
+}
+
+float CalculateLightIntensityNoNormal(uint l, float3 position)
+{
+    float3 lightPosition = SceneLights[l].position;
+    float lightRadius = SceneLights[l].attenuationRadius;
+    float lightAttenuation = SceneLights[l].attenuationExponent;
+    float lightDistance = length(position - lightPosition);
+    float3 lightDirection = normalize(lightPosition - position);
+    float sampleIntensityFactor = pow(max(1.0f - (lightDistance / lightRadius), 0.0f), lightAttenuation);
+    return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
+}
+
+float3 ComputeLightRandomNoNormal(uint2 launchIndex, float3 position, uint maxLightCount, uint lightGroupMaskBits, const bool checkShadows)
+{
+    float3 resultLight = float3(0.0f, 0.0f, 0.0f);
+    if (lightGroupMaskBits > 0)
+    {
+        uint sLightCount = 0;
+        uint gLightCount, gLightStride;
+        uint sLightIndices[MAX_LIGHTS + 1];
+        float sLightIntensities[MAX_LIGHTS + 1];
+        float totalLightIntensity = 0.0f;
+        SceneLights.GetDimensions(gLightCount, gLightStride);
+        for (uint l = 0; (l < gLightCount) && (sLightCount < MAX_LIGHTS); l++)
+        {
+            if (lightGroupMaskBits & SceneLights[l].groupBits)
+            {
+                float lightIntensity = CalculateLightIntensityNoNormal(l, position);
+                if (lightIntensity > EPSILON)
+                {
+                    sLightIntensities[sLightCount] = lightIntensity;
+                    sLightIndices[sLightCount] = l;
+                    totalLightIntensity += lightIntensity;
+                    sLightCount++;
+                }
+            }
+        }
+
+        float randomRange = totalLightIntensity;
+        uint lLightCount = min(sLightCount, maxLightCount);
+
+		// TODO: Probability is disabled when more than one light is sampled because it's
+		// not trivial to calculate the probability of the dependent events without replacement.
+		// In any case, it is likely more won't be needed when a temporally stable denoiser is
+		// implemented.
+        bool useProbability = lLightCount == 1;
+        for (uint s = 0; s < lLightCount; s++)
+        {
+            float r = getBlueNoise(launchIndex, launchIndex.x + frameCount + s).r * randomRange;
+            uint chosen = 0;
+            float rLightIntensity = sLightIntensities[chosen];
+            while ((chosen < (sLightCount - 1)) && (r >= rLightIntensity))
+            {
+                chosen++;
+                rLightIntensity += sLightIntensities[chosen];
+            }
+
+			// Store and clear the light intensity from the array.
+            float cLightIntensity = sLightIntensities[chosen];
+            uint cLightIndex = sLightIndices[chosen];
+            float invProbability = useProbability ? (randomRange / cLightIntensity) : 1.0f;
+            sLightIntensities[chosen] = 0.0f;
+            randomRange -= cLightIntensity;
+
+			// Compute and add the light.
+            resultLight += ComputeLightNoNormal(launchIndex, cLightIndex, position, checkShadows) * invProbability;
+        }
+    }
+
+    return resultLight;
 }

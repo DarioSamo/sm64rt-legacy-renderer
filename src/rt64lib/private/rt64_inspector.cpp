@@ -88,6 +88,7 @@ void RT64::Inspector::render(View *activeView, int cursorX, int cursorY) {
     renderLightInspector();
     renderCameraControl(activeView, cursorX, cursorY);
     renderPrint();
+    renderPostInspector(activeView);
 
     Im3d::EndFrame();
 
@@ -126,6 +127,8 @@ void RT64::Inspector::renderViewParams(View *view) {
     int resScale = lround(view->getResolutionScale() * 100.0f);
     int upscaleMode = (int)(view->getUpscaleMode());
     bool denoiser = view->getDenoiserEnabled();
+    bool volumetricEnabled = view->getVolumetricEnabledFlag();
+    bool alternateSpecularLight = view->getAlternateSpecularEnabled();
 
     ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
     ImGui::DragInt("GI samples", &giSamples, 0.1f, 0, 32);
@@ -133,7 +136,7 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Shading Emission\0Shading Roughness\0Shading Metalness\0Shading Ambient Occlusion\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Specular light\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0Volumetrics\0Scene Fog\0");
 
 #ifdef RT64_DLSS
     // Only show DLSS option if supported by the hardware.
@@ -179,6 +182,31 @@ void RT64::Inspector::renderViewParams(View *view) {
     }
 
     ImGui::Checkbox("Denoiser", &denoiser);
+    ImGui::Checkbox("Volumetrics", &volumetricEnabled);
+    ImGui::Checkbox("Experimental Specular Lighting", &alternateSpecularLight);
+    if (giSamples > 0) {
+        bool alternateIndirect = view->getAlternateIndirectFlag();
+        ImGui::Checkbox("Experimental Indirect Lighting", &alternateIndirect);
+        view->setAlternateIndirectFlag(alternateIndirect);
+    }
+
+    if (volumetricEnabled)
+    {
+        float volumetricDistance = view->getVolumetricDistance();
+        float volumetricSteps = view->getVolumetricSteps();
+        float volumetricIntensity = view->getVolumetricIntensity();
+        float volumetricResolution = view->getVolumetricResolution();
+
+        ImGui::DragFloat("Volumetric Distance", &volumetricDistance, 1.0f, 1.0f, 100000.0f);
+        ImGui::DragFloat("Volumetric Steps", &volumetricSteps, 0.1f, 0.1f, 1000.0f);
+        ImGui::DragFloat("Volumetric Intensity", &volumetricIntensity, 0.01f, 0.0, 1.0);
+        ImGui::DragFloat("Volumetric Resolution", &volumetricResolution, 0.01f, 0.0, 1.0);
+
+        view->setVolumetricDistance(volumetricDistance);
+        view->setVolumetricSteps(volumetricSteps);
+        view->setVolumetricIntensity(volumetricIntensity);
+        view->setVolumetricResolution(volumetricResolution);
+    }
 
     // Dumping toggle.
     bool isDumping = !dumpPath.empty();
@@ -204,7 +232,55 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setResolutionScale(resScale / 100.0f);
     view->setUpscaleMode((UpscaleMode)(upscaleMode));
     view->setDenoiserEnabled(denoiser);
+    view->setVolumetricEnabledFlag(volumetricEnabled);
+    view->setAlternateSpecularEnabled(alternateSpecularLight);
 
+    ImGui::End();
+}
+
+// Render the Post-processing window
+void RT64::Inspector::renderPostInspector(View* view) {
+    assert(view != nullptr);
+
+    ImGui::Begin("Post Processing");
+
+    int tonemapMode = view->getToneMappingMode();
+    float tonemapExposure = view->getToneMapExposure();
+    float tonemapWhite = view->getToneMapWhitePoint();
+    float tonemapBlack = view->getToneMapBlackLevel();
+    float tonemapSaturation = view->getToneMapSaturation();
+    float tonemapGamma = view->getToneMapGamma();
+    bool eyeAdaption = view->getEyeAdaptionEnabledFlag();
+
+    ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0Simple\0");
+    ImGui::DragFloat("Exposure", &tonemapExposure, 0.01f, 0.0f, 20.0f);
+    ImGui::DragFloat("White Point", &tonemapWhite, 0.01f, 0.0f, 10.0f);
+    ImGui::DragFloat("Black Level", &tonemapBlack, 0.01f, 0.0f, 10.0f);
+    ImGui::DragFloat("Saturation", &tonemapSaturation, 0.001f, 0.0f, 5.0f);
+    ImGui::DragFloat("Gamma", &tonemapGamma, 0.001f, 0.0f, 2.0f);
+    ImGui::Checkbox("Eye Adaption", &eyeAdaption);
+
+    if (eyeAdaption)
+    {
+        float minLogLuminance = view->getMinLogLuminance();
+        float logLuminanceRange = view->getLogLuminanceRange();
+        float lumaUpdateTime = view->getLuminanceUpdateTime();
+        float eyeAdaptionBrightnessFactor = view->getEyeAdaptionBrightnessFactor();
+
+        ImGui::DragFloat("Eye Adaption Minimum", &minLogLuminance, 0.01f, -20.0f, 20.0f);
+        ImGui::DragFloat("Eye Adaption Range", &logLuminanceRange, 0.01f, -20.0f, 20.0f);
+        ImGui::DragFloat("Eye Adaption Update Time", &lumaUpdateTime, 0.01f, 0.0f, 4.0f);
+        ImGui::DragFloat("Eye Adaption Brightening Factor", &eyeAdaptionBrightnessFactor, 0.01f, 1.0f, 20.0f);
+
+        view->setMinLogLuminance(minLogLuminance);
+        view->setLogLuminanceRange(logLuminanceRange);
+        view->setLuminanceUpdateTime(lumaUpdateTime);
+        view->setEyeAdaptionBrightnessFactor(eyeAdaptionBrightnessFactor);
+    }
+
+    view->setToneMappingMode(tonemapMode);
+    view->setTonemapperValues(tonemapExposure, tonemapWhite, tonemapBlack, tonemapSaturation, tonemapGamma);
+    view->setEyeAdaptionEnabledFlag(eyeAdaption);
     ImGui::End();
 }
 
@@ -220,6 +296,13 @@ void RT64::Inspector::renderSceneInspector() {
         ImGui::DragFloat("Sky Yaw Offset", &sceneDesc->skyYawOffset, 0.01f, 0.0f, Im3d::TwoPi);
         ImGui::DragFloat("GI Diffuse Strength", &sceneDesc->giDiffuseStrength, 0.01f, 0.0f, 100.0f);
         ImGui::DragFloat("GI Sky Strength", &sceneDesc->giSkyStrength, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Ambient Fog Color", &sceneDesc->ambientFogColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat("Ambient Fog Alpha", &sceneDesc->ambientFogAlpha, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat2("Ambient Fog Factors", &sceneDesc->ambientFogFactors.x, 1.00f, 0.0f, 1000000.0f);
+        ImGui::DragFloat3("Ground Fog Color", &sceneDesc->groundFogColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat("Ground Fog Alpha", &sceneDesc->groundFogAlpha, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat2("Ground Fog Factors", &sceneDesc->groundFogFactors.x, 1.00f, -1000000.0f, 1000000.0f);
+        ImGui::DragFloat2("Ground Fog Height Factors", &sceneDesc->groundFogHeightFactors.x, 1.00f, -1000000.0f, 1000000.0f);
         ImGui::End();
     }
 }
@@ -296,7 +379,10 @@ void RT64::Inspector::renderMaterialInspector() {
         pushFloat("Reflection shine factor", RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR, &material->reflectionShineFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Refraction factor", RT64_ATTRIBUTE_REFRACTION_FACTOR, &material->refractionFactor, &material->enabledAttributes, 0.01f, 0.0f, 2.0f);
         pushVector3("Specular color", RT64_ATTRIBUTE_SPECULAR_COLOR, &material->specularColor, &material->enabledAttributes, 0.01f, 0.0f, 100.0f);
+        pushFloat("Specular fresnel factor", RT64_ATTRIBUTE_SPECULAR_FRESNEL_FACTOR, &material->specularFresnelFactor, &material->enabledAttributes, 0.001f, 0.0f, 1.0f);
         pushFloat("Specular exponent", RT64_ATTRIBUTE_SPECULAR_EXPONENT, &material->specularExponent, &material->enabledAttributes, 0.1f, 0.0f, 1000.0f);
+        pushFloat("Roughness factor", RT64_ATTRIBUTE_ROUGHNESS_FACTOR, &material->roughnessFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
+        pushFloat("Metallic factor", RT64_ATTRIBUTE_METALLIC_FACTOR, &material->metallicFactor, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
         pushFloat("Solid alpha multiplier", RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER, &material->solidAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushFloat("Shadow alpha multiplier", RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER, &material->shadowAlphaMultiplier, &material->enabledAttributes, 0.01f, 0.0f, 10.0f);
         pushFloat("Depth bias", RT64_ATTRIBUTE_DEPTH_BIAS, &material->depthBias, &material->enabledAttributes, 1.0f, -1000.0f, 1000.0f);
@@ -330,7 +416,7 @@ void RT64::Inspector::renderLightInspector() {
                 ImGui::DragFloat("Point radius", &lights[i].pointRadius);
                 Im3d::SetColor(lights[i].diffuseColor.x * 0.5f, lights[i].diffuseColor.y * 0.5f, lights[i].diffuseColor.z * 0.5f);
                 Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].pointRadius, SphereDetail);
-                ImGui::DragFloat3("Specular color", &lights[i].specularColor.x, 0.01f);
+                ImGui::DragFloat3("Specular highlight color", &lights[i].specularColor.x, 0.01f);
                 ImGui::DragFloat("Shadow offset", &lights[i].shadowOffset);
                 Im3d::SetColor(Im3d::Color_Black);
                 Im3d::DrawSphere(Im3d::Vec3(lights[i].position.x, lights[i].position.y, lights[i].position.z), lights[i].shadowOffset, SphereDetail);

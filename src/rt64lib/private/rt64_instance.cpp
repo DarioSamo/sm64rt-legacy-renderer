@@ -20,6 +20,10 @@ RT64::Instance::Instance(Scene *scene) {
 	diffuseTexture = nullptr;
 	normalTexture = nullptr;
 	specularTexture = nullptr;
+	emissiveTexture = nullptr;
+	roughnessTexture = nullptr;
+	metalnessTexture = nullptr;
+	ambientTexture = nullptr;
 	transform = XMMatrixIdentity();
 	previousTransform = XMMatrixIdentity();
 	material = DefaultMaterial;
@@ -81,6 +85,38 @@ void RT64::Instance::setSpecularTexture(Texture* texture) {
 
 RT64::Texture* RT64::Instance::getSpecularTexture() const {
 	return specularTexture;
+}
+
+void RT64::Instance::setEmissiveTexture(Texture* texture) {
+	this->emissiveTexture = texture;
+}
+
+RT64::Texture* RT64::Instance::getEmissiveTexture() const {
+	return emissiveTexture;
+}
+
+void RT64::Instance::setRoughnessTexture(Texture* texture) {
+	this->roughnessTexture = texture;
+}
+
+RT64::Texture* RT64::Instance::getRoughnessTexture() const {
+	return roughnessTexture;
+}
+
+void RT64::Instance::setMetalnessTexture(Texture* texture) {
+	this->metalnessTexture = texture;
+}
+
+RT64::Texture* RT64::Instance::getMetalnessTexture() const {
+	return metalnessTexture;
+}
+
+void RT64::Instance::setAmbientTexture(Texture* texture) {
+	this->ambientTexture = texture;
+}
+
+RT64::Texture* RT64::Instance::getAmbientTexture() const {
+	return ambientTexture;
 }
 
 inline XMMATRIX matrixFromFloats(float m[4][4]) {
@@ -163,6 +199,10 @@ DLLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INST
 	instance->setDiffuseTexture((RT64::Texture *)(instanceDesc.diffuseTexture));
 	instance->setNormalTexture((RT64::Texture *)(instanceDesc.normalTexture));
 	instance->setSpecularTexture((RT64::Texture *)(instanceDesc.specularTexture));
+	instance->setEmissiveTexture((RT64::Texture *)(instanceDesc.emissiveTexture));
+	instance->setRoughnessTexture((RT64::Texture *)(instanceDesc.roughnessTexture));
+	instance->setMetalnessTexture((RT64::Texture *)(instanceDesc.metalnessTexture));
+	instance->setAmbientTexture((RT64::Texture *)(instanceDesc.ambientTexture));
 	instance->setFlags(instanceDesc.flags);
 	instance->setScissorRect(instanceDesc.scissorRect);
 	instance->setViewportRect(instanceDesc.viewportRect);

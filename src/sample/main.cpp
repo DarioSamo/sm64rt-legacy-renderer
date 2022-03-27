@@ -11,6 +11,7 @@
 #define WINDOW_TITLE "RT64 Sample"
 
 #include <Windows.h>
+#include <chrono>
 
 static void infoMessage(HWND hWnd, const char *message) {
 	MessageBox(hWnd, message, WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
@@ -55,6 +56,10 @@ struct {
 	RT64_TEXTURE *textureDif = nullptr;
 	RT64_TEXTURE *textureNrm = nullptr;
 	RT64_TEXTURE *textureSpc = nullptr;
+	RT64_TEXTURE *textureEms = nullptr;
+	RT64_TEXTURE *textureRgh = nullptr;
+	RT64_TEXTURE *textureMtl = nullptr;
+	RT64_TEXTURE *textureAmb = nullptr;
 	RT64_MATERIAL baseMaterial;
 	RT64_MATERIAL frameMaterial;
 	RT64_MATERIAL materialMods;
@@ -120,6 +125,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			instDesc.diffuseTexture = RT64.textureDif;
 			instDesc.normalTexture = RT64.textureNrm;
 			instDesc.specularTexture = RT64.textureSpc;
+			instDesc.emissiveTexture = RT64.textureEms;
+			instDesc.roughnessTexture = RT64.textureRgh;
+			instDesc.metalnessTexture = RT64.textureMtl;
+			instDesc.ambientTexture = RT64.textureAmb;
 			instDesc.material = RT64.frameMaterial;
 			instDesc.shader = RT64.shader;
 			instDesc.flags = 0;
@@ -169,7 +178,7 @@ RT64_TEXTURE *loadTexturePNG(const char *path) {
 
 RT64_TEXTURE *loadTextureDDS(const char *path) {
 	RT64_TEXTURE *texture = nullptr;
-	FILE *ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
+	FILE *ddsFp = stbi__fopen(path, "rb");
 	if (ddsFp != nullptr) {
 		fseek(ddsFp, 0, SEEK_END);
 		int ddsDataSize = ftell(ddsFp);
@@ -207,10 +216,18 @@ void setupRT64Scene() {
 	RT64.sceneDesc.skyYawOffset = 0.0f;
 	RT64.sceneDesc.giDiffuseStrength = 0.7f;
 	RT64.sceneDesc.giSkyStrength = 0.35f;
+
+	RT64.sceneDesc.ambientFogColor = { 0.1f, 0.25f, 2.0f };
+	RT64.sceneDesc.ambientFogAlpha = 0.2f;
+	RT64.sceneDesc.ambientFogFactors = { 1250.0f, 100.0f };
+	RT64.sceneDesc.groundFogColor = { 0.5f, 0.65f, 0.85f };
+	RT64.sceneDesc.groundFogAlpha = 0.375f;
+	RT64.sceneDesc.groundFogFactors = { 250.5f, 50.f };
+	RT64.sceneDesc.groundFogHeightFactors = { 75.0f, 50.0f };
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
-	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED | RT64_SHADER_EMISSIVE_MAP_ENABLED | RT64_SHADER_ROUGHNESS_MAP_ENABLED | RT64_SHADER_METALNESS_MAP_ENABLED | RT64_SHADER_AMBIENT_MAP_ENABLED;
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
@@ -231,9 +248,13 @@ void setupRT64Scene() {
 	RT64.view = RT64.lib.CreateView(RT64.scene);
 
 	// Load textures.
-	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
-	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
-	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
+	RT64.textureDif = loadTexturePNG("res/grass_dif.png");
+	RT64.textureNrm = nullptr;
+	RT64.textureSpc = nullptr;
+	RT64.textureEms = nullptr;
+	RT64.textureRgh = nullptr;
+	RT64.textureMtl = nullptr;
+	RT64.textureAmb = nullptr;
 	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
@@ -260,9 +281,11 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/sphere.obj", NULL, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/teapot.obj", nullptr, true);
 	assert(loaded);
 	
+	float size = 0.25;
+	float yOffset = 0;
 	for (size_t i = 0; i < shapes.size(); i++) {
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
@@ -270,7 +293,7 @@ void setupRT64Scene() {
 			for (size_t v = 0; v < fnum; v++) {
 				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
 				VERTEX vertex;
-				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
+				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0] * size, attrib.vertices[3 * idx.vertex_index + 1] * size + yOffset, attrib.vertices[3 * idx.vertex_index + 2] * size, 1.0f };
 				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
 				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
 				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -278,9 +301,9 @@ void setupRT64Scene() {
 				RT64.objIndices.push_back((unsigned int)(RT64.objVertices.size()));
 				RT64.objVertices.push_back(vertex);
 			}
-
 			index_offset += fnum;
 		}
+		// RT64.textureDif = materials[i];
 	}
 	
 	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
@@ -290,11 +313,14 @@ void setupRT64Scene() {
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.uvDetailScale = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
-	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
+	RT64.baseMaterial.reflectionFresnelFactor = 0.5f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
 	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
 	RT64.baseMaterial.specularExponent = 1.0f;
+	RT64.baseMaterial.specularFresnelFactor = 0.1f;
+	RT64.baseMaterial.roughnessFactor = 0.0f;
+	RT64.baseMaterial.metallicFactor = 0.0f;
 	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -325,6 +351,10 @@ void setupRT64Scene() {
 	RT64_TEXTURE *altTexture = loadTexturePNG("res/tiles_dif.png");
 	RT64_TEXTURE* normalTexture = loadTexturePNG("res/tiles_nrm.png");
 	RT64_TEXTURE* specularTexture = loadTexturePNG("res/tiles_spc.png");
+	RT64_TEXTURE* emissiveTexture = nullptr;
+	RT64_TEXTURE* roughnessTexture = nullptr;
+	RT64_TEXTURE* metalnessTexture = nullptr;
+	RT64_TEXTURE* ambientTexture = nullptr;
 
 	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
@@ -345,6 +375,10 @@ void setupRT64Scene() {
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
+	instDesc.emissiveTexture = nullptr;
+	instDesc.roughnessTexture = nullptr;
+	instDesc.metalnessTexture = nullptr;
+	instDesc.ambientTexture = nullptr;
 	instDesc.material = RT64.baseMaterial;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
@@ -359,6 +393,10 @@ void setupRT64Scene() {
 	instDesc.diffuseTexture = RT64.textureDif;
 	instDesc.normalTexture = RT64.textureNrm;
 	instDesc.specularTexture = RT64.textureSpc;
+	instDesc.emissiveTexture = nullptr;
+	instDesc.roughnessTexture = nullptr;
+	instDesc.metalnessTexture = nullptr;
+	instDesc.ambientTexture = nullptr;
 	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 
 	// Create HUD A Instance.
@@ -366,6 +404,10 @@ void setupRT64Scene() {
 	instDesc.mesh = mesh;
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
+	instDesc.emissiveTexture = nullptr;
+	instDesc.roughnessTexture = nullptr;
+	instDesc.metalnessTexture = nullptr;
+	instDesc.ambientTexture = nullptr;
 	instDesc.flags = RT64_INSTANCE_RASTER_BACKGROUND;
 	RT64.lib.SetInstanceDescription(instanceA, instDesc);
 
@@ -402,6 +444,10 @@ void setupRT64Scene() {
 	instDesc.diffuseTexture = altTexture;
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;
+	instDesc.emissiveTexture = emissiveTexture;
+	instDesc.roughnessTexture = roughnessTexture;
+	instDesc.metalnessTexture = metalnessTexture;
+	instDesc.ambientTexture = ambientTexture;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
@@ -458,10 +504,15 @@ int main(int argc, char *argv[]) {
 	MSG msg = {};
 	while (msg.message != WM_QUIT) {
 		// Process any messages in the queue.
+		std::chrono::time_point t1 = std::chrono::high_resolution_clock::now();
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+
+		std::chrono::time_point t2 = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float> time_span = std::chrono::duration_cast<std::chrono::duration<float>>(t2 - t1);
+		RT64.lib.SetDeltaTime(RT64.view, time_span.count());
 	}
 
 	destroyRT64();

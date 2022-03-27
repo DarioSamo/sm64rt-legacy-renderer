@@ -86,6 +86,8 @@
     <ClCompile Include="private\rt64_view.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="shaders\Common.hlsli" />
+    <None Include="shaders\BicubicFiltering.hlsli" />
     <None Include="shaders\BlueNoise.hlsli" />
     <None Include="shaders\Color.hlsli" />
     <None Include="shaders\Constants.hlsli" />
@@ -430,6 +432,91 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\LuminanceHistogramCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\HistogramAverageCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\VolumetricFogRayGen.hlsl">
+      <FileType>Document</FileType>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T lib_6_3 -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\BicubicScalingCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\HistogramClearCS.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release DLSS|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
+    </CustomBuild>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{F367D911-6ABC-49D8-A59E-3BF758F6D19A}</ProjectGuid>
@@ -507,6 +594,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug DLSS|x64'">
     <OutDir>../../bin/Debug/</OutDir>
     <TargetName>$(ProjectName)d</TargetName>
+    <LibraryPath>$(ProjectDir)contrib\nvngx_dlss_sdk\lib\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -534,7 +622,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;./contrib/nvngx_dlss_sdk/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;./contrib/optix;./contrib/nvngx_dlss_sdk/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;RT64_DLSS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>

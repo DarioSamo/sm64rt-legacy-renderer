@@ -10,7 +10,7 @@ float3 HUEtoRGB(in float hue) {
     // Hue [0..1] to RGB [0..1]
     // See http://www.chilliant.com/rgb2hsv.html
     float3 rgb = abs(hue * 6. - float3(3, 2, 4)) * float3(1, -1, -1) + float3(-1, 2, 2);
-    return clamp(rgb, 0., 1.);
+    return max(rgb, 0.);
 }
 
 float3 RGBtoHCV(in float3 rgb) {
@@ -39,5 +39,41 @@ float3 RGBtoHSL(in float3 rgb) {
 }
 
 float3 ModRGBWithHSL(in float3 rgb, in float3 hslMod) {
-    return saturate(HSLtoRGB(RGBtoHSL(rgb) + hslMod));
+    return HSLtoRGB(RGBtoHSL(rgb) + hslMod);
+}
+
+// Taken from https://64.github.io/tonemapping/
+float RGBtoLuminance(float3 rgb) {
+    // RGB [0...1] to Luminance [0...1]
+    return dot(rgb, float3(0.2126f, 0.7152f, 0.0722f));
+}
+
+uint HDRToHistogramBin(float3 hdrColor)
+{
+    float luminance = RGBtoLuminance(hdrColor);
+    if (luminance < EPS) {
+        return 0;
+    }
+    
+    float logLuminance = log2(luminance);
+    return (uint) (saturate((logLuminance - -10.0f) * (1.0f / logLuminance)) * 254.0 + 1.0);
+}
+
+float4 BlendAOverB(float4 colorA, float4 colorB)
+{
+    if (colorA.a < EPS) {
+        return colorB;
+    }
+    if (colorB.a < EPS) {
+        return colorA;
+    }
+    
+    float4 colorC = float4(0.f, 0.f, 0.f, 0.f);
+    colorC.a = (colorA.a + colorB.a * (1.0f - colorA.a));
+    if (colorC.a < EPS) {
+        return colorC;
+    }
+    colorC.rgb = colorA.rgb * colorA.a + colorB.rgb * colorB.a * (1.0f - colorA.a);
+    colorC.rgb /= colorC.a;
+    return colorC;
 }

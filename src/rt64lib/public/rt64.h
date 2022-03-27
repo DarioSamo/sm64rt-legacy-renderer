@@ -24,22 +24,26 @@
 #define RT64_MATERIAL_CC_SHADER_TEXEL1			7
 
 // Material attributes.
-#define RT64_ATTRIBUTE_NONE							0x0000
-#define RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR			0x0001
-#define RT64_ATTRIBUTE_UV_DETAIL_SCALE				0x0002
-#define RT64_ATTRIBUTE_REFLECTION_FACTOR			0x0004
-#define RT64_ATTRIBUTE_REFLECTION_FRESNEL_FACTOR	0x0008
-#define RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR		0x0010
-#define RT64_ATTRIBUTE_REFRACTION_FACTOR			0x0020
-#define RT64_ATTRIBUTE_SPECULAR_COLOR				0x0040
-#define RT64_ATTRIBUTE_SPECULAR_EXPONENT			0x0080
-#define RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER		0x0100
-#define RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER		0x0200
-#define RT64_ATTRIBUTE_DEPTH_BIAS					0x0400
-#define RT64_ATTRIBUTE_SHADOW_RAY_BIAS				0x0800
-#define RT64_ATTRIBUTE_SELF_LIGHT					0x1000
-#define RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS		0x2000
-#define RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX			0x4000
+#define RT64_ATTRIBUTE_NONE							0x00000
+#define RT64_ATTRIBUTE_IGNORE_NORMAL_FACTOR			0x00001
+#define RT64_ATTRIBUTE_UV_DETAIL_SCALE				0x00002
+#define RT64_ATTRIBUTE_REFLECTION_FACTOR			0x00004
+#define RT64_ATTRIBUTE_REFLECTION_FRESNEL_FACTOR	0x00008
+#define RT64_ATTRIBUTE_REFLECTION_SHINE_FACTOR		0x00010
+#define RT64_ATTRIBUTE_REFRACTION_FACTOR			0x00020
+#define RT64_ATTRIBUTE_SPECULAR_COLOR				0x00040
+#define RT64_ATTRIBUTE_SPECULAR_EXPONENT			0x00080
+#define RT64_ATTRIBUTE_ROUGHNESS_FACTOR				0x00100
+#define RT64_ATTRIBUTE_METALLIC_FACTOR				0x00200
+#define RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER		0x00400
+#define RT64_ATTRIBUTE_SHADOW_ALPHA_MULTIPLIER		0x00800
+#define RT64_ATTRIBUTE_DEPTH_BIAS					0x01000
+#define RT64_ATTRIBUTE_SHADOW_RAY_BIAS				0x02000
+#define RT64_ATTRIBUTE_SELF_LIGHT					0x04000
+#define RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS		0x08000
+#define RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX			0x10000
+#define RT64_ATTRIBUTE_SPECULAR_FRESNEL_FACTOR		0x20000
+#define RT64_ATTRIBUTE_COOK_TORRANCE_FLAG			0x40000
 
 // Mesh flags.
 #define RT64_MESH_RAYTRACE_ENABLED				0x1
@@ -48,15 +52,19 @@
 #define RT64_MESH_RAYTRACE_COMPACT				0x8
 
 // Shader flags.
-#define RT64_SHADER_FILTER_POINT				0x0
-#define RT64_SHADER_FILTER_LINEAR				0x1
-#define RT64_SHADER_ADDRESSING_WRAP				0x0
-#define RT64_SHADER_ADDRESSING_MIRROR			0x1
-#define RT64_SHADER_ADDRESSING_CLAMP			0x2
-#define RT64_SHADER_RASTER_ENABLED				0x1
-#define RT64_SHADER_RAYTRACE_ENABLED			0x2
-#define RT64_SHADER_NORMAL_MAP_ENABLED			0x4
-#define RT64_SHADER_SPECULAR_MAP_ENABLED		0x8
+#define RT64_SHADER_FILTER_POINT				0x00
+#define RT64_SHADER_FILTER_LINEAR				0x01
+#define RT64_SHADER_ADDRESSING_WRAP				0x00
+#define RT64_SHADER_ADDRESSING_MIRROR			0x01
+#define RT64_SHADER_ADDRESSING_CLAMP			0x02
+#define RT64_SHADER_RASTER_ENABLED				0x01
+#define RT64_SHADER_RAYTRACE_ENABLED			0x02
+#define RT64_SHADER_NORMAL_MAP_ENABLED			0x04
+#define RT64_SHADER_SPECULAR_MAP_ENABLED		0x08
+#define RT64_SHADER_EMISSIVE_MAP_ENABLED		0x10
+#define RT64_SHADER_ROUGHNESS_MAP_ENABLED		0x20
+#define RT64_SHADER_METALNESS_MAP_ENABLED		0x40
+#define RT64_SHADER_AMBIENT_MAP_ENABLED			0x80
 
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1
@@ -74,6 +82,11 @@
 #define RT64_DLSS_MODE_BALANCED					0x3
 #define RT64_DLSS_MODE_MAX_PERFORMANCE			0x4
 #define RT64_DLSS_MODE_ULTRA_PERFORMANCE		0x5
+
+// View flags
+#define RT64_VIEW_VOLUMETRICS_FLAG				0x0001
+#define RT64_VIEW_EYE_ADAPTION_FLAG				0x0002
+#define RT64_VIEW_CONTACT_SHADOWS_FLAG			0x0004
 
 // Feature codes.
 #define RT64_FEATURE_DLSS						0x1
@@ -116,6 +129,10 @@ typedef struct {
 	int diffuseTexIndex;
 	int normalTexIndex;
 	int specularTexIndex;
+	int emissiveTexIndex;
+	int roughnessTexIndex;
+	int metalnessTexIndex;
+	int ambientTexIndex;
 	float ignoreNormalFactor;
 	float uvDetailScale;
 	float reflectionFactor;
@@ -124,6 +141,8 @@ typedef struct {
 	float refractionFactor;
 	RT64_VECTOR3 specularColor;
 	float specularExponent;
+	float roughnessFactor;
+	float metallicFactor;
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
 	float depthBias;
@@ -135,6 +154,7 @@ typedef struct {
 	float fogMul;
 	float fogOffset;
 	unsigned int fogEnabled;
+	float specularFresnelFactor;
 
 	// Flag containing all attributes that are actually used by this material.
 	int enabledAttributes;
@@ -160,6 +180,13 @@ typedef struct {
 	RT64_VECTOR3 eyeLightSpecularColor;
 	RT64_VECTOR3 skyDiffuseMultiplier;
 	RT64_VECTOR3 skyHSLModifier;
+	RT64_VECTOR3 ambientFogColor;
+	float ambientFogAlpha;
+	RT64_VECTOR3 groundFogColor;
+	float groundFogAlpha;
+	RT64_VECTOR2 ambientFogFactors;
+	RT64_VECTOR2 groundFogFactors;
+	RT64_VECTOR2 groundFogHeightFactors;
 	float skyYawOffset;
 	float giDiffuseStrength;
 	float giSkyStrength;
@@ -168,11 +195,26 @@ typedef struct {
 typedef struct {
 	float resolutionScale;
 	float motionBlurStrength;
+	float tonemapExposure;
+	float tonemapWhite;
+	float tonemapBlack;
+	float tonemapSaturation;
+	float tonemapGamma;
 	unsigned int diSamples;
 	unsigned int giSamples;
 	unsigned int maxLights;
+	unsigned int tonemapMode;
 	unsigned char dlssMode;
 	bool denoiserEnabled;
+	bool volumetricEnabled;
+	float volumetricDistance;
+	float volumetricSteps;
+	float volumetricResolution;
+	float volumetricIntensity;
+	bool eyeAdaptionEnabled;
+	bool alternateIndirectLight;
+	bool alternateSpecularEnabled;
+	float eyeAdaptionBrightnessFactor;
 } RT64_VIEW_DESC;
 
 typedef struct {
@@ -182,6 +224,10 @@ typedef struct {
 	RT64_TEXTURE *diffuseTexture;
 	RT64_TEXTURE *normalTexture;
 	RT64_TEXTURE *specularTexture;
+	RT64_TEXTURE *emissiveTexture;
+	RT64_TEXTURE *roughnessTexture;
+	RT64_TEXTURE *metalnessTexture;
+	RT64_TEXTURE *ambientTexture;
 	RT64_SHADER *shader;
 	RT64_MATERIAL material;
 	RT64_RECT scissorRect;
@@ -231,6 +277,14 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 		dst->specularExponent = src->specularExponent;
 	}
 
+	if (src->enabledAttributes & RT64_ATTRIBUTE_ROUGHNESS_FACTOR) {
+		dst->roughnessFactor = src->roughnessFactor;
+	}
+
+	if (src->enabledAttributes & RT64_ATTRIBUTE_METALLIC_FACTOR) {
+		dst->metallicFactor = src->metallicFactor;
+	}
+
 	if (src->enabledAttributes & RT64_ATTRIBUTE_SOLID_ALPHA_MULTIPLIER) {
 		dst->solidAlphaMultiplier = src->solidAlphaMultiplier;
 	}
@@ -258,6 +312,10 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 	if (src->enabledAttributes & RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX) {
 		dst->diffuseColorMix = src->diffuseColorMix;
 	}
+
+	if (src->enabledAttributes & RT64_ATTRIBUTE_SPECULAR_FRESNEL_FACTOR) {
+		dst->specularFresnelFactor = src->specularFresnelFactor;
+	}
 }
 
 // Internal function pointer types.
@@ -271,6 +329,7 @@ typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDes
 typedef void (*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);
 typedef bool (*GetViewFeatureSupportPtr)(RT64_VIEW *viewPtr, int feature);
+typedef void (*SetDeltaTimePtr)(RT64_VIEW* viewPtr, float deltaMs);
 typedef void (*DestroyViewPtr)(RT64_VIEW* viewPtr);
 typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
 typedef void (*SetSceneDescriptionPtr)(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc);
@@ -309,6 +368,7 @@ typedef struct {
 	SetViewSkyPlanePtr SetViewSkyPlane;
 	GetViewRaytracedInstanceAtPtr GetViewRaytracedInstanceAt;
 	GetViewFeatureSupportPtr GetViewFeatureSupport;
+	SetDeltaTimePtr SetDeltaTime;
 	DestroyViewPtr DestroyView;
 	CreateScenePtr CreateScene;
 	SetSceneDescriptionPtr SetSceneDescription;
@@ -361,6 +421,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
 		lib.GetViewFeatureSupport = (GetViewFeatureSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewFeatureSupport"));
+		lib.SetDeltaTime = (SetDeltaTimePtr)(GetProcAddress(lib.handle, "RT64_SetDeltaTime"));
 		lib.DestroyView = (DestroyViewPtr)(GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(GetProcAddress(lib.handle, "RT64_CreateScene"));
 		lib.SetSceneDescription = (SetSceneDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetSceneDescription"));

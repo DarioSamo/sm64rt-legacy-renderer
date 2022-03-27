@@ -15,18 +15,7 @@
 #include "Lights.hlsli"
 #include "BgSky.hlsli"
 
-float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 hitNorm) {
-	float2 randVal = getBlueNoise(pixelPos, frameCount).rg;
-
-	// Cosine weighted hemisphere sample from RNG
-	float3 bitangent = getPerpendicularVector(hitNorm);
-	float3 tangent = cross(bitangent, hitNorm);
-	float r = sqrt(randVal.x);
-	float phi = 2.0f * 3.14159265f * randVal.y;
-
-	// Get our cosine-weighted hemisphere lobe sample direction
-	return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
-}
+#include "Common.hlsli"
 
 [shader("raygeneration")]
 void IndirectRayGen() {
@@ -58,7 +47,7 @@ void IndirectRayGen() {
 		uint maxSamples = giSamples;
 		const uint blueNoiseMult = 64 / giSamples;
 		while (maxSamples > 0) {
-			float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxSamples * blueNoiseMult, shadingNormal);
+            float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxSamples * blueNoiseMult, 1.0, shadingNormal);
 
 			// Ray differential.
 			RayDiff rayDiff;
@@ -84,54 +73,76 @@ void IndirectRayGen() {
 			bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 			// Process hits.
-			float3 resPosition = float3(0.0f, 0.0f, 0.0f);
-			float3 resNormal = float3(0.0f, 0.0f, 0.0f);
-			float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
-			float4 resColor = float4(0, 0, 0, 1);
-			int resInstanceId = -1;
-			for (uint hit = 0; hit < payload.nhits; hit++) {
-				uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
-				float4 hitColor = gHitColor[hitBufferIndex];
-				float alphaContrib = (resColor.a * hitColor.a);
-				if (alphaContrib >= EPSILON) {
-					uint instanceId = gHitInstanceId[hitBufferIndex];
-					float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
-					float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
-					float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
-					float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
-					resColor.rgb += hitColor.rgb * alphaContrib;
-					resColor.a *= (1.0 - hitColor.a);
-					resPosition = vertexPosition;
-					resNormal = vertexNormal;
-					resSpecular = specular;
-					resInstanceId = instanceId;
-				}
+            float3 resPosition = float3(0.0f, 0.0f, 0.0f);
+            float3 resNormal = float3(0.0f, 0.0f, 0.0f);
+            float3 resSpecular = float3(0.0f, 0.0f, 0.0f);
+            float3 resEmissive = float3(0.0f, 0.0f, 0.0f);
+            float resRoughness = 0.0f;
+            float resMetalness = 0.0f;
+            float resAmbient = 0.0f;
+            float4 resColor = float4(0, 0, 0, 1);
+            int resInstanceId = -1;
+            for (uint hit = 0; hit < payload.nhits; hit++)
+            {
+                uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
+                float4 hitColor = gHitColor[hitBufferIndex];
+                float alphaContrib = (resColor.a * hitColor.a);
+                if (alphaContrib >= EPSILON) {
+                    uint instanceId = gHitInstanceId[hitBufferIndex];
+                    float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
+                    float3 vertexNormal = gHitNormal[hitBufferIndex].xyz;
+                    float3 vertexSpecular = gHitSpecular[hitBufferIndex].rgb;
+                    float vertexRoughness = gHitRoughness[hitBufferIndex] * instanceMaterials[instanceId].roughnessFactor;
+                    float vertexMetalness = gHitMetalness[hitBufferIndex] * instanceMaterials[instanceId].metallicFactor;
+                    float vertexAmbient = gHitAmbient[hitBufferIndex];
+                    float3 emissive = gHitEmissive[hitBufferIndex].rgb * instanceMaterials[instanceId].selfLight;
+                    float3 specular = instanceMaterials[instanceId].specularColor * vertexSpecular.rgb;
+					
+                    resColor.rgb += hitColor.rgb * alphaContrib;
+                    resColor.a *= (1.0 - hitColor.a);
+                    
+                    resPosition = vertexPosition;
+                    resNormal = vertexNormal;
+                    resSpecular = specular;
+                    resInstanceId = instanceId;
+                    resEmissive = emissive;
+                    resRoughness = vertexRoughness;
+                    resMetalness = vertexMetalness;
+                    resAmbient = vertexAmbient;
+                }
 
-				if (resColor.a <= EPSILON) {
-					break;
-				}
-			}
+                if (resColor.a <= EPSILON) {
+                    break;
+                }
+            }
 
 			// Add diffuse bounce as indirect light.
-			float3 resIndirect = ambientBaseColor.rgb;
-			if (resInstanceId >= 0) {
-				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
-				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
-				resIndirect += indirectLight;
-			}
-
-			resIndirect += bgColor * giSkyStrength * resColor.a;
+            float3 resIndirect = ambientBaseColor.rgb;
+            if (resInstanceId >= 0) {
+                float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, resRoughness, rayOrigin, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
+                float3 directLight = lightMatrix._11_12_13 + resEmissive;
+                float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
+                if (!(processingFlags & 0x8)) {
+                    resSpecular *= gDiffuse[launchIndex].rgb;
+                }
+				
+                float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientNoGIColor.rgb + directLight + specularLight)) * giDiffuseStrength;
+                resIndirect = indirectLight;
+                resIndirect = max(resIndirect - (1.0 - resAmbient), 0.0);
+            }
+			
+            resIndirect += bgColor * giSkyStrength * resColor.a;
 
 			// Accumulate.
-			historyLength = min(historyLength + 1.0f, 64.0f);
-			newIndirect = lerp(newIndirect.rgb, resIndirect, 1.0f / historyLength);
-
-			maxSamples--;
-		}
+            historyLength = min(historyLength + 1.0f, 64.0f);
+            newIndirect = lerp(newIndirect.rgb, resIndirect, 1.0f / historyLength);
+			
+            maxSamples--;
+        }
 		
-		gIndirectLightAccum[launchIndex] = float4(newIndirect, historyLength);
-	}
+        gIndirectLightAccum[launchIndex] = float4(newIndirect, historyLength);
+    }
 	else {
-		gIndirectLightAccum[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 0.0f);
-	}
+        gIndirectLightAccum[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 0.0f);
+    }
 }

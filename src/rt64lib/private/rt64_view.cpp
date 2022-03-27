@@ -49,12 +49,17 @@ RT64::View::View(Scene *scene) {
 	samplerHeap = nullptr;
 	upscaleHeap = nullptr;
 	sharpenHeap = nullptr;
+	lumaHeap = nullptr;
+	lumaAvgHeap = nullptr;
+	bloomHeap[0] = nullptr;
+	bloomHeap[1] = nullptr;
 	postProcessHeap = nullptr;
 	directFilterHeaps[0] = nullptr;
 	directFilterHeaps[1] = nullptr;
 	indirectFilterHeaps[0] = nullptr;
 	indirectFilterHeaps[1] = nullptr;
-	sbtStorageSize = 0;
+	volumetricHeap = nullptr;
+	deltaTime = 0.0;
 	activeInstancesBufferTransformsSize = 0;
 	activeInstancesBufferMaterialsSize = 0;
 	globalParamsBufferData.motionBlurStrength = 0.0f;
@@ -66,6 +71,28 @@ RT64::View::View(Scene *scene) {
 	globalParamsBufferData.motionBlurSamples = 32;
 	globalParamsBufferData.visualizationMode = 0;
 	globalParamsBufferData.frameCount = 0;
+
+	// Tonemapper parameters
+	globalParamsBufferData.tonemapMode = 4;
+	globalParamsBufferData.tonemapExposure = 1.0f;
+	globalParamsBufferData.tonemapWhite = 1.0f;
+	globalParamsBufferData.tonemapBlack = 0.0f;
+	globalParamsBufferData.tonemapSaturation = 1.0f;
+	globalParamsBufferData.tonemapGamma = 1.0f;
+
+	globalParamsBufferData.volumetricDistance = 1000.0f;
+	globalParamsBufferData.volumetricSteps = 10.0f;
+	globalParamsBufferData.volumetricIntensity = 1.0f;
+	globalParamsBufferData.volumetricResolution = 0.25f;
+	globalParamsBufferData.processingFlags = 0xE;
+
+	// Eye adaption parameters
+	minLogLuminance = 5;
+	logLuminanceRange = -7;
+	lumaUpdateTime = 1.1f;
+	deltaTime = 0.333f;
+	globalParamsBufferData.eyeAdaptionBrightnessFactor = 1.0f;
+
 	globalParamsBufferSize = 0;
 	rtSwap = false;
 	rtWidth = 0;
@@ -101,7 +128,12 @@ RT64::View::View(Scene *scene) {
 	createGlobalParamsBuffer();
 	createUpscalingParamsBuffer();
 	createSharpenParamsBuffer();
+	createLumaParamsBuffer();
+	createLumaAvgParamsBuffer();
 	createFilterParamsBuffer();
+	createVolumetricsBlurParamsBuffer();
+	createHDRDownsampleParamsBuffer();
+	createBloomBlurParamsBuffer();
 
 	scene->addView(this);
 
@@ -206,16 +238,19 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	rtShadingPosition = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-
 	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	rtDiffuse = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtNormal[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtNormal[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtShadingNormal = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
+	resDesc.Format = DXGI_FORMAT_R16_UNORM;
+	rtShadingMetalness = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingAmbient = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingRoughness = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	rtDepth[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -224,8 +259,10 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	rtViewDirection = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtShadingSpecular = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtShadingEmissive = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtDirectLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtDirectLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtSpecularLightAccum = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtIndirectLightAccum[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtIndirectLightAccum[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFilteredDirectLight[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
@@ -236,6 +273,9 @@ void RT64::View::createOutputBuffers() {
 	rtRefraction = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtTransparent = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
+	rtVolumetrics = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+	rtFog = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
+
 	resDesc.Format = DXGI_FORMAT_R32_SINT; // TODO: To optimize to UINT, we need to insert an empty instance at the start and use 0 as the invalid value instead of -1.
 	rtInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	rtFirstInstanceId = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
@@ -245,15 +285,36 @@ void RT64::View::createOutputBuffers() {
 	CalculateTextureRowWidthPadding((UINT)(resDesc.Width * 4), rtFirstInstanceIdRowWidth, rowPadding);
 	rtFirstInstanceIdReadback = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_READBACK, rtFirstInstanceIdRowWidth * resDesc.Height, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
 
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	if (rtUpscaleActive) {
 		resDesc.Width = screenWidth;
 		resDesc.Height = screenHeight;
 		rtOutputUpscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	}
-	else {
-		rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
+	rtOutputSharpened = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
+	resDesc.Width = rtWidth / 8;
+	resDesc.Height = rtHeight / 8;
+	rtOutputDownscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtBloom = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
+	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	resDesc.Width = 1;
+	resDesc.Height = 1;
+	rtLumaAvg = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	{
+		D3D12_RESOURCE_DESC bufferDesc = { };
+		bufferDesc.Width = 256;
+		bufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		bufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+		bufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		bufferDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+		bufferDesc.Height = 1;
+		bufferDesc.DepthOrArraySize = 1;
+		bufferDesc.MipLevels = 1;
+		bufferDesc.SampleDesc.Count = 1;
+		rtLumaHistogram = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &bufferDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr);
 	}
 
 	// Create hit result buffers.
@@ -264,6 +325,10 @@ void RT64::View::createOutputBuffers() {
 	rtHitNormal = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitSpecular = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 4, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	rtHitInstanceId = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 2, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitEmissive = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitRoughness = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitMetalness = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	rtHitAmbient = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_DEFAULT, hitCountBufferSizeAll * 8, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 #ifndef NDEBUG
 	rasterBg.SetName(L"rasterBg");
@@ -273,6 +338,10 @@ void RT64::View::createOutputBuffers() {
 	rtShadingPosition.SetName(L"rtShadingPosition");
 	rtShadingNormal.SetName(L"rtShadingNormal");
 	rtShadingSpecular.SetName(L"rtShadingSpecular");
+	rtShadingEmissive.SetName(L"rtShadingEmissive");
+	rtShadingRoughness.SetName(L"rtShadingRoughness");
+	rtShadingMetalness.SetName(L"rtShadingMetalness");
+	rtShadingAmbient.SetName(L"rtShadingAmbient");
 	rtDiffuse.SetName(L"rtDiffuse");
 	rtNormal[0].SetName(L"rtNormal[0]");
 	rtNormal[1].SetName(L"rtNormal[1]");
@@ -281,12 +350,15 @@ void RT64::View::createOutputBuffers() {
 	rtFirstInstanceIdReadback.SetName(L"rtFirstInstanceIdReadback");
 	rtDirectLightAccum[0].SetName(L"rtDirectLightAccum[0]");
 	rtDirectLightAccum[1].SetName(L"rtDirectLightAccum[1]");
+	rtSpecularLightAccum.SetName(L"rtSpecularLightAccum");
 	rtIndirectLightAccum[0].SetName(L"rtIndirectLightAccum[0]");
 	rtIndirectLightAccum[1].SetName(L"rtIndirectLightAccum[1]");
+	rtVolumetrics.SetName(L"rtVolumetrics");
 	rtFilteredDirectLight[0].SetName(L"rtFilteredDirectLight[0]");
 	rtFilteredDirectLight[1].SetName(L"rtFilteredDirectLight[1]");
 	rtFilteredIndirectLight[0].SetName(L"rtFilteredIndirectLight[0]");
 	rtFilteredIndirectLight[1].SetName(L"rtFilteredIndirectLight[1]");
+	rtFog.SetName(L"rtFog");
 	rtReflection.SetName(L"rtReflection");
 	rtRefraction.SetName(L"rtRefraction");
 	rtTransparent.SetName(L"rtTransparent");
@@ -298,8 +370,16 @@ void RT64::View::createOutputBuffers() {
 	rtHitNormal.SetName(L"rtHitNormal");
 	rtHitSpecular.SetName(L"rtHitSpecular");
 	rtHitInstanceId.SetName(L"rtHitInstanceId");
+	rtHitEmissive.SetName(L"rtHitEmissive");
+	rtHitRoughness.SetName(L"rtHitRoughness");
+	rtHitMetalness.SetName(L"rtHitMetalness");
+	rtHitAmbient.SetName(L"rtHitAmbient");
 	rtOutputUpscaled.SetName(L"rtOutputUpscaled");
 	rtOutputSharpened.SetName(L"rtOutputSharpened");
+	rtLumaHistogram.SetName(L"rtLumaHistogram");
+	rtLumaAvg.SetName(L"rtLumaAvg");
+	rtOutputDownscaled.SetName(L"rtOutputDownscaled");
+	rtBloom.SetName(L"rtBloom");
 #endif
 
 	// Create the RTVs.
@@ -329,6 +409,10 @@ void RT64::View::releaseOutputBuffers() {
 	rtShadingPosition.Release();
 	rtShadingNormal.Release();
 	rtShadingSpecular.Release();
+	rtShadingEmissive.Release();
+	rtShadingRoughness.Release();
+	rtShadingMetalness.Release();
+	rtShadingAmbient.Release();
 	rtDiffuse.Release();
 	rtNormal[0].Release();
 	rtNormal[1].Release();
@@ -337,6 +421,7 @@ void RT64::View::releaseOutputBuffers() {
 	rtFirstInstanceIdReadback.Release();
 	rtDirectLightAccum[0].Release();
 	rtDirectLightAccum[1].Release();
+	rtSpecularLightAccum.Release();
 	rtIndirectLightAccum[0].Release();
 	rtIndirectLightAccum[1].Release();
 	rtFilteredDirectLight[0].Release();
@@ -346,6 +431,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtReflection.Release();
 	rtRefraction.Release();
 	rtTransparent.Release();
+	rtVolumetrics.Release();
+	rtFog.Release();
 	rtFlow.Release();
 	rtDepth[0].Release();
 	rtDepth[1].Release();
@@ -354,8 +441,14 @@ void RT64::View::releaseOutputBuffers() {
 	rtHitNormal.Release();
 	rtHitSpecular.Release();
 	rtHitInstanceId.Release();
+	rtHitEmissive.Release();
+	rtHitRoughness.Release();
+	rtHitMetalness.Release();
+	rtHitAmbient.Release();
 	rtOutputUpscaled.Release();
 	rtOutputSharpened.Release();
+	rtLumaHistogram.Release();
+	rtLumaAvg.Release();
 }
 
 void RT64::View::createInstanceTransformsBuffer() {
@@ -517,6 +610,22 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingSpecular.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// UAV for shading emssive buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingEmissive.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading roughness buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingRoughness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading metalness buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingMetalness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for shading ambient buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtShadingAmbient.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// UAV for diffuse buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDiffuse.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
@@ -529,8 +638,16 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtDirectLightAccum[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// UAV for specular light buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtSpecularLightAccum.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// UAV for indirect light buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtIndirectLightAccum[rtSwap ? 1 : 0].Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for volumetric fog.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtVolumetrics.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for reflection buffer.
@@ -581,6 +698,10 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFilteredIndirectLight[1].Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// UAV for filtered scene fog.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFog.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// UAV for hit distance and world flow buffer.
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 		uavDesc.Buffer.FirstElement = 0;
@@ -607,6 +728,26 @@ void RT64::View::createShaderResourceHeap() {
 		// UAV for hit shading buffer.
 		uavDesc.Format = DXGI_FORMAT_R16_UINT;
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitInstanceId.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for hit shading buffer.
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitEmissive.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for hit shading buffer.
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitRoughness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for hit shading buffer.
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitMetalness.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for hit shading buffer.
+		uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtHitAmbient.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for background texture.
@@ -740,7 +881,7 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the compose shader.
 		if (composeHeap == nullptr) {
-			uint32_t handleCount = 8;
+			uint32_t handleCount = 12;		// Imagine not realizing this value needed to be increased by 1 for fuckin' hours lmao
 			composeHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
@@ -758,7 +899,7 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 
 		// SRV for diffuse buffer.
-		textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtDiffuse.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
@@ -767,9 +908,19 @@ void RT64::View::createShaderResourceHeap() {
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFilteredDirectLight[1].Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
+		// SRV for specular light buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtSpecularLightAccum.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
 		// SRV for filtered indirect light buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFilteredIndirectLight[1].Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for filtered volumetric fog buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtVolumetrics.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for reflection buffer.
@@ -785,6 +936,16 @@ void RT64::View::createShaderResourceHeap() {
 		// SRV for transparent buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtTransparent.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for fog buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFog.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for ambient occlusion buffer.
+		textureSRVDesc.Format = DXGI_FORMAT_R16_UNORM;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtShadingAmbient.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.
@@ -843,15 +1004,14 @@ void RT64::View::createShaderResourceHeap() {
 		textureSRVDesc.Texture2D.MipLevels = 1;
 		textureSRVDesc.Texture2D.MostDetailedMip = 0;
 		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 
 		ID3D12Resource *inputResource = nullptr;
 		if (rtUpscaleActive) {
 			inputResource = rtOutputUpscaled.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		}
 		else {
 			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
@@ -874,7 +1034,7 @@ void RT64::View::createShaderResourceHeap() {
 	{
 		// Create the heap for the post process shader.
 		if (postProcessHeap == nullptr) {
-			uint32_t handleCount = 3;
+			uint32_t handleCount = 5;
 			postProcessHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
@@ -890,23 +1050,31 @@ void RT64::View::createShaderResourceHeap() {
 		ID3D12Resource *inputResource = nullptr;
 		if (rtSharpenActive) {
 			inputResource = rtOutputSharpened.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		}
 		else if (rtUpscaleActive) {
 			inputResource = rtOutputUpscaled.Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		}
 		else {
 			inputResource = rtOutput[rtSwap ? 1 : 0].Get();
-			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		}
 
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(inputResource, &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// SRV for flow buffer.
 		textureSRVDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
 		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtFlow.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for average luminence.
+		textureSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtLumaAvg.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// SRV for bloom.
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtBloom.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.
@@ -986,6 +1154,181 @@ void RT64::View::createShaderResourceHeap() {
 			handle.ptr += handleIncrement;
 		}
 	}
+
+	{
+		// Create the heap for the volumetrics filter.
+		if (volumetricHeap == nullptr) {
+			uint32_t handleCount = 3;
+			volumetricHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = volumetricHeap->GetCPUDescriptorHandleForHeapStart();
+
+		// SRV for input image.
+		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		textureSRVDesc.Texture2D.MipLevels = 1;
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtVolumetrics.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for output image.
+		int outputDimensions[2] = { rtWidth, rtHeight };
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtVolumetrics.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for blur parameters.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = volumetricBlurParamBufferResource.Get()->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = volumetricBlurParamBufferSize;
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+	}
+
+	// Create the downscaled HDR image heap for the downscaling shader.
+	{
+		// HDR downscaler heap
+		if (bloomHeap[0] == nullptr) {
+			uint32_t handleCount = 3;
+			bloomHeap[0] = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = bloomHeap[0]->GetCPUDescriptorHandleForHeapStart();
+
+		// SRV for input image.
+		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		textureSRVDesc.Texture2D.MipLevels = 1;
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for output image.
+		D3D12_UNORDERED_ACCESS_VIEW_DESC textureUAVDesc = {};
+		textureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		textureUAVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtOutputDownscaled.Get(), nullptr, &textureUAVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for downscaling.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = hdrDownscaleParamBufferResource.Get()->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = hdrDownscaleParamBufferSize;
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+	}
+
+	// Create the bloom heap for the gaussian blur filter
+	{
+		// Bloom gaussian blur heap
+		if (bloomHeap[1] == nullptr) {
+			uint32_t handleCount = 3;
+			bloomHeap[1] = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = bloomHeap[1]->GetCPUDescriptorHandleForHeapStart();
+
+		// SRV for input image.
+		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		textureSRVDesc.Texture2D.MipLevels = 1;
+		textureSRVDesc.Texture2D.MostDetailedMip = 0;
+		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutputDownscaled.Get(), &textureSRVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for output image.
+		D3D12_UNORDERED_ACCESS_VIEW_DESC textureUAVDesc = {};
+		textureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		textureUAVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtBloom.Get(), nullptr, &textureUAVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for blurring.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = bloomBlurParamBufferResource.Get()->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = bloomBlurParamBufferSize;
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+	}
+
+	{
+		// Create the heap for the luminence histogram.
+		{
+			if (lumaHeap == nullptr) {
+				uint32_t handleCount = 3;
+				lumaHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+			}
+
+			D3D12_CPU_DESCRIPTOR_HANDLE handle = lumaHeap->GetCPUDescriptorHandleForHeapStart();
+
+			// SRV for input image.
+			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
+			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			textureSRVDesc.Texture2D.MipLevels = 1;
+			textureSRVDesc.Texture2D.MostDetailedMip = 0;
+			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+			scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutputDownscaled.Get(), &textureSRVDesc, handle);
+			handle.ptr += handleIncrement;
+
+			// UAV for output buffer.
+			D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+			uavDesc.Format = DXGI_FORMAT_R32_UINT;
+			uavDesc.Buffer.FirstElement = 0;
+			uavDesc.Buffer.NumElements = 64;
+			scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLumaHistogram.Get(), nullptr, &uavDesc, handle);
+			handle.ptr += handleIncrement;
+
+			// CBV for sharpen parameters.
+			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+			cbvDesc.BufferLocation = lumaParamBufferResource.Get()->GetGPUVirtualAddress();
+			cbvDesc.SizeInBytes = lumaParamBufferSize;
+			scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+			handle.ptr += handleIncrement;
+		}
+	}
+
+	// Create the heap for the luminence averages.
+	{
+		if (lumaAvgHeap == nullptr) {
+			uint32_t handleCount = 3;
+			lumaAvgHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+		}
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = lumaAvgHeap->GetCPUDescriptorHandleForHeapStart();
+
+		// UAV for input buffer
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		uavDesc.Format = DXGI_FORMAT_R32_UINT;
+		uavDesc.Buffer.FirstElement = 0;
+		uavDesc.Buffer.NumElements = 64;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLumaHistogram.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for output float.
+		D3D12_UNORDERED_ACCESS_VIEW_DESC textureUAVDesc = {};
+		textureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		textureUAVDesc.Format = DXGI_FORMAT_R32_FLOAT;
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLumaAvg.Get(), nullptr, &textureUAVDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// CBV for sharpen parameters.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = lumaAvgParamBufferResource.Get()->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = lumaAvgParamBufferSize;
+		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+	}
 }
 
 void RT64::View::createShaderBindingTable() {
@@ -1005,6 +1348,7 @@ void RT64::View::createShaderBindingTable() {
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getPrimaryRayGenID(), { srvUavPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getDirectRayGenID(), { srvUavPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getIndirectRayGenID(), { srvUavPointer });
+	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getVolumetricFogRayGenID(), { srvUavPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getReflectionRayGenID(), { srvUavPointer });
 	sbtHelper.AddRayGenerationProgram(scene->getDevice()->getRefractionRayGenID(), { srvUavPointer });
 	
@@ -1067,6 +1411,12 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.skyYawOffset = desc.skyYawOffset;
 	globalParamsBufferData.giDiffuseStrength = desc.giDiffuseStrength;
 	globalParamsBufferData.giSkyStrength = desc.giSkyStrength;
+	// My additions
+	globalParamsBufferData.ambientFogColor = ToVector4(desc.ambientFogColor, desc.ambientFogAlpha);
+	globalParamsBufferData.groundFogColor = ToVector4(desc.groundFogColor, desc.groundFogAlpha);
+	globalParamsBufferData.ambientFogFactors = desc.ambientFogFactors;
+	globalParamsBufferData.groundFogFactors = desc.groundFogFactors;
+	globalParamsBufferData.groundFogHeightFactors = desc.groundFogHeightFactors;
 
 	// Previous and current view and projection matrices and their inverse.
 	if (perspectiveCanReproject) {
@@ -1162,6 +1512,58 @@ void RT64::View::updateSharpenParamsBuffer() {
 	sharpenParamBufferResource.Get()->Unmap(0, nullptr);
 }
 
+struct LumaBuffer {
+	uint32_t inputWidth;
+	uint32_t inputHeight;
+	float minLogLuminance;
+	float oneOverLogLuminanceRange;
+};
+
+void RT64::View::createLumaParamsBuffer() {
+	lumaParamBufferSize = ROUND_UP(sizeof(LumaBuffer), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	lumaParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, lumaParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateLumaParamsBuffer() {
+	LumaBuffer buffer = {};
+	buffer.inputWidth = rtWidth / 8;
+	buffer.inputHeight = rtHeight / 8;
+	buffer.minLogLuminance = minLogLuminance;
+	buffer.oneOverLogLuminanceRange = 1.0f / logLuminanceRange;
+
+	uint8_t *pData;
+	D3D12_CHECK(lumaParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &buffer, sizeof(LumaBuffer));
+	lumaParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
+struct LumaAvgBuffer {
+	uint32_t pixelCount;
+	float minLogLuminance;
+	float logLuminanceRange;
+	float timeDelta;
+	float tau;
+};
+
+void RT64::View::createLumaAvgParamsBuffer() {
+	lumaAvgParamBufferSize = ROUND_UP(sizeof(LumaAvgBuffer), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	lumaAvgParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, lumaAvgParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateLumaAvgParamsBuffer() {
+	LumaAvgBuffer buffer = {};
+	buffer.pixelCount = (rtWidth / 8) * (rtHeight / 8);
+	buffer.minLogLuminance = minLogLuminance;
+	buffer.logLuminanceRange = logLuminanceRange;
+	buffer.timeDelta = deltaTime;
+	buffer.tau = lumaUpdateTime;
+
+	uint8_t *pData;
+	D3D12_CHECK(lumaAvgParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &buffer, sizeof(LumaAvgBuffer));
+	lumaAvgParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
 struct alignas(16) FilterCB {
 	uint32_t TextureSize[2];
 	DirectX::XMFLOAT2 TexelSize;
@@ -1183,6 +1585,65 @@ void RT64::View::updateFilterParamsBuffer() {
 	D3D12_CHECK(filterParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
 	memcpy(pData, &cb, sizeof(FilterCB));
 	filterParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
+void RT64::View::createVolumetricsBlurParamsBuffer() {
+	volumetricBlurParamBufferSize = ROUND_UP(sizeof(FilterCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	volumetricBlurParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, volumetricBlurParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateVolumetricsBlurParamsBuffer() {
+	FilterCB cb;
+	cb.TextureSize[0] = rtWidth;
+	cb.TextureSize[1] = rtHeight;
+	cb.TexelSize.x = 1.0f / cb.TextureSize[0];
+	cb.TexelSize.y = 1.0f / cb.TextureSize[1];
+
+	uint8_t *pData;
+	D3D12_CHECK(volumetricBlurParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &cb, sizeof(FilterCB));
+	volumetricBlurParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
+void RT64::View::createBloomBlurParamsBuffer() {
+	bloomBlurParamBufferSize = ROUND_UP(sizeof(FilterCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	bloomBlurParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, bloomBlurParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateBloomBlurParamsBuffer() {
+	FilterCB cb;
+	cb.TextureSize[0] = rtWidth / 8;
+	cb.TextureSize[1] = rtHeight / 8;
+	cb.TexelSize.x = 1.0f / cb.TextureSize[0];
+	cb.TexelSize.y = 1.0f / cb.TextureSize[1];
+
+	uint8_t *pData;
+	D3D12_CHECK(bloomBlurParamBufferResource.Get()->Map(0, nullptr, (void **)&pData));
+	memcpy(pData, &cb, sizeof(FilterCB));
+	bloomBlurParamBufferResource.Get()->Unmap(0, nullptr);
+}
+
+struct alignas(16) BicubicCB {
+	uint32_t InputResolution[2];
+	uint32_t OutputResolution[2];
+};
+
+void RT64::View::createHDRDownsampleParamsBuffer() {
+	hdrDownscaleParamBufferSize = ROUND_UP(sizeof(BicubicCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	hdrDownscaleParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, hdrDownscaleParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void RT64::View::updateHDRDownsampleParamsBuffer() {
+	BicubicCB cb;
+	cb.InputResolution[0] = rtWidth;
+	cb.InputResolution[1] = rtHeight;
+	cb.OutputResolution[0] = rtWidth / 8;
+	cb.OutputResolution[1] = rtHeight / 8;
+
+	uint8_t* pData;
+	D3D12_CHECK(hdrDownscaleParamBufferResource.Get()->Map(0, nullptr, (void**)&pData));
+	memcpy(pData, &cb, sizeof(BicubicCB));
+	hdrDownscaleParamBufferResource.Get()->Unmap(0, nullptr);
 }
 
 void RT64::View::update() {
@@ -1245,6 +1706,10 @@ void RT64::View::update() {
 			renderInstance.material.diffuseTexIndex = getTextureIndex(instance->getDiffuseTexture());
 			renderInstance.material.normalTexIndex = getTextureIndex(instance->getNormalTexture());
 			renderInstance.material.specularTexIndex = getTextureIndex(instance->getSpecularTexture());
+			renderInstance.material.emissiveTexIndex = getTextureIndex(instance->getEmissiveTexture());
+			renderInstance.material.roughnessTexIndex = getTextureIndex(instance->getRoughnessTexture());
+			renderInstance.material.metalnessTexIndex = getTextureIndex(instance->getMetalnessTexture());
+			renderInstance.material.ambientTexIndex = getTextureIndex(instance->getAmbientTexture());
 
 			if (instance->hasScissorRect()) {
 				RT64_RECT rect = instance->getScissorRect();
@@ -1318,6 +1783,8 @@ void RT64::View::render() {
 	if (descriptorHeap == nullptr) {
 		return;
 	}
+	int screenWidth = scene->getDevice()->getWidth();
+	int screenHeight = scene->getDevice()->getHeight();
 
 	auto viewport = scene->getDevice()->getD3D12Viewport();
 	auto scissorRect = scene->getDevice()->getD3D12ScissorRect();
@@ -1424,7 +1891,12 @@ void RT64::View::render() {
 		globalParamsBufferData.viewport.w = rtViewport.Height;
 
 		updateGlobalParamsBuffer();
+		updateLumaParamsBuffer();
+		updateLumaAvgParamsBuffer();
 		updateFilterParamsBuffer();
+		updateVolumetricsBlurParamsBuffer();
+		updateHDRDownsampleParamsBuffer();
+		updateBloomBlurParamsBuffer();
 
 		// Update FSR buffers.
 		if (rtUpscaleActive && (rtUpscaleMode == UpscaleMode::FSR)) {
@@ -1514,6 +1986,9 @@ void RT64::View::render() {
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingPosition.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingNormal.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingSpecular.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingEmissive.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingMetalness.Get()),
+				CD3DX12_RESOURCE_BARRIER::UAV(rtShadingAmbient.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtReflection.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtRefraction.Get()),
 				CD3DX12_RESOURCE_BARRIER::UAV(rtNormal[rtSwap ? 1 : 0].Get()),
@@ -1540,13 +2015,25 @@ void RT64::View::render() {
 		CD3DX12_RESOURCE_BARRIER indirectBarrier = CD3DX12_RESOURCE_BARRIER::UAV(rtIndirectLightAccum[rtSwap ? 1 : 0].Get());
 		d3dCommandList->ResourceBarrier(1, &indirectBarrier);
 
+		// Dispatch rays for volumetrics.
+		RT64_LOG_PRINTF("Dispatching volumetric rays");
+		if (globalParamsBufferData.processingFlags & RT64_VIEW_VOLUMETRICS_FLAG)
+		{
+			desc.Width = lround(rtWidth * globalParamsBufferData.volumetricResolution);
+			desc.Height = lround(rtHeight * globalParamsBufferData.volumetricResolution);
+			desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 3;
+			d3dCommandList->DispatchRays(&desc);
+			desc.Width = rtWidth;
+			desc.Height = rtHeight;
+		}
+
 		// Transition the instance ID buffer back to unordered access.
 		CD3DX12_RESOURCE_BARRIER instanceIdCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtInstanceId.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		d3dCommandList->ResourceBarrier(1, &instanceIdCopyBarrier);
 
 		// Dispatch rays for refraction.
 		RT64_LOG_PRINTF("Dispatching refraction rays");
-		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 4;
+		desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 5;
 		d3dCommandList->DispatchRays(&desc);
 
 		// Wait until refraction is done before dispatching reflection rays.
@@ -1560,7 +2047,7 @@ void RT64::View::render() {
 		while (reflections > 0) {
 			// Dispatch rays for reflection.
 			RT64_LOG_PRINTF("Dispatching reflection rays");
-			desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 3;
+			desc.RayGenerationShaderRecord.StartAddress = sbtStorage.Get()->GetGPUVirtualAddress() + sbtHelper.GetRayGenEntrySize() * 4;
 			d3dCommandList->DispatchRays(&desc);
 			reflections--;
 
@@ -1671,6 +2158,25 @@ void RT64::View::render() {
 			}
 		}
 
+		// Apply that same compute shader for the volumetric fog.
+		if (globalParamsBufferData.processingFlags & RT64_VIEW_VOLUMETRICS_FLAG)
+		{
+			for (int i = 0; i < 8; i++)
+			{
+				const int ThreadGroupWorkCount = 8;
+				int dispatchRes[2] = {
+					(int)(rtWidth * globalParamsBufferData.volumetricResolution) / ThreadGroupWorkCount + (((int)(rtWidth * globalParamsBufferData.volumetricResolution) % ThreadGroupWorkCount) ? 1 : 0) ,
+					(int)(rtHeight * globalParamsBufferData.volumetricResolution) / ThreadGroupWorkCount + (((int)(rtHeight * globalParamsBufferData.volumetricResolution) % ThreadGroupWorkCount) ? 1 : 0)
+				};
+				d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
+				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
+				d3dCommandList->SetDescriptorHeaps(1, &volumetricHeap);
+				d3dCommandList->SetComputeRootDescriptorTable(0, volumetricHeap->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->Dispatch(dispatchRes[0], dispatchRes[1], 1);
+				scene->getDevice()->waitForGPU();
+			}
+		}
+
 		// Compose the output buffer.
 		ID3D12Resource *rtOutputCur = rtOutput[rtSwap ? 1 : 0].Get();
 
@@ -1708,18 +2214,85 @@ void RT64::View::render() {
 		CD3DX12_RESOURCE_BARRIER afterComposeBarriers[] = {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtOutputCur, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredDirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
-		};
-
-		d3dCommandList->ResourceBarrier(_countof(afterComposeBarriers), afterComposeBarriers);
-
-		// Transition the motion vectors and depth buffer to shader resources.
-		CD3DX12_RESOURCE_BARRIER beforeFiltersBarriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(rtFilteredIndirectLight[1].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
+		d3dCommandList->ResourceBarrier(_countof(afterComposeBarriers), afterComposeBarriers);
 
-		d3dCommandList->ResourceBarrier(_countof(beforeFiltersBarriers), beforeFiltersBarriers);
+		RT64_LOG_PRINTF("Do the downscaling shader");
+		{
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeDownscaleBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeDownscaleBarrier);
+
+			// Execute the compute shader for downscaling the HDR image.
+			static const int threadGroupWorkRegionDim = 8;
+			int dispatchX = rtWidth / 8 / threadGroupWorkRegionDim + (((rtWidth / 8) % threadGroupWorkRegionDim) ? 1 : 0);
+			int dispatchY = rtHeight / 8 / threadGroupWorkRegionDim + (((rtHeight / 8) % threadGroupWorkRegionDim) ? 1 : 0);
+			d3dCommandList->SetPipelineState(scene->getDevice()->getBicubicScalingPipelineState());
+			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getBicubicScalingRootSignature());
+			d3dCommandList->SetDescriptorHeaps(1, &bloomHeap[0]);
+			d3dCommandList->SetComputeRootDescriptorTable(0, bloomHeap[0]->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
+
+			CD3DX12_RESOURCE_BARRIER afterDownscaleBarriers =
+				CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterDownscaleBarriers);
+		}
+
+		RT64_LOG_PRINTF("Do the luminance histogram shader");
+		{
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeLumaBarrier);
+
+			// Execute the compute shader for the luminance histogram.
+			static const int threadGroupWorkRegionDim = 8;
+			int dispatchX = rtWidth / 8 / threadGroupWorkRegionDim + (((rtWidth / 8) % threadGroupWorkRegionDim) ? 1 : 0);
+			int dispatchY = rtHeight / 8 / threadGroupWorkRegionDim + (((rtHeight / 8) % threadGroupWorkRegionDim) ? 1 : 0);
+			d3dCommandList->SetPipelineState(scene->getDevice()->getLuminanceHistogramPipelineState());
+			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getLuminanceHistogramRootSignature());
+			d3dCommandList->SetDescriptorHeaps(1, &lumaHeap);
+			d3dCommandList->SetComputeRootDescriptorTable(0, lumaHeap->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
+
+			// Switch output to SRV.
+			CD3DX12_RESOURCE_BARRIER afterLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputDownscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterLumaBarrier);
+		}
+
+		RT64_LOG_PRINTF("Do the luminance average shader");
+		{
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtLumaAvg.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeLumaBarrier);
+
+			// Execute the compute shader for the luminance histogram average.
+			std::vector<ID3D12DescriptorHeap*> vLumaAvgHeap = { lumaAvgHeap };
+			static const int threadGroupWorkRegionDim = 8;
+			d3dCommandList->SetPipelineState(scene->getDevice()->getHistogramAveragePipelineState());
+			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getHistogramAverageRootSignature());
+			d3dCommandList->SetDescriptorHeaps(1, &lumaAvgHeap);
+			d3dCommandList->SetComputeRootDescriptorTable(0, lumaAvgHeap->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->Dispatch(threadGroupWorkRegionDim, threadGroupWorkRegionDim, 1);
+
+			// Switch output to SRV.
+			CD3DX12_RESOURCE_BARRIER afterLumaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtLumaAvg.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterLumaBarrier);
+		}
+
+		RT64_LOG_PRINTF("Do the histogram clear shader");
+		{
+			// Execute the compute shader for clearing the luminance histogram.
+			std::vector<ID3D12DescriptorHeap*> vLumaAvgHeap = { lumaAvgHeap };
+			static const int threadGroupWorkRegionDim = 8;
+			d3dCommandList->SetPipelineState(scene->getDevice()->getHistogramClearPipelineState());
+			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getHistogramClearRootSignature());
+			d3dCommandList->SetDescriptorHeaps(static_cast<UINT>(vLumaAvgHeap.size()), vLumaAvgHeap.data());
+			d3dCommandList->SetComputeRootDescriptorTable(0, lumaAvgHeap->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->Dispatch(threadGroupWorkRegionDim, threadGroupWorkRegionDim, 1);
+		}
 
 		if (rtUpscaleActive) {
 			if (rtUpscaleMode == UpscaleMode::FSR) {
@@ -1804,6 +2377,30 @@ void RT64::View::render() {
 				assert(false && "Unimplemented sharpen mode.");
 			}
 		}
+
+		/*
+		RT64_LOG_PRINTF("Do the bloom blurring shader");
+		{
+			for (int i = 0; i < 256; i++)
+			{
+				const int ThreadGroupWorkCount = 8;
+				int dispatchRes[2] = {
+					screenWidth / 8 / ThreadGroupWorkCount + (((screenWidth / 8) % ThreadGroupWorkCount) ? 1 : 0) ,
+					screenHeight / 8 / ThreadGroupWorkCount + (((screenHeight / 8) % ThreadGroupWorkCount) ? 1 : 0)
+				};
+				d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
+				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
+				d3dCommandList->SetDescriptorHeaps(1, &bloomHeap[1]);
+				d3dCommandList->SetComputeRootDescriptorTable(0, bloomHeap[1]->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->Dispatch(dispatchRes[0], dispatchRes[1], 1);
+				scene->getDevice()->waitForGPU();
+			}
+
+			CD3DX12_RESOURCE_BARRIER afterDownscaleBarriers = 
+				CD3DX12_RESOURCE_BARRIER::Transition(rtBloom.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterDownscaleBarriers);
+		}
+		*/
 
 		// Set the final render target.
 		CD3DX12_CPU_DESCRIPTOR_HANDLE finalRtvHandle = scene->getDevice()->getD3D12RTV();
@@ -2053,6 +2650,113 @@ int RT64::View::getVisualizationMode() const {
 	return globalParamsBufferData.visualizationMode;
 }
 
+void RT64::View::setToneMappingMode(int v) {
+	globalParamsBufferData.tonemapMode = v;
+}
+
+int RT64::View::getToneMappingMode() const {
+	return globalParamsBufferData.tonemapMode;
+}
+
+void RT64::View::setTonemapperValues(float e, float w, float b, float s, float g)
+{
+	globalParamsBufferData.tonemapExposure = e;
+	globalParamsBufferData.tonemapWhite = w;
+	globalParamsBufferData.tonemapBlack = b;
+	globalParamsBufferData.tonemapSaturation = s;
+	globalParamsBufferData.tonemapGamma = g;
+}
+
+float RT64::View::getToneMapExposure() const {
+	return globalParamsBufferData.tonemapExposure;
+}
+
+float RT64::View::getToneMapWhitePoint() const {
+	return globalParamsBufferData.tonemapWhite;
+}
+
+float RT64::View::getToneMapBlackLevel() const {
+	return globalParamsBufferData.tonemapBlack;
+}
+
+float RT64::View::getToneMapSaturation() const {
+	return globalParamsBufferData.tonemapSaturation;
+}
+
+float RT64::View::getToneMapGamma() const {
+	return globalParamsBufferData.tonemapGamma;
+}
+
+void RT64::View::setVolumetricDistance(float v) {
+	globalParamsBufferData.volumetricDistance = v;
+}
+
+float RT64::View::getVolumetricDistance() const {
+	return globalParamsBufferData.volumetricDistance;
+}
+
+void RT64::View::setVolumetricSteps(float v) {
+	globalParamsBufferData.volumetricSteps = v;
+}
+
+float RT64::View::getVolumetricSteps() const {
+	return globalParamsBufferData.volumetricSteps;
+}
+
+void RT64::View::setVolumetricResolution(float v) {
+	globalParamsBufferData.volumetricResolution = v;
+}
+
+float RT64::View::getVolumetricResolution() const {
+	return globalParamsBufferData.volumetricResolution;
+}
+
+void RT64::View::setVolumetricEnabledFlag(bool v) {
+	if (v) {
+		globalParamsBufferData.processingFlags |= RT64_VIEW_VOLUMETRICS_FLAG;
+	} else {
+		globalParamsBufferData.processingFlags &= (0xFFFFFFFF ^ RT64_VIEW_VOLUMETRICS_FLAG);
+	}
+}
+
+bool RT64::View::getVolumetricEnabledFlag() const {
+	return globalParamsBufferData.processingFlags & RT64_VIEW_VOLUMETRICS_FLAG;
+}
+
+void RT64::View::setEyeAdaptionEnabledFlag(bool v) {
+	if (v) {
+		globalParamsBufferData.processingFlags |= RT64_VIEW_EYE_ADAPTION_FLAG;
+	}
+	else {
+		globalParamsBufferData.processingFlags &= (0xFFFFFFFF ^ RT64_VIEW_EYE_ADAPTION_FLAG);
+	}
+}
+
+bool RT64::View::getEyeAdaptionEnabledFlag() const {
+	return globalParamsBufferData.processingFlags & RT64_VIEW_EYE_ADAPTION_FLAG;
+}
+
+void RT64::View::setAlternateIndirectFlag(bool v) {
+	if (v) {
+		globalParamsBufferData.processingFlags |= RT64_VIEW_CONTACT_SHADOWS_FLAG;
+	}
+	else {
+		globalParamsBufferData.processingFlags &= (0xFFFFFFFF ^ RT64_VIEW_CONTACT_SHADOWS_FLAG);
+	}
+}
+
+bool RT64::View::getAlternateIndirectFlag() const {
+	return globalParamsBufferData.processingFlags & RT64_VIEW_CONTACT_SHADOWS_FLAG;
+}
+
+void RT64::View::setVolumetricIntensity(float v) {
+	globalParamsBufferData.volumetricIntensity = v;
+}
+
+float RT64::View::getVolumetricIntensity() const {
+	return globalParamsBufferData.volumetricIntensity;
+}
+
 void RT64::View::setResolutionScale(float v) {
 	if (resolutionScale != v) {
 		resolutionScale = v;
@@ -2078,6 +2782,31 @@ void RT64::View::setDenoiserEnabled(bool v) {
 
 bool RT64::View::getDenoiserEnabled() const {
 	return denoiserEnabled;
+}
+
+void RT64::View::setAlternateSpecularEnabled(bool v) {
+	if (v) {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 0x8);
+	}
+	else {
+		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFF7);
+	}
+}
+
+bool RT64::View::getAlternateSpecularEnabled() const {
+	return (globalParamsBufferData.processingFlags & 0x8) == 0x8;
+}
+
+void RT64::View::setEyeAdaptionBrightnessFactor(float v) {
+	globalParamsBufferData.eyeAdaptionBrightnessFactor = v;
+}
+
+float RT64::View::getEyeAdaptionBrightnessFactor() const {
+	return globalParamsBufferData.eyeAdaptionBrightnessFactor;
+}
+
+void RT64::View::setDeltaTime(float v) {
+	this->deltaTime = v;
 }
 
 void RT64::View::setUpscaleMode(UpscaleMode v) {
@@ -2184,6 +2913,30 @@ int RT64::View::getHeight() const {
 	return scene->getDevice()->getHeight();
 }
 
+float RT64::View::getMinLogLuminance() const {
+	return minLogLuminance;
+}
+
+void RT64::View::setMinLogLuminance(float v) {
+	minLogLuminance = v;
+}
+
+float RT64::View::getLogLuminanceRange() const {
+	return logLuminanceRange;
+}
+
+void RT64::View::setLogLuminanceRange(float v) {
+	logLuminanceRange = v;
+}
+
+float RT64::View::getLuminanceUpdateTime() const {
+	return lumaUpdateTime;
+}
+
+void RT64::View::setLuminanceUpdateTime(float v) {
+	lumaUpdateTime = v;
+}
+
 #ifdef RT64_DLSS
 void RT64::View::setDlssQualityMode(RT64::DLSS::QualityMode v) {
 	if (dlssQuality != v) {
@@ -2255,6 +3008,16 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setDISamples(viewDesc.diSamples);
 	view->setGISamples(viewDesc.giSamples);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
+	view->setToneMappingMode(viewDesc.tonemapMode);
+	view->setTonemapperValues(viewDesc.tonemapExposure, viewDesc.tonemapWhite, viewDesc.tonemapBlack, viewDesc.tonemapSaturation, viewDesc.tonemapGamma);
+	view->setVolumetricEnabledFlag(viewDesc.volumetricEnabled);
+	view->setVolumetricDistance(viewDesc.volumetricDistance);
+	view->setVolumetricSteps(viewDesc.volumetricSteps);
+	view->setVolumetricIntensity(viewDesc.volumetricIntensity);
+	view->setEyeAdaptionEnabledFlag(viewDesc.eyeAdaptionEnabled);
+	view->setEyeAdaptionBrightnessFactor(viewDesc.eyeAdaptionBrightnessFactor);
+	view->setAlternateIndirectFlag(viewDesc.alternateIndirectLight);
+	view->setAlternateSpecularEnabled(viewDesc.alternateSpecularEnabled);
 #ifdef RT64_DLSS
 	view->setUpscaleMode((viewDesc.dlssMode != RT64_DLSS_MODE_OFF) ? RT64::UpscaleMode::DLSS : RT64::UpscaleMode::Bilinear);
 	switch (viewDesc.dlssMode) {
@@ -2302,6 +3065,11 @@ DLLEXPORT bool RT64_GetViewFeatureSupport(RT64_VIEW *viewPtr, int feature) {
 	default:
 		return false;
 	}
+}
+
+DLLEXPORT void RT64_SetDeltaTime(RT64_VIEW* viewPtr, float delta) {
+	RT64::View* view = (RT64::View*)viewPtr;
+	view->setDeltaTime(delta);
 }
 
 DLLEXPORT void RT64_DestroyView(RT64_VIEW *viewPtr) {

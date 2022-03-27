@@ -37,6 +37,9 @@
     <Filter Include="res\bluenoise">
       <UniqueIdentifier>{6ac8562a-4c82-4628-b9b7-087e3b535c63}</UniqueIdentifier>
     </Filter>
+    <Filter Include="contrib\nvngx_dlss_sdk">
+      <UniqueIdentifier>{1c5e72cf-ac4b-4320-b916-c0595345b0b1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="private\rt64_device.h">
@@ -263,6 +266,12 @@
     <None Include="shaders\BlueNoise.hlsli">
       <Filter>shaders\Includes</Filter>
     </None>
+    <None Include="shaders\BicubicFiltering.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
+    <None Include="shaders\Common.hlsli">
+      <Filter>shaders\Includes</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\Im3DPS.hlsl">
@@ -314,6 +323,21 @@
       <Filter>shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="shaders\GaussianFilterRGB3x3CS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\LuminanceHistogramCS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\HistogramAverageCS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\VolumetricFogRayGen.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\BicubicScalingCS.hlsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="shaders\HistogramClearCS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>
