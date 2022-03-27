@@ -216,6 +216,9 @@
     <ClCompile Include="contrib\DDSTextureLoader\DDSTextureLoader12.cpp">
       <Filter>contrib\DDSTextureLoader</Filter>
     </ClCompile>
+    <ClCompile Include="private\rt64_optimus.cpp">
+      <Filter>private</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\GlobalParams.hlsli">
