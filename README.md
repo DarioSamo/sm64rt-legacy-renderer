@@ -24,8 +24,6 @@ Make sure to clone this repository with submodules recursively before building t
 
 Open **src/RT64.sln** in **Visual Studio Community 2019** and build the solution.
 
-A sample is included to showcase how to use the renderer library.
-
 ## Screenshot
 ![Sample screenshot](/images/screen1.jpg?raw=true)
 
