@@ -1,0 +1,3 @@
+[submodule "src/rt64lib/contrib/DLSS"]
+	path = src/rt64lib/contrib/DLSS
+	url = https://github.com/NVIDIA/DLSS

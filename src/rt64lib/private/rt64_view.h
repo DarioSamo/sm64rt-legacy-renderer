@@ -159,18 +159,18 @@ namespace RT64 {
 		bool scissorApplied;
 		bool viewportApplied;
 
+		// Im3D
 		AllocatedResource im3dVertexBuffer;
 		D3D12_VERTEX_BUFFER_VIEW im3dVertexBufferView;
 		unsigned int im3dVertexCount;
 
-#ifdef RT64_DLSS
+		// DLSS
 		DLSS *dlss;
 		DLSS::QualityMode dlssQuality;
 		float dlssSharpness;
 		bool dlssAutoExposure;
 		bool dlssResolutionOverride;
-#endif
-		
+
 		void createOutputBuffers();
 		void releaseOutputBuffers();
 		void createInstanceTransformsBuffer();
@@ -231,7 +231,6 @@ namespace RT64 {
 		int getWidth() const;
 		int getHeight() const;
 
-#ifdef RT64_DLSS
 		void setDlssQualityMode(RT64::DLSS::QualityMode v);
 		DLSS::QualityMode getDlssQualityMode();
 		void setDlssSharpness(float v);
@@ -241,6 +240,5 @@ namespace RT64 {
 		void setDlssAutoExposure(bool v);
 		bool getDlssAutoExposure() const;
 		bool getDlssInitialized() const;
-#endif
 	};
 };

@@ -135,21 +135,18 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
     ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
 
-#ifdef RT64_DLSS
     // Only show DLSS option if supported by the hardware.
     // FIXME: Concatenating these strings can be annoying due to the \0 characters, so just write out the two possible strings instead.
     bool dlssInitialized = view->getDlssInitialized();
     if (dlssInitialized) 
     {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0NVIDIA DLSS 2.3\0");
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution\0NVIDIA DLSS\0");
     }
     else
-#endif
     {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 1.0\0");
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution\0");
     }
 
-#ifdef RT64_DLSS
     if ((RT64::UpscaleMode)(upscaleMode) == RT64::UpscaleMode::DLSS) 
     {
         int dlssQualityMode = (int)(view->getDlssQualityMode());
@@ -173,7 +170,6 @@ void RT64::Inspector::renderViewParams(View *view) {
         view->setDlssResolutionOverride(dlssResolutionOverride);
     }
     else
-#endif
     {
         ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     }
