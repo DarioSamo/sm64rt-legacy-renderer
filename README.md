@@ -20,9 +20,8 @@ The library is not meant to be used in the traditional way by linking it as an s
 * Windows SDK 10.0.19041.0 or newer
 
 ## Building
-Make sure to clone this repository with submodules recursively before building to clone all the required dependencies such as NVIDIA DLSS and others.
-
-Open **src/RT64.sln** in **Visual Studio Community 2019** and build the solution.
+* Clone this repository with submodules recursively before building to clone all the required dependencies such as NVIDIA DLSS and others.
+* Open **src/RT64.sln** in **Visual Studio Community 2019** and build the solution.
 
 ## Screenshot
 ![Sample screenshot](/images/screen1.jpg?raw=true)
