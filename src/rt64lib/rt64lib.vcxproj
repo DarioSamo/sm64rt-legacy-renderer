@@ -72,6 +72,7 @@
     <ClCompile Include="private\rt64_instance.cpp" />
     <ClCompile Include="private\rt64_mesh.cpp" />
     <ClCompile Include="private\rt64_mipmaps.cpp" />
+    <ClCompile Include="private\rt64_optimus.cpp" />
     <ClCompile Include="private\rt64_scene.cpp" />
     <ClCompile Include="private\rt64_shader.cpp" />
     <ClCompile Include="private\rt64_texture.cpp" />
