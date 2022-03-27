@@ -11,3 +11,6 @@ artifacts:
   name: rt64sdk
 - path: install/sample
   name: rt64sample
+install:
+- git submodule init
+- git submodule update
