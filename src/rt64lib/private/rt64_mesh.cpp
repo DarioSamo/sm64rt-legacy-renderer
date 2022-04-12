@@ -30,7 +30,7 @@ RT64::Mesh::~Mesh() {
 void RT64::Mesh::updateVertexBuffer(void *vertexArray, int vertexCount, int vertexStride) {
 	const UINT vertexBufferSize = vertexCount * vertexStride;
 
-	if (!vertexBuffer.IsNull() && (this->vertexCount != vertexCount)) {
+	if (!vertexBuffer.IsNull() && ((this->vertexCount != vertexCount) || (this->vertexStride != vertexStride))) {
 		vertexBuffer.Release();
 		vertexBufferUpload.Release();
 
