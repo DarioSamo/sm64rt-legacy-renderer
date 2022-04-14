@@ -11,19 +11,15 @@ struct InstanceTransforms {
 	float4x4 objectToWorldPrevious;
 };
 
-static const float InstanceIdBias = 0.001f;
-
 StructuredBuffer<InstanceTransforms> instanceTransforms : register(t5);
 StructuredBuffer<MaterialProperties> instanceMaterials : register(t6);
 
 float WithDistanceBias(float distance, uint instanceId) {
-	float depthBias = instanceMaterials[instanceId].depthBias;
-	return distance - (instanceId * InstanceIdBias) - depthBias;
+	return distance - instanceMaterials[instanceId].depthBias;
 }
 
 float WithoutDistanceBias(float distance, uint instanceId) {
-	float depthBias = instanceMaterials[instanceId].depthBias;
-	return distance + (instanceId * InstanceIdBias) + depthBias;
+	return distance + instanceMaterials[instanceId].depthBias;
 }
 //)raw"
 #endif
