@@ -41,7 +41,7 @@ void IndirectRayGen() {
 
 		// Reproject previous indirect.
 		if (giReproject) {
-			const float WeightNormalExponent = 128.0f;
+			const float WeightNormalExponent = 4.0f;
 			float2 flow = gFlow[launchIndex].xy;
 			int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
 			float prevDepth = gPrevDepth[prevIndex];
