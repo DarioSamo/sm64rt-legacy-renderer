@@ -99,7 +99,7 @@ void ReflectionRayGen() {
 				resColor.rgb += hitColor.rgb * alphaContrib;
 			}
 			else {
-				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
+				resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight)) * alphaContrib;
 			}
 
 			resPosition = vertexPosition;
@@ -116,7 +116,7 @@ void ReflectionRayGen() {
 
 	if (resInstanceId >= 0) {
 		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, false) + instanceMaterials[resInstanceId].selfLight;
-		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
+		resColor.rgb = LinearToSrgb(SrgbToLinear(resColor).rgb * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight));
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 		gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
 		gShadingNormal[launchIndex] = float4(resNormal, 0.0f);

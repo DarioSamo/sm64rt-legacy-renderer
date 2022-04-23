@@ -3,6 +3,7 @@
 //
 
 #include "Constants.hlsli"
+#include "Color.hlsli"
 #include "GlobalParams.hlsli"
 
 Texture2D<float4> gFlow : register(t0);
@@ -23,15 +24,13 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         float3 reflection = gReflection.SampleLevel(gSampler, uv, 0).rgb;
         float3 refraction = gRefraction.SampleLevel(gSampler, uv, 0).rgb;
         float3 transparent = gTransparent.SampleLevel(gSampler, uv, 0).rgb;
-        float3 result = diffuse.rgb;
-        result *= (directLight + indirectLight);
-        result = lerp(diffuse.rgb, result, diffuse.a);
+        float3 result = lerp(LinearToSrgb(diffuse.rgb), LinearToSrgb(diffuse.rgb * (directLight + indirectLight)), diffuse.a);
         result += reflection;
         result += refraction;
         result += transparent;
         return float4(result, 1.0f);
     }
     else {
-        return float4(diffuse.rgb, 1.0f);
+        return LinearToSrgb(float4(diffuse.rgb, 1.0f));
     }
 }

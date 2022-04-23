@@ -92,7 +92,7 @@ void RefractionRayGen() {
 				resInstanceId = hitInstanceId;
 			}
 			else {
-				resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight);
+				resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[hitInstanceId].selfLight)) * alphaContrib;
 			}
 
 			resColor.a *= (1.0 - hitColor.a);
@@ -105,7 +105,7 @@ void RefractionRayGen() {
 
 	if (resInstanceId >= 0) {
 		float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
-		resColor.rgb *= (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight);
+		resColor.rgb = LinearToSrgb(SrgbToLinear(resColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight));
 	}
 
 	// Blend with the background.

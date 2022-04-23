@@ -114,10 +114,9 @@ void PrimaryRayGen() {
 			}
 
 			// Add the color to the hit color or the transparent buffer if the lighting is disabled.
-			float3 resColorAdd = hitColor.rgb * alphaContrib;
 			if (applyLighting) {
 				storeHit = true;
-				resColor.rgb += resColorAdd;
+				resColor.rgb += hitColor.rgb * alphaContrib;
 			}
 			// Expensive case: transparent geometry that is not solid enough to act as the main
 			// instance in the deferred pass and it also needs lighting to work correctly.
@@ -129,12 +128,12 @@ void PrimaryRayGen() {
 					resTransparentLightComputed = true;
 				}
 
-				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight + resTransparentLight);
+				resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight + resTransparentLight)) * alphaContrib;
 			}
 			// Cheap case: we ignore the geometry entirely from the lighting pass and just add
 			// it to the transparency buffer directly.
 			else {
-				resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight);
+				resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight)) * alphaContrib;
 			}
 
 			resColor.a *= (1.0 - hitColor.a);
@@ -174,7 +173,7 @@ void PrimaryRayGen() {
 	gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 	gShadingNormal[launchIndex] = float4(resNormal, 0.0f);
 	gShadingSpecular[launchIndex] = float4(resSpecular, 0.0f);
-	gDiffuse[launchIndex] = resColor;
+	gDiffuse[launchIndex] = SrgbToLinear(resColor);
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float2(-resFlow.x, resFlow.y);

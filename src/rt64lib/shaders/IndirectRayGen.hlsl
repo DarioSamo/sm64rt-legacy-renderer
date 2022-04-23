@@ -79,8 +79,8 @@ void IndirectRayGen() {
 			TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
 			// Mix background and sky color together.
-			float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
-			float4 skyColor = SampleSkyPlane(rayDirection);
+			float3 bgColor = SrgbToLinear(SampleBackgroundAsEnvMap(rayDirection));
+			float4 skyColor = SrgbToLinear(SampleSkyPlane(rayDirection));
 			bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);
 
 			// Process hits.
@@ -116,7 +116,7 @@ void IndirectRayGen() {
 			float3 resIndirect = ambientBaseColor.rgb;
 			if (resInstanceId >= 0) {
 				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
-				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
+				float3 indirectLight = SrgbToLinear(resColor.rgb) * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
 				resIndirect += indirectLight;
 			}
 
