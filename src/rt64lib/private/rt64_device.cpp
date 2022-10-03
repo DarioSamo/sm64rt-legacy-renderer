@@ -81,6 +81,8 @@ RT64::Device::Device(HWND hwnd) {
 	blueNoise = nullptr;
 	width = 0;
 	height = 0;
+	mipmaps = nullptr;
+	disableMipmaps = false;
 
 	updateSize();
 	loadPipeline();
@@ -176,6 +178,11 @@ void RT64::Device::createRaytracingDevice() {
 			else {
 				handleAdapterError("No D3D12.1 feature level support.");
 				ss << "D3D12CreateDevice error code: " << std::hex << deviceResult << std::endl;
+			}
+
+			// FIXME: Work around AMD's mipmap generation being corrupted until a solution is found.
+			if (wcsstr(desc.Description, L"AMD") != nullptr) {
+				disableMipmaps = true;
 			}
 		}
 	}
@@ -823,7 +830,9 @@ void RT64::Device::loadAssets() {
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dGaussianFilterRGB3x3PipelineState)));
 	}
 
-	mipmaps = new RT64::Mipmaps(this);
+	if (!disableMipmaps) {
+		mipmaps = new RT64::Mipmaps(this);
+	}
 
 	RT64_LOG_PRINTF("Creating the command list");
 

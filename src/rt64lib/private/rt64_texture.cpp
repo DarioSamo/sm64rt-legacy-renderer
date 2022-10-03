@@ -30,6 +30,11 @@ void RT64::Texture::setRawWithFormat(DXGI_FORMAT format, const void *bytes, int 
 	this->format = format;
 
 	AllocatedResource textureUpload;
+	Mipmaps *mipmaps = device->getMipmaps();
+	if (mipmaps == nullptr) {
+		generateMipmaps = false;
+	}
+
 	UINT16 mipLevels = generateMipmaps ? (static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1) : 1;
 
 	// Calculate the minimum row width required to store the texture.
@@ -123,7 +128,7 @@ void RT64::Texture::setRawWithFormat(DXGI_FORMAT format, const void *bytes, int 
 	}
 
 	if (generateMipmaps) {
-		device->getMipmaps()->generate(texture.Get());
+		mipmaps->generate(texture.Get());
 	}
 	else {
 		device->submitCommandList();

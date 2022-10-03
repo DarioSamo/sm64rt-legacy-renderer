@@ -98,6 +98,7 @@ namespace RT64 {
 		D3D12_RESOURCE_BARRIER lastCopyQueueBarrier;
 		bool lastCopyQueueBarrierActive;
 		bool d3dCommandListOpen;
+		bool disableMipmaps;
 
 		void updateSize();
 		void releaseRTVs();
