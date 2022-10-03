@@ -316,12 +316,6 @@
     <CustomBuild Include="shaders\PostProcessPS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\FsrEasuPassCS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\FsrRcasPassCS.hlsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
     <CustomBuild Include="shaders\GenerateMipsCS.hlsl">
       <Filter>shaders</Filter>
     </CustomBuild>

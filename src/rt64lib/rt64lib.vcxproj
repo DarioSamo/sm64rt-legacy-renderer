@@ -269,34 +269,6 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="shaders\FsrEasuPassCS.hlsl">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">Compiling %(Filename)%(Extension)</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="shaders\FsrRcasPassCS.hlsl">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling %(Filename)%(Extension)</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">Compiling %(Filename)%(Extension)</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling %(Filename)%(Extension)</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)%(Extension).h</Outputs>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="shaders\GenerateMipsCS.hlsl">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">.\contrib\dxc\bin\x64\dxc.exe %(FullPath) -T cs_6_0 -E mainCS -Fh %(RootDir)%(Directory)%(Filename)%(Extension).h -Vn %(Filename)Blob</Command>

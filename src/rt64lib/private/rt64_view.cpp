@@ -21,17 +21,6 @@
 #include "im3d/im3d.h"
 #include "xxhash/xxhash32.h"
 
-#define A_CPU
-#include "shaders/ffx_a.h"
-#include "shaders/ffx_fsr1.h"
-
-struct FSRConstants {
-	XMUINT4 Const0;
-	XMUINT4 Const1;
-	XMUINT4 Const2;
-	XMUINT4 Const3;
-};
-
 namespace {
 	const int MaxQueries = 16 + 1;
 };
