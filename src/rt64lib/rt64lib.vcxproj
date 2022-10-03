@@ -37,6 +37,7 @@
     <ClInclude Include="private\rt64_common.h" />
     <ClInclude Include="private\rt64_device.h" />
     <ClInclude Include="private\rt64_dlss.h" />
+    <ClInclude Include="private\rt64_fsr.h" />
     <ClInclude Include="private\rt64_inspector.h" />
     <ClInclude Include="private\rt64_instance.h" />
     <ClInclude Include="private\rt64_mesh.h" />
@@ -68,6 +69,7 @@
     <ClCompile Include="private\rt64_common.cpp" />
     <ClCompile Include="private\rt64_device.cpp" />
     <ClCompile Include="private\rt64_dlss.cpp" />
+    <ClCompile Include="private\rt64_fsr.cpp" />
     <ClCompile Include="private\rt64_inspector.cpp" />
     <ClCompile Include="private\rt64_instance.cpp" />
     <ClCompile Include="private\rt64_mesh.cpp" />
@@ -386,13 +388,14 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_s_dbg.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_s_dbg.lib;ffx_fsr2_api_dx12_x64d.lib;ffx_fsr2_api_x64d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>../../lib/rt64libd.lib</ImportLibrary>
-      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;./contrib/fsr/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\dev" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
+(robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\dev" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
+(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64d.dll ffx_fsr2_api_x64d.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -412,13 +415,14 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <ImportLibrary>../../lib/rt64lib.lib</ImportLibrary>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_d.lib;ffx_fsr2_api_dx12_x64.lib;ffx_fsr2_api_x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;./contrib/fsr/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\rel" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
+(robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\rel" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
+(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64.dll ffx_fsr2_api_x64.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">

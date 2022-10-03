@@ -12,6 +12,7 @@
 #include "nv_helpers_dx12/ShaderBindingTableGenerator.h"
 
 #include "rt64_dlss.h"
+#include "rt64_fsr.h"
 
 namespace RT64 {
 	class Scene;
@@ -109,16 +110,13 @@ namespace RT64 {
 		AllocatedResource rtHitSpecular;
 		AllocatedResource rtHitInstanceId;
 		AllocatedResource rtOutputUpscaled;
-		AllocatedResource rtOutputSharpened;
 
 		bool rtSwap;
 		int rtWidth;
 		int rtHeight;
 		float resolutionScale;
 		int maxReflections;
-		float sharpenAttenuation;
 		bool rtUpscaleActive;
-		bool rtSharpenActive;
 		UpscaleMode rtUpscaleMode;
 		bool rtRecreateBuffers;
 		bool rtSkipReprojection;
@@ -130,8 +128,6 @@ namespace RT64 {
 		UINT descriptorHeapEntryCount;
 		ID3D12DescriptorHeap *samplerHeap;
 		ID3D12DescriptorHeap *composeHeap;
-		ID3D12DescriptorHeap *upscaleHeap;
-		ID3D12DescriptorHeap *sharpenHeap;
 		ID3D12DescriptorHeap *postProcessHeap;
 		ID3D12DescriptorHeap *directFilterHeaps[2];
 		ID3D12DescriptorHeap *indirectFilterHeaps[2];
@@ -141,10 +137,6 @@ namespace RT64 {
 		AllocatedResource globalParamBufferResource;
 		GlobalParamsBuffer globalParamsBufferData;
 		uint32_t globalParamsBufferSize;
-		AllocatedResource upscalingParamBufferResource;
-		uint32_t upscalingParamBufferSize;
-		AllocatedResource sharpenParamBufferResource;
-		uint32_t sharpenParamBufferSize;
 		AllocatedResource filterParamBufferResource;
 		uint32_t filterParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
@@ -171,6 +163,12 @@ namespace RT64 {
 		bool dlssAutoExposure;
 		bool dlssResolutionOverride;
 
+		// FSR
+		FSR *fsr;
+		FSR::QualityMode fsrQuality;
+		float fsrSharpness;
+		bool fsrResolutionOverride;
+
 		void createOutputBuffers();
 		void releaseOutputBuffers();
 		void createInstanceTransformsBuffer();
@@ -182,17 +180,13 @@ namespace RT64 {
 		void createShaderBindingTable();
 		void createGlobalParamsBuffer();
 		void updateGlobalParamsBuffer();
-		void createUpscalingParamsBuffer();
-		void updateUpscalingParamsBuffer();
-		void createSharpenParamsBuffer();
-		void updateSharpenParamsBuffer();
 		void createFilterParamsBuffer();
 		void updateFilterParamsBuffer();
 	public:
 		View(Scene *scene);
 		virtual ~View();
 		void update();
-		void render();
+		void render(float deltaTimeMs);
 		void renderInspector(Inspector *inspector);
 		void setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist);
 		void movePerspective(RT64_VECTOR3 localMovement);
@@ -240,5 +234,13 @@ namespace RT64 {
 		void setDlssAutoExposure(bool v);
 		bool getDlssAutoExposure() const;
 		bool getDlssInitialized() const;
+
+		void setFsrQualityMode(RT64::FSR::QualityMode v);
+		FSR::QualityMode getFsrQualityMode();
+		void setFsrSharpness(float v);
+		float getFsrSharpness() const;
+		void setFsrResolutionOverride(bool v);
+		bool getFsrResolutionOverride() const;
+		bool getFsrInitialized() const;
 	};
 };

@@ -139,6 +139,9 @@
     <ClInclude Include="res\bluenoise\LDR_64_64_64_RGB1.h">
       <Filter>res\bluenoise</Filter>
     </ClInclude>
+    <ClInclude Include="private\rt64_fsr.h">
+      <Filter>private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">
@@ -217,6 +220,9 @@
       <Filter>contrib\DDSTextureLoader</Filter>
     </ClCompile>
     <ClCompile Include="private\rt64_optimus.cpp">
+      <Filter>private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_fsr.cpp">
       <Filter>private</Filter>
     </ClCompile>
   </ItemGroup>

@@ -115,7 +115,7 @@ namespace RT64 {
 		Device(HWND hwnd);
 		virtual ~Device();
 #ifndef RT64_MINIMAL
-		void draw(int vsyncInterval);
+		void draw(int vsyncInterval, float deltaTimeMs);
 		void addScene(Scene *scene);
 		void removeScene(Scene *scene);
 		void addShader(Shader *shader);

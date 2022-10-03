@@ -1086,7 +1086,7 @@ void RT64::Device::postRender(int vsyncInterval) {
 	RT64_LOG_PRINTF("Finished device postrender");
 }
 
-void RT64::Device::draw(int vsyncInterval) {
+void RT64::Device::draw(int vsyncInterval, float deltaTimeMs) {
 	RT64_LOG_PRINTF("Started device draw");
 
 	if (d3dRtStateObjectDirty) {
@@ -1109,7 +1109,7 @@ void RT64::Device::draw(int vsyncInterval) {
 	preRender();
 
 	for (Scene *scene : scenes) {
-		scene->render();
+		scene->render(deltaTimeMs);
 	}
 
 	RT64_LOG_PRINTF("Reset render target");
@@ -1298,11 +1298,11 @@ DLLEXPORT void RT64_DestroyDevice(RT64_DEVICE *devicePtr) {
 
 #ifndef RT64_MINIMAL
 
-DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *devicePtr, int vsyncInterval) {
+DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *devicePtr, int vsyncInterval, float deltaTimeMs) {
 	assert(devicePtr != nullptr);
 	try {
 		RT64::Device *device = (RT64::Device *)(devicePtr);
-		device->draw(vsyncInterval);
+		device->draw(vsyncInterval, deltaTimeMs);
 	}
 	RT64_CATCH_EXCEPTION();
 }

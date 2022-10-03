@@ -140,15 +140,15 @@ void RT64::Inspector::renderViewParams(View *view) {
     bool dlssInitialized = view->getDlssInitialized();
     if (dlssInitialized) 
     {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution\0NVIDIA DLSS\0");
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 2\0NVIDIA DLSS\0");
     }
     else
     {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution\0");
+        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 2\0");
     }
 
-    if ((RT64::UpscaleMode)(upscaleMode) == RT64::UpscaleMode::DLSS) 
-    {
+    const RT64::UpscaleMode eUpscaleMode = static_cast<RT64::UpscaleMode>(upscaleMode);
+    if (eUpscaleMode == RT64::UpscaleMode::DLSS) {
         int dlssQualityMode = (int)(view->getDlssQualityMode());
         float dlssSharpness = view->getDlssSharpness();
         bool dlssResolutionOverride = view->getDlssResolutionOverride();
@@ -169,8 +169,25 @@ void RT64::Inspector::renderViewParams(View *view) {
         view->setDlssAutoExposure(dlssAutoExposure);
         view->setDlssResolutionOverride(dlssResolutionOverride);
     }
-    else
-    {
+    else if (eUpscaleMode == RT64::UpscaleMode::FSR) {
+        int fsrQualityMode = (int)(view->getFsrQualityMode());
+        float fsrSharpness = view->getFsrSharpness();
+        bool fsrResolutionOverride = view->getFsrResolutionOverride();
+
+        ImGui::Combo("FSR Quality", &fsrQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Auto\0");
+        ImGui::DragFloat("FSR Sharpness", &fsrSharpness, 0.01f, -1.0f, 1.0f);
+        ImGui::Checkbox("FSR Resolution Override", &fsrResolutionOverride);
+
+        if (fsrResolutionOverride) {
+            ImGui::SameLine();
+            ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+        }
+
+        view->setFsrQualityMode((FSR::QualityMode)(fsrQualityMode));
+        view->setFsrSharpness(fsrSharpness);
+        view->setFsrResolutionOverride(fsrResolutionOverride);
+    }
+    else {
         ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
     }
 

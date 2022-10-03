@@ -25,7 +25,7 @@ namespace RT64 {
 		Scene(Device *device);
 		virtual ~Scene();
 		void update();
-		void render();
+		void render(float deltaTimeMs);
 		void resize();
 		void setDescription(RT64_SCENE_DESC v);
 		RT64_SCENE_DESC getDescription() const;

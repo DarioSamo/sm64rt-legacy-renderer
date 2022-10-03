@@ -96,6 +96,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	}
 	case WM_PAINT: {
 		if (RT64.view != nullptr) {
+			// FIXME: Measure the delta time correctly.
+			const float DeltaTimeMs = 1000.0f / 60.0f;
 			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
 
 			if (RT64.inspector != nullptr) {
@@ -126,7 +128,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 			RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 			RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
-			RT64.lib.DrawDevice(RT64.device, 1);
+			RT64.lib.DrawDevice(RT64.device, 1, DeltaTimeMs);
+
 			return 0;
 		}
 	}
