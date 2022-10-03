@@ -134,61 +134,32 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
     ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
-
-    // Only show DLSS option if supported by the hardware.
-    // FIXME: Concatenating these strings can be annoying due to the \0 characters, so just write out the two possible strings instead.
-    bool dlssInitialized = view->getDlssInitialized();
-    if (dlssInitialized) 
-    {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 2\0NVIDIA DLSS\0");
-    }
-    else
-    {
-        ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 2\0");
-    }
+    ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 2\0NVIDIA DLSS\0");
 
     const RT64::UpscaleMode eUpscaleMode = static_cast<RT64::UpscaleMode>(upscaleMode);
-    if (eUpscaleMode == RT64::UpscaleMode::DLSS) {
-        int dlssQualityMode = (int)(view->getDlssQualityMode());
-        float dlssSharpness = view->getDlssSharpness();
-        bool dlssResolutionOverride = view->getDlssResolutionOverride();
-        bool dlssAutoExposure = view->getDlssAutoExposure();
+    if (view->getUpscalerInitialized(eUpscaleMode)) {
+        int upscalerQualityMode = (int)(view->getUpscalerQualityMode());
+        float upscalerSharpness = view->getUpscalerSharpness();
+        bool upscalerResolutionOverride = view->getUpscalerResolutionOverride();
+        if (eUpscaleMode != RT64::UpscaleMode::Bilinear) {
+            ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Auto\0");
+            ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
+            ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
 
-        ImGui::Combo("DLSS Quality", &dlssQualityMode, "Ultra Performance\0Max Performance\0Balanced\0Max Quality\0Auto\0");
-        ImGui::DragFloat("DLSS Sharpness", &dlssSharpness, 0.01f, -1.0f, 1.0f);
-        ImGui::Checkbox("DLSS Auto Exposure", &dlssAutoExposure);
-        ImGui::Checkbox("DLSS Resolution Override", &dlssResolutionOverride);
+            if (upscalerResolutionOverride) {
+                ImGui::SameLine();
+                ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+            }
 
-        if (dlssResolutionOverride) {
-            ImGui::SameLine();
+            view->setUpscalerQualityMode((DLSS::QualityMode)(upscalerQualityMode));
+            view->setUpscalerSharpness(upscalerSharpness);
+            view->setUpscalerResolutionOverride(upscalerResolutionOverride);
+        }
+        else {
             ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
         }
 
-        view->setDlssQualityMode((DLSS::QualityMode)(dlssQualityMode));
-        view->setDlssSharpness(dlssSharpness);
-        view->setDlssAutoExposure(dlssAutoExposure);
-        view->setDlssResolutionOverride(dlssResolutionOverride);
-    }
-    else if (eUpscaleMode == RT64::UpscaleMode::FSR) {
-        int fsrQualityMode = (int)(view->getFsrQualityMode());
-        float fsrSharpness = view->getFsrSharpness();
-        bool fsrResolutionOverride = view->getFsrResolutionOverride();
-
-        ImGui::Combo("FSR Quality", &fsrQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Auto\0");
-        ImGui::DragFloat("FSR Sharpness", &fsrSharpness, 0.01f, -1.0f, 1.0f);
-        ImGui::Checkbox("FSR Resolution Override", &fsrResolutionOverride);
-
-        if (fsrResolutionOverride) {
-            ImGui::SameLine();
-            ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
-        }
-
-        view->setFsrQualityMode((FSR::QualityMode)(fsrQualityMode));
-        view->setFsrSharpness(fsrSharpness);
-        view->setFsrResolutionOverride(fsrResolutionOverride);
-    }
-    else {
-        ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+        view->setUpscaleMode(eUpscaleMode);
     }
 
     ImGui::Checkbox("Denoiser", &denoiser);
@@ -215,7 +186,6 @@ void RT64::Inspector::renderViewParams(View *view) {
     view->setMotionBlurSamples(motionBlurSamples);
     view->setVisualizationMode(visualizationMode);
     view->setResolutionScale(resScale / 100.0f);
-    view->setUpscaleMode((UpscaleMode)(upscaleMode));
     view->setDenoiserEnabled(denoiser);
 
     ImGui::End();

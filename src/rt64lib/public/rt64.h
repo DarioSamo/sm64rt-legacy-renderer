@@ -68,15 +68,14 @@
 #define RT64_LIGHT_MAX_SAMPLES					128
 
 // View attributes.
-#define RT64_DLSS_MODE_OFF						0x0
-#define RT64_DLSS_MODE_AUTO						0x1
-#define RT64_DLSS_MODE_MAX_QUALITY				0x2
-#define RT64_DLSS_MODE_BALANCED					0x3
-#define RT64_DLSS_MODE_MAX_PERFORMANCE			0x4
-#define RT64_DLSS_MODE_ULTRA_PERFORMANCE		0x5
-
-// Feature codes.
-#define RT64_FEATURE_DLSS						0x1
+#define RT64_UPSCALER_DLSS						0x1
+#define RT64_UPSCALER_FSR						0x2
+#define RT64_UPSCALER_MODE_OFF					0x0
+#define RT64_UPSCALER_MODE_AUTO					0x1
+#define RT64_UPSCALER_MODE_QUALITY				0x2
+#define RT64_UPSCALER_MODE_BALANCED				0x3
+#define RT64_UPSCALER_MODE_PERFORMANCE			0x4
+#define RT64_UPSCALER_MODE_ULTRA_PERFORMANCE	0x5
 
 // Texture formats.
 #define RT64_TEXTURE_FORMAT_RGBA8				0x1
@@ -171,7 +170,8 @@ typedef struct {
 	unsigned int diSamples;
 	unsigned int giSamples;
 	unsigned int maxLights;
-	unsigned char dlssMode;
+	unsigned char upscaler;
+	unsigned char upscalerMode;
 	bool denoiserEnabled;
 } RT64_VIEW_DESC;
 
@@ -270,7 +270,7 @@ typedef void (*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatri
 typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);
 typedef void (*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);
-typedef bool (*GetViewFeatureSupportPtr)(RT64_VIEW *viewPtr, int feature);
+typedef bool (*GetViewUpscalerSupportPtr)(RT64_VIEW *viewPtr, char upscaler);
 typedef void (*DestroyViewPtr)(RT64_VIEW* viewPtr);
 typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
 typedef void (*SetSceneDescriptionPtr)(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc);
@@ -308,7 +308,7 @@ typedef struct {
 	SetViewDescriptionPtr SetViewDescription;
 	SetViewSkyPlanePtr SetViewSkyPlane;
 	GetViewRaytracedInstanceAtPtr GetViewRaytracedInstanceAt;
-	GetViewFeatureSupportPtr GetViewFeatureSupport;
+	GetViewUpscalerSupportPtr GetViewUpscalerSupport;
 	DestroyViewPtr DestroyView;
 	CreateScenePtr CreateScene;
 	SetSceneDescriptionPtr SetSceneDescription;
@@ -360,7 +360,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetViewDescription = (SetViewDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetViewDescription"));
 		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
-		lib.GetViewFeatureSupport = (GetViewFeatureSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewFeatureSupport"));
+		lib.GetViewUpscalerSupport = (GetViewUpscalerSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewUpscalerSupport"));
 		lib.DestroyView = (DestroyViewPtr)(GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(GetProcAddress(lib.handle, "RT64_CreateScene"));
 		lib.SetSceneDescription = (SetSceneDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetSceneDescription"));

@@ -46,6 +46,7 @@
     <ClInclude Include="private\rt64_shader.h" />
     <ClInclude Include="private\rt64_shader_hlsli.h" />
     <ClInclude Include="private\rt64_texture.h" />
+    <ClInclude Include="private\rt64_upscaler.h" />
     <ClInclude Include="private\rt64_view.h" />
     <ClInclude Include="public\rt64.h" />
     <ClInclude Include="resource.h" />

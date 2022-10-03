@@ -142,6 +142,9 @@
     <ClInclude Include="private\rt64_fsr.h">
       <Filter>private</Filter>
     </ClInclude>
+    <ClInclude Include="private\rt64_upscaler.h">
+      <Filter>private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">

@@ -156,18 +156,12 @@ namespace RT64 {
 		D3D12_VERTEX_BUFFER_VIEW im3dVertexBufferView;
 		unsigned int im3dVertexCount;
 
-		// DLSS
+		// Upscalers
 		DLSS *dlss;
-		DLSS::QualityMode dlssQuality;
-		float dlssSharpness;
-		bool dlssAutoExposure;
-		bool dlssResolutionOverride;
-
-		// FSR
 		FSR *fsr;
-		FSR::QualityMode fsrQuality;
-		float fsrSharpness;
-		bool fsrResolutionOverride;
+		Upscaler::QualityMode upscalerQuality;
+		float upscalerSharpness;
+		bool upscalerResolutionOverride;
 
 		void createOutputBuffers();
 		void releaseOutputBuffers();
@@ -218,29 +212,19 @@ namespace RT64 {
 		bool getDenoiserEnabled() const;
 		void setUpscaleMode(UpscaleMode v);
 		UpscaleMode getUpscaleMode() const;
+		Upscaler *getUpscaler(UpscaleMode v) const;
 		void setSkyPlaneTexture(Texture *texture);
 		RT64_VECTOR3 getRayDirectionAt(int x, int y);
 		RT64_INSTANCE *getRaytracedInstanceAt(int x, int y);
 		void resize();
 		int getWidth() const;
 		int getHeight() const;
-
-		void setDlssQualityMode(RT64::DLSS::QualityMode v);
-		DLSS::QualityMode getDlssQualityMode();
-		void setDlssSharpness(float v);
-		float getDlssSharpness() const;
-		void setDlssResolutionOverride(bool v);
-		bool getDlssResolutionOverride() const;
-		void setDlssAutoExposure(bool v);
-		bool getDlssAutoExposure() const;
-		bool getDlssInitialized() const;
-
-		void setFsrQualityMode(RT64::FSR::QualityMode v);
-		FSR::QualityMode getFsrQualityMode();
-		void setFsrSharpness(float v);
-		float getFsrSharpness() const;
-		void setFsrResolutionOverride(bool v);
-		bool getFsrResolutionOverride() const;
-		bool getFsrInitialized() const;
+		void setUpscalerQualityMode(Upscaler::QualityMode v);
+		Upscaler::QualityMode getUpscalerQualityMode();
+		void setUpscalerSharpness(float v);
+		float getUpscalerSharpness() const;
+		void setUpscalerResolutionOverride(bool v);
+		bool getUpscalerResolutionOverride() const;
+		bool getUpscalerInitialized(UpscaleMode mode) const;
 	};
 };

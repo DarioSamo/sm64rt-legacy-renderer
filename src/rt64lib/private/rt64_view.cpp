@@ -84,19 +84,13 @@ RT64::View::View(Scene *scene) {
 	scissorApplied = false;
 	viewportApplied = false;
 
-	// Try to initialize DLSS.
+	// Try to initialize DLSS and FSR.
 	// The object will not be initialized if the hardware doesn't support it.
 	dlss = new DLSS(scene->getDevice());
-	dlssQuality = DLSS::QualityMode::Balanced;
-	dlssSharpness = 0.0f;
-	dlssAutoExposure = false;
-	dlssResolutionOverride = false;
-
-	// Try to initialize FSR.
 	fsr = new FSR(scene->getDevice());
-	fsrQuality = FSR::QualityMode::Balanced;
-	fsrSharpness = 0.0f;
-	fsrResolutionOverride = false;
+	upscalerQuality = Upscaler::QualityMode::Balanced;
+	upscalerSharpness = 0.0f;
+	upscalerResolutionOverride = false;
 
 	createOutputBuffers();
 	createGlobalParamsBuffer();
@@ -125,51 +119,30 @@ void RT64::View::createOutputBuffers() {
 	int screenWidth = scene->getDevice()->getWidth();
 	int screenHeight = scene->getDevice()->getHeight();
 
-	if ((rtUpscaleMode == UpscaleMode::DLSS) && dlss->isInitialized()) {
-		int dlssWidth, dlssHeight;
-		DLSS::QualityMode setQuality = DLSS::QualityMode::Balanced;
-		float unusedSharpness;
-		if (dlssResolutionOverride) {
+	// Choose upscaler.
+	Upscaler *upscaler = getUpscaler(rtUpscaleMode);
+	if ((upscaler != nullptr) && upscaler->isInitialized()) {
+		int upscalerWidth, upscalerHeight;
+		Upscaler::QualityMode setQuality = Upscaler::QualityMode::Balanced;
+		if (upscalerResolutionOverride) {
 			rtWidth = lround(screenWidth * resolutionScale);
 			rtHeight = lround(screenHeight * resolutionScale);
 		}
-		else if (dlss->getQualityInformation(dlssQuality, screenWidth, screenHeight, dlssWidth, dlssHeight, unusedSharpness)) {
-			rtWidth = dlssWidth;
-			rtHeight = dlssHeight;
-			setQuality = dlssQuality;
+		else if (upscaler->getQualityInformation(upscalerQuality, screenWidth, screenHeight, upscalerWidth, upscalerHeight)) {
+			rtWidth = upscalerWidth;
+			rtHeight = upscalerHeight;
+			setQuality = upscalerQuality;
 		}
 		else {
 			rtWidth = screenWidth;
 			rtHeight = screenHeight;
 		}
 
-		dlss->set(setQuality, rtWidth, rtHeight, screenWidth, screenHeight, dlssAutoExposure);
+		upscaler->set(setQuality, rtWidth, rtHeight, screenWidth, screenHeight);
 
 		rtUpscaleActive = true;
 	}
-	else if (rtUpscaleMode == UpscaleMode::FSR) {
-		int fsrWidth, fsrHeight;
-		FSR::QualityMode setQuality = FSR::QualityMode::Balanced;
-		if (fsrResolutionOverride) {
-			rtWidth = lround(screenWidth * resolutionScale);
-			rtHeight = lround(screenHeight * resolutionScale);
-		}
-		else if (fsr->getQualityInformation(fsrQuality, screenWidth, screenHeight, fsrWidth, fsrHeight)) {
-			rtWidth = fsrWidth;
-			rtHeight = fsrHeight;
-			setQuality = fsrQuality;
-		}
-		else {
-			rtWidth = screenWidth;
-			rtHeight = screenHeight;
-		}
-
-		fsr->set(setQuality, rtWidth, rtHeight, screenWidth, screenHeight);
-
-		rtUpscaleActive = true;
-	}
-	else
-	{
+	else {
 		rtWidth = lround(screenWidth * resolutionScale);
 		rtHeight = lround(screenHeight * resolutionScale);
 		rtUpscaleActive = false;
@@ -1206,6 +1179,7 @@ void RT64::View::render(float deltaTimeMs) {
 	auto scissorRect = scene->getDevice()->getD3D12ScissorRect();
 	auto d3dCommandList = scene->getDevice()->getD3D12CommandList();
 	auto d3d12RenderTarget = scene->getDevice()->getD3D12RenderTarget();
+	Upscaler *upscaler = getUpscaler(rtUpscaleMode);
 	std::vector<ID3D12DescriptorHeap *> heaps = { descriptorHeap, samplerHeap };
 
 	// Configure the current viewport.
@@ -1287,14 +1261,10 @@ void RT64::View::render(float deltaTimeMs) {
 			rtViewport = viewport;
 		}
 
-		// Only use jitter when DLSS is active.
-		bool jitterActive = rtUpscaleActive && ((rtUpscaleMode == UpscaleMode::DLSS) || (rtUpscaleMode == UpscaleMode::FSR));
+		// Only use jitter when an upscaler is active.
+		bool jitterActive = rtUpscaleActive && (upscaler != nullptr);
 		if (jitterActive) {
-			int phaseCount = 64;
-			if (rtUpscaleMode == UpscaleMode::FSR) {
-				phaseCount = fsr->getJitterPhaseCount(rtWidth, lround(globalParamsBufferData.resolution.z));
-			}
-
+			const int phaseCount = upscaler->getJitterPhaseCount(rtWidth, lround(globalParamsBufferData.resolution.z));
 			globalParamsBufferData.pixelJitter = HaltonJitter(globalParamsBufferData.frameCount, phaseCount);
 		}
 		else {
@@ -1598,58 +1568,30 @@ void RT64::View::render(float deltaTimeMs) {
 
 		d3dCommandList->ResourceBarrier(_countof(beforeFiltersBarriers), beforeFiltersBarriers);
 
-		if (rtUpscaleActive) {
-			if (rtUpscaleMode == UpscaleMode::FSR) {
-				// Switch output to UAV.
-				CD3DX12_RESOURCE_BARRIER beforeFsrBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-				d3dCommandList->ResourceBarrier(1, &beforeFsrBarrier);
+		if (rtUpscaleActive && (upscaler != nullptr)) {
+			// Switch output to UAV.
+			CD3DX12_RESOURCE_BARRIER beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			d3dCommandList->ResourceBarrier(1, &beforeBarrier);
 
-				// Execute FSR.
-				FSR::UpscaleParameters params;
-				params.inRect = { 0, 0, rtWidth, rtHeight };
-				params.inColor = rtOutputCur;
-				params.inFlow = rtFlow.Get();
-				params.inDepth = rtDepth[rtSwap ? 1 : 0].Get();
-				params.outColor = rtOutputUpscaled.Get();
-				params.sharpness = fsrSharpness;
-				params.jitterX = -globalParamsBufferData.pixelJitter.x;
-				params.jitterY = -globalParamsBufferData.pixelJitter.y;
-				params.deltaTime = deltaTimeMs;
-				params.nearPlane = nearDist;
-				params.farPlane = farDist;
-				params.fovY = fovRadians;
-				params.resetAccumulation = false; // TODO: Make this configurable via the API.
-				fsr->upscale(params);
+			Upscaler::UpscaleParameters params;
+			params.inRect = { 0, 0, rtWidth, rtHeight };
+			params.inColor = rtOutputCur;
+			params.inFlow = rtFlow.Get();
+			params.inDepth = rtDepth[rtSwap ? 1 : 0].Get();
+			params.outColor = rtOutputUpscaled.Get();
+			params.sharpness = upscalerSharpness;
+			params.jitterX = -globalParamsBufferData.pixelJitter.x;
+			params.jitterY = -globalParamsBufferData.pixelJitter.y;
+			params.deltaTime = deltaTimeMs;
+			params.nearPlane = nearDist;
+			params.farPlane = farDist;
+			params.fovY = fovRadians;
+			params.resetAccumulation = false; // TODO: Make this configurable via the API.
+			upscaler->upscale(params);
 
-				// Switch output to shader resource.
-				CD3DX12_RESOURCE_BARRIER afterFsrBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-				d3dCommandList->ResourceBarrier(1, &afterFsrBarrier);
-			}
-			else if (rtUpscaleMode == UpscaleMode::DLSS) {
-				// Switch output to UAV.
-				CD3DX12_RESOURCE_BARRIER beforeDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-				d3dCommandList->ResourceBarrier(1, &beforeDlssBarrier);
-
-				// Execute DLSS.
-				DLSS::UpscaleParameters params;
-				params.inRect = { 0, 0, rtWidth, rtHeight };
-				params.inColor = rtOutputCur;
-				params.inFlow = rtFlow.Get();
-				params.inDepth = rtDepth[rtSwap ? 1 : 0].Get();
-				params.outColor = rtOutputUpscaled.Get();
-				params.resetAccumulation = false; // TODO: Make this configurable via the API.
-				params.sharpness = dlssSharpness;
-				params.jitterX = -globalParamsBufferData.pixelJitter.x;
-				params.jitterY = -globalParamsBufferData.pixelJitter.y;
-				dlss->upscale(params);
-
-				// Switch output to shader resource.
-				CD3DX12_RESOURCE_BARRIER afterDlssBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-				d3dCommandList->ResourceBarrier(1, &afterDlssBarrier);
-			}
-			else {
-				assert(false && "Unimplemented upscaling mode.");
-			}
+			// Switch output to shader resource.
+			CD3DX12_RESOURCE_BARRIER afterBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterBarrier);
 		}
 
 		// Set the final render target.
@@ -1938,6 +1880,17 @@ RT64::UpscaleMode RT64::View::getUpscaleMode() const {
 	return rtUpscaleMode;
 }
 
+RT64::Upscaler *RT64::View::getUpscaler(UpscaleMode v) const {
+	switch (rtUpscaleMode) {
+	case UpscaleMode::DLSS:
+		return dlss;
+	case UpscaleMode::FSR:
+		return fsr;
+	default:
+		return nullptr;
+	}
+}
+
 void RT64::View::setSkyPlaneTexture(Texture *texture) {
 	skyPlaneTexture = texture;
 }
@@ -2031,83 +1984,45 @@ int RT64::View::getHeight() const {
 	return scene->getDevice()->getHeight();
 }
 
-void RT64::View::setDlssQualityMode(RT64::DLSS::QualityMode v) {
-	if (dlssQuality != v) {
-		dlssQuality = v;
+void RT64::View::setUpscalerQualityMode(RT64::FSR::QualityMode v) {
+	if (upscalerQuality != v) {
+		upscalerQuality = v;
 		rtRecreateBuffers = true;
 	}
 }
 
-RT64::DLSS::QualityMode RT64::View::getDlssQualityMode() {
-	return dlssQuality;
+RT64::FSR::QualityMode RT64::View::getUpscalerQualityMode() {
+	return upscalerQuality;
 }
 
-void RT64::View::setDlssSharpness(float v) {
-	dlssSharpness = v;
+void RT64::View::setUpscalerSharpness(float v) {
+	upscalerSharpness = v;
 }
 
-float RT64::View::getDlssSharpness() const {
-	return dlssSharpness;
+float RT64::View::getUpscalerSharpness() const {
+	return upscalerSharpness;
 }
 
-void RT64::View::setDlssResolutionOverride(bool v) {
-	if (dlssResolutionOverride != v) {
-		dlssResolutionOverride = v;
+void RT64::View::setUpscalerResolutionOverride(bool v) {
+	if (upscalerResolutionOverride != v) {
+		upscalerResolutionOverride = v;
 		rtRecreateBuffers = true;
 	}
 }
 
-bool RT64::View::getDlssResolutionOverride() const {
-	return dlssResolutionOverride;
+bool RT64::View::getUpscalerResolutionOverride() const {
+	return upscalerResolutionOverride;
 }
 
-void RT64::View::setDlssAutoExposure(bool v) {
-	if (dlssAutoExposure != v) {
-		dlssAutoExposure = v;
-		rtRecreateBuffers = true;
+bool RT64::View::getUpscalerInitialized(UpscaleMode mode) const {
+	switch (mode) {
+	case UpscaleMode::DLSS:
+		return dlss->isInitialized();
+	case UpscaleMode::FSR:
+		return fsr->isInitialized();
+	default:
+		return true;
 	}
-}
-
-bool RT64::View::getDlssAutoExposure() const {
-	return dlssAutoExposure;
-}
-
-bool RT64::View::getDlssInitialized() const {
-	return dlss->isInitialized();
-}
-
-void RT64::View::setFsrQualityMode(RT64::FSR::QualityMode v) {
-	if (fsrQuality != v) {
-		fsrQuality = v;
-		rtRecreateBuffers = true;
-	}
-}
-
-RT64::FSR::QualityMode RT64::View::getFsrQualityMode() {
-	return fsrQuality;
-}
-
-void RT64::View::setFsrSharpness(float v) {
-	fsrSharpness = v;
-}
-
-float RT64::View::getFsrSharpness() const {
-	return fsrSharpness;
-}
-
-void RT64::View::setFsrResolutionOverride(bool v) {
-	if (fsrResolutionOverride != v) {
-		fsrResolutionOverride = v;
-		rtRecreateBuffers = true;
-	}
-}
-
-bool RT64::View::getFsrResolutionOverride() const {
-	return fsrResolutionOverride;
-}
-
-bool RT64::View::getFsrInitialized() const {
-	return fsr->isInitialized();
 }
 
 // Public
@@ -2134,23 +2049,37 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setDISamples(viewDesc.diSamples);
 	view->setGISamples(viewDesc.giSamples);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
-	view->setUpscaleMode((viewDesc.dlssMode != RT64_DLSS_MODE_OFF) ? RT64::UpscaleMode::DLSS : RT64::UpscaleMode::Bilinear);
-	switch (viewDesc.dlssMode) {
-	case RT64_DLSS_MODE_AUTO:
-		view->setDlssQualityMode(RT64::DLSS::QualityMode::Auto);
-		break;
-	case RT64_DLSS_MODE_MAX_QUALITY:
-		view->setDlssQualityMode(RT64::DLSS::QualityMode::MaxQuality);
-		break;
-	case RT64_DLSS_MODE_BALANCED:
-		view->setDlssQualityMode(RT64::DLSS::QualityMode::Balanced);
-		break;
-	case RT64_DLSS_MODE_MAX_PERFORMANCE:
-		view->setDlssQualityMode(RT64::DLSS::QualityMode::MaxPerformance);
-		break;
-	case RT64_DLSS_MODE_ULTRA_PERFORMANCE:
-		view->setDlssQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
-		break;
+
+	if (viewDesc.upscalerMode == RT64_UPSCALER_MODE_OFF) {
+		view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
+	}
+	else {
+		switch (viewDesc.upscaler) {
+		case RT64_UPSCALER_DLSS:
+			view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+			break;
+		case RT64_UPSCALER_FSR:
+			view->setUpscaleMode(RT64::UpscaleMode::FSR);
+			break;
+		}
+
+		switch (viewDesc.upscalerMode) {
+		case RT64_UPSCALER_MODE_AUTO:
+			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Auto);
+			break;
+		case RT64_UPSCALER_MODE_QUALITY:
+			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Quality);
+			break;
+		case RT64_UPSCALER_MODE_BALANCED:
+			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Balanced);
+			break;
+		case RT64_UPSCALER_MODE_PERFORMANCE:
+			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Performance);
+			break;
+		case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
+			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
+			break;
+		}
 	}
 }
 
@@ -2167,12 +2096,14 @@ DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int
 	return view->getRaytracedInstanceAt(x, y);
 }
 
-DLLEXPORT bool RT64_GetViewFeatureSupport(RT64_VIEW *viewPtr, int feature) {
+DLLEXPORT bool RT64_GetViewUpscalerSupport(RT64_VIEW *viewPtr, int upscaler) {
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
-	switch (feature) {
-	case RT64_FEATURE_DLSS:
-		return view->getDlssInitialized();
+	switch (upscaler) {
+	case RT64_UPSCALER_DLSS:
+		return view->getUpscalerInitialized(RT64::UpscaleMode::DLSS);
+	case RT64_UPSCALER_FSR:
+		return view->getUpscalerInitialized(RT64::UpscaleMode::FSR);
 	case 0:
 	default:
 		return false;

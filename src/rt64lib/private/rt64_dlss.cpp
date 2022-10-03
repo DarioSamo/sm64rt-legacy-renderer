@@ -79,18 +79,18 @@ public:
         switch (q) {
         case QualityMode::UltraPerformance:
             return NVSDK_NGX_PerfQuality_Value_UltraPerformance;
-        case QualityMode::MaxPerformance:
+        case QualityMode::Performance:
             return NVSDK_NGX_PerfQuality_Value_MaxPerf;
         case QualityMode::Balanced:
             return NVSDK_NGX_PerfQuality_Value_Balanced;
-        case QualityMode::MaxQuality:
+        case QualityMode::Quality:
             return NVSDK_NGX_PerfQuality_Value_MaxQuality;
         default:
             return NVSDK_NGX_PerfQuality_Value_Balanced;
         }
     }
 
-    bool set(QualityMode quality, int renderWidth, int renderHeight, int displayWidth, int displayHeight, bool autoExposure) {
+    bool set(QualityMode quality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) {
         if (quality == QualityMode::Auto) {
             quality = getQualityAuto(displayWidth, displayHeight);
         }
@@ -103,11 +103,6 @@ public:
         int DlssCreateFeatureFlags = NVSDK_NGX_DLSS_Feature_Flags_None;
         DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
         DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_DoSharpening;
-
-        if (autoExposure) {
-            DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_IsHDR;
-            DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_AutoExposure;
-        }
 
         NVSDK_NGX_DLSS_Create_Params DlssCreateParams;
         memset(&DlssCreateParams, 0, sizeof(DlssCreateParams));
@@ -155,20 +150,20 @@ public:
         const uint64_t Pixels1440p = 2560 * 1440;
         const uint64_t Pixels4K = 3840 * 2160;
         if (PixelsDisplay <= Pixels1080p) {
-            return QualityMode::MaxQuality;
+            return QualityMode::Quality;
         }
         else if (PixelsDisplay <= Pixels1440p) {
             return QualityMode::Balanced;
         }
         else if (PixelsDisplay <= Pixels4K) {
-            return QualityMode::MaxPerformance;
+            return QualityMode::Performance;
         }
         else {
             return QualityMode::UltraPerformance;
         }
     }
 
-    bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight, float &sharpness) {
+    bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) {
         if (quality == QualityMode::Auto) {
             quality = getQualityAuto(displayWidth, displayHeight);
         }
@@ -198,9 +193,12 @@ public:
         else {
             renderWidth = renderOptimalWidth;
             renderHeight = renderOptimalHeight;
-            sharpness = renderSharpness;
             return true;
         }
+    }
+
+    int getJitterPhaseCount(int renderWidth, int displayWidth) {
+        return 64;
     }
 
     void upscale(const UpscaleParameters &p) {
@@ -251,12 +249,16 @@ RT64::DLSS::~DLSS() {
 	delete ctx;
 }
 
-void RT64::DLSS::set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight, bool autoExposure) {
-    ctx->set(inQuality, renderWidth, renderHeight, displayWidth, displayHeight, autoExposure);
+void RT64::DLSS::set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) {
+    ctx->set(inQuality, renderWidth, renderHeight, displayWidth, displayHeight);
 }
 
-bool RT64::DLSS::getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight, float &sharpness) {
-    return ctx->getQualityInformation(quality, displayWidth, displayHeight, renderWidth, renderHeight, sharpness);
+bool RT64::DLSS::getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) {
+    return ctx->getQualityInformation(quality, displayWidth, displayHeight, renderWidth, renderHeight);
+}
+
+int RT64::DLSS::getJitterPhaseCount(int renderWidth, int displayWidth) {
+    return ctx->getJitterPhaseCount(renderWidth, displayWidth);
 }
 
 void RT64::DLSS::upscale(const UpscaleParameters &p) {

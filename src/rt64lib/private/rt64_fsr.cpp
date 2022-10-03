@@ -79,6 +79,8 @@ public:
             return false;
         }
 
+        fsrFilled = true;
+
         return true;
     }
 
