@@ -2038,37 +2038,49 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	view->setDISamples(viewDesc.diSamples);
 	view->setGISamples(viewDesc.giSamples);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
-
-	if (viewDesc.upscalerMode == RT64_UPSCALER_MODE_OFF) {
-		view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
-	}
-	else {
-		switch (viewDesc.upscaler) {
-		case RT64_UPSCALER_DLSS:
+	
+	switch (viewDesc.upscaler) {
+	case RT64_UPSCALER_AUTO:
+		// Prefer using DLSS if it's supported.
+		if (view->getUpscalerInitialized(RT64::UpscaleMode::DLSS)) {
 			view->setUpscaleMode(RT64::UpscaleMode::DLSS);
-			break;
-		case RT64_UPSCALER_FSR:
+		}
+		else if (view->getUpscalerInitialized(RT64::UpscaleMode::FSR)) {
 			view->setUpscaleMode(RT64::UpscaleMode::FSR);
-			break;
+		}
+		else {
+			view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
 		}
 
-		switch (viewDesc.upscalerMode) {
-		case RT64_UPSCALER_MODE_AUTO:
-			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Auto);
-			break;
-		case RT64_UPSCALER_MODE_QUALITY:
-			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Quality);
-			break;
-		case RT64_UPSCALER_MODE_BALANCED:
-			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Balanced);
-			break;
-		case RT64_UPSCALER_MODE_PERFORMANCE:
-			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Performance);
-			break;
-		case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
-			view->setUpscalerQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
-			break;
-		}
+		break;
+	case RT64_UPSCALER_DLSS:
+		view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+		break;
+	case RT64_UPSCALER_FSR:
+		view->setUpscaleMode(RT64::UpscaleMode::FSR);
+		break;
+	case RT64_UPSCALER_OFF:
+	default:
+		view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
+		break;
+	}
+
+	switch (viewDesc.upscalerMode) {
+	case RT64_UPSCALER_MODE_AUTO:
+		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Auto);
+		break;
+	case RT64_UPSCALER_MODE_QUALITY:
+		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Quality);
+		break;
+	case RT64_UPSCALER_MODE_BALANCED:
+		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Balanced);
+		break;
+	case RT64_UPSCALER_MODE_PERFORMANCE:
+		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Performance);
+		break;
+	case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
+		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
+		break;
 	}
 }
 
