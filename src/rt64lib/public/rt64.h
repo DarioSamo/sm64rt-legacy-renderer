@@ -68,8 +68,10 @@
 #define RT64_LIGHT_MAX_SAMPLES					128
 
 // View attributes.
-#define RT64_UPSCALER_DLSS						0x1
-#define RT64_UPSCALER_FSR						0x2
+#define RT64_UPSCALER_AUTO						0x0
+#define RT64_UPSCALER_BILINEAR					0x1
+#define RT64_UPSCALER_DLSS						0x2
+#define RT64_UPSCALER_FSR						0x3
 #define RT64_UPSCALER_MODE_OFF					0x0
 #define RT64_UPSCALER_MODE_AUTO					0x1
 #define RT64_UPSCALER_MODE_QUALITY				0x2

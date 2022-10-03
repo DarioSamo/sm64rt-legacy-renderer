@@ -24,8 +24,6 @@
 #include "shaders/RefractionRayGen.hlsl.h"
 #include "shaders/PrimaryRayGen.hlsl.h"
 
-#include "shaders/FsrEasuPassCS.hlsl.h"
-#include "shaders/FsrRcasPassCS.hlsl.h"
 #include "shaders/GaussianFilterRGB3x3CS.hlsl.h"
 
 #include "shaders/FullScreenVS.hlsl.h"
@@ -325,22 +323,6 @@ ID3D12RootSignature *RT64::Device::getPostProcessRootSignature() const {
 
 ID3D12PipelineState *RT64::Device::getPostProcessPipelineState() const {
 	return d3dPostProcessPipelineState;
-}
-
-ID3D12RootSignature *RT64::Device::getFsrEasuRootSignature() const {
-	return d3dFsrEasuRootSignature;
-}
-
-ID3D12PipelineState *RT64::Device::getFsrEasuPipelineState() const {
-	return d3dFsrEasuPipelineState;
-}
-
-ID3D12RootSignature *RT64::Device::getFsrRcasRootSignature() const {
-	return d3dFsrRcasRootSignature;
-}
-
-ID3D12PipelineState *RT64::Device::getFsrRcasPipelineState() const {
-	return d3dFsrRcasPipelineState;
 }
 
 ID3D12RootSignature *RT64::Device::getGaussianFilterRGB3x3RootSignature() const {
@@ -735,68 +717,6 @@ void RT64::Device::loadAssets() {
 		psoDesc.PS = CD3DX12_SHADER_BYTECODE(DebugPSBlob, sizeof(DebugPSBlob));
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		D3D12_CHECK(d3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3dDebugPipelineState)));
-	}
-
-	RT64_LOG_PRINTF("Creating the FSR EASU root signature");
-	{
-		nv_helpers_dx12::RootSignatureGenerator rsc;
-		rsc.AddHeapRangesParameter({
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
-		});
-
-		// Fill out the sampler.
-		D3D12_STATIC_SAMPLER_DESC desc = { };
-		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		desc.MaxAnisotropy = 1;
-		desc.MaxLOD = D3D12_FLOAT32_MAX;
-
-		d3dFsrEasuRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
-	}
-
-	RT64_LOG_PRINTF("Creating the FSR EASU pipeline state");
-	{
-		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.CS = CD3DX12_SHADER_BYTECODE(FsrEasuPassCSBlob, sizeof(FsrEasuPassCSBlob));
-		psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-		psoDesc.pRootSignature = d3dFsrEasuRootSignature;
-		psoDesc.NodeMask = 0;
-
-		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dFsrEasuPipelineState)));
-	}
-
-	RT64_LOG_PRINTF("Creating the FSR RCAS root signature");
-	{
-		nv_helpers_dx12::RootSignatureGenerator rsc;
-		rsc.AddHeapRangesParameter({
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 },
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1 },
-			{ 0, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2 }
-		});
-
-		// Fill out the sampler.
-		D3D12_STATIC_SAMPLER_DESC desc = { };
-		desc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		desc.MaxAnisotropy = 1;
-		desc.MaxLOD = D3D12_FLOAT32_MAX;
-
-		d3dFsrRcasRootSignature = rsc.Generate(d3dDevice, false, true, &desc, 1);
-	}
-
-	RT64_LOG_PRINTF("Creating the FSR RCAS pipeline state");
-	{
-		D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.CS = CD3DX12_SHADER_BYTECODE(FsrRcasPassCSBlob, sizeof(FsrRcasPassCSBlob));
-		psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-		psoDesc.pRootSignature = d3dFsrRcasRootSignature;
-		psoDesc.NodeMask = 0;
-
-		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dFsrRcasPipelineState)));
 	}
 
 	RT64_LOG_PRINTF("Creating the gaussian filter RGB 3x3 root signature");
