@@ -2122,6 +2122,8 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
 		break;
 	}
+
+	view->setUpscalerSharpness(viewDesc.upscalerSharpness);
 }
 
 DLLEXPORT void RT64_SetViewSkyPlane(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr) {

@@ -174,6 +174,7 @@ typedef struct {
 	unsigned int maxLights;
 	unsigned char upscaler;
 	unsigned char upscalerMode;
+	float upscalerSharpness;
 	bool denoiserEnabled;
 } RT64_VIEW_DESC;
 
