@@ -28,6 +28,7 @@ struct MaterialProperties {
 	float fogMul;
 	float fogOffset;
 	uint fogEnabled;
+	float lockMask;
 	uint _reserved;
 };
 //)raw"

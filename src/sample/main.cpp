@@ -307,6 +307,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.fogMul = 1.0f;
 	RT64.baseMaterial.fogOffset = 0.0f;
 	RT64.baseMaterial.fogEnabled = 0;
+	RT64.baseMaterial.lockMask = 0.0f;
 	
 	VERTEX vertices[3];
 	vertices[0].position = { -1.0f, 0.1f, 0.0f, 1.0f } ;

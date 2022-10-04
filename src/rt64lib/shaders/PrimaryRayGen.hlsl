@@ -79,6 +79,8 @@ void PrimaryRayGen() {
 	bool resTransparentLightComputed = false;
 	float4 resColor = float4(0, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
+	float resReactiveMask = 0.0f;
+	float resLockMask = 0.0f;
 	float resDepth = 1.0f;
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
@@ -87,6 +89,10 @@ void PrimaryRayGen() {
 		float alphaContrib = (resColor.a * hitColor.a);
 		if (alphaContrib >= EPSILON) {
 			uint instanceId = gHitInstanceId[hitBufferIndex];
+
+			// Add the material's pixel lock along with its alpha contribution.
+			resLockMask += instanceMaterials[instanceId].lockMask * alphaContrib;
+
 			bool usesLighting = (instanceMaterials[instanceId].lightGroupMaskBits > 0);
 			bool applyLighting = usesLighting && (hitColor.a > APPLY_LIGHTS_MINIMUM_ALPHA);
 			float3 vertexPosition = rayOrigin + rayDirection * WithoutDistanceBias(gHitDistAndFlow[hitBufferIndex].x, instanceId);
@@ -108,9 +114,13 @@ void PrimaryRayGen() {
 			if (reflectionFactor > EPSILON) {
 				float reflectionFresnelFactor = instanceMaterials[instanceId].reflectionFresnelFactor;
 				float fresnelAmount = FresnelReflectAmount(vertexNormal, rayDirection, reflectionFactor, reflectionFresnelFactor);
-				gReflection[launchIndex].a = fresnelAmount * alphaContrib;
+				float reflectAmount = fresnelAmount * alphaContrib;
+				gReflection[launchIndex].a = reflectAmount;
 				alphaContrib *= (1.0f - fresnelAmount);
 				storeHit = true;
+
+				// The primary hit's reflectivity contributes to the pixel lock.
+				resLockMask += reflectAmount;
 			}
 
 			// Add the color to the hit color or the transparent buffer if the lighting is disabled.
@@ -166,6 +176,9 @@ void PrimaryRayGen() {
 		}
 	}
 
+	// Estimate reactivity from the maximum color channel of the transparent result.
+	resReactiveMask += max(resTransparent.r, max(resTransparent.g, resTransparent.b));
+
 	// Blend with the background.
 	resColor.rgb += bgColor * resColor.a;
 	resColor.a = 1.0f - resColor.a;
@@ -178,6 +191,8 @@ void PrimaryRayGen() {
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float2(-resFlow.x, resFlow.y);
+	gReactiveMask[launchIndex] = min(resReactiveMask, 0.9f);
+	gLockMask[launchIndex] = min(resLockMask, 1.0f);
 	gNormal[launchIndex] = float4(resNormal, 0.0f);
 	gDepth[launchIndex] = resDepth;
 }

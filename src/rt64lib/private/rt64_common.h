@@ -48,6 +48,8 @@ namespace RT64 {
 		gRefraction,
 		gTransparent,
 		gFlow,
+		gReactiveMask,
+		gLockMask,
 		gNormal,
 		gDepth,
 		gPrevNormal,
@@ -85,6 +87,8 @@ namespace RT64 {
 		gRefraction,
 		gTransparent,
 		gFlow,
+		gReactiveMask,
+		gLockMask,
 		gNormal,
 		gDepth,
 		gPrevNormal,
@@ -138,7 +142,9 @@ namespace RT64 {
 	static const unsigned int VisualizationModeRefraction = 11;
 	static const unsigned int VisualizationModeTransparent = 12;
 	static const unsigned int VisualizationModeMotionVectors = 13;
-	static const unsigned int VisualizationModeDepth = 14;
+	static const unsigned int VisualizationModeReactiveMask = 14;
+	static const unsigned int VisualizationModeLockMask = 15;
+	static const unsigned int VisualizationModeDepth = 16;
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;

@@ -99,6 +99,16 @@ float4 getTransparent(float2 pos) {
     return float4(gTransparent[pos].rgb, 1.0f);
 }
 
+float4 getReactiveMask(float2 pos) {
+    float r = gReactiveMask[pos];
+    return float4(r, r, r, 1.0f);
+}
+
+float4 getLockMask(float2 pos) {
+    float l = gLockMask[pos];
+    return float4(l, l, l, 1.0f);
+}
+
 float4 getDepth(float2 pos) {
     float d = gDepth[pos].r;
     return float4(d, d, d, 1.0f);
@@ -132,6 +142,10 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getTransparent(uv * resolution.xy);
     case VISUALIZATION_MODE_FLOW:
         return getMotionVector(uv * resolution.xy);
+    case VISUALIZATION_MODE_REACTIVE_MASK:
+        return getReactiveMask(uv * resolution.xy);
+    case VISUALIZATION_MODE_LOCK_MASK:
+        return getLockMask(uv * resolution.xy);
     case VISUALIZATION_MODE_DEPTH:
         return getDepth(uv * resolution.xy);
     default:

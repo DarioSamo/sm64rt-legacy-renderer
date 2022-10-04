@@ -80,6 +80,8 @@ RT64::View::View(Scene *scene) {
 	upscalerQuality = Upscaler::QualityMode::Balanced;
 	upscalerSharpness = 0.0f;
 	upscalerResolutionOverride = false;
+	upscalerReactiveMask = true;
+	upscalerLockMask = true;
 
 	createOutputBuffers();
 	createGlobalParamsBuffer();
@@ -189,6 +191,10 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
 	rtFlow = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
+	resDesc.Format = DXGI_FORMAT_R8_UNORM;
+	rtReactiveMask = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtLockMask = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	rtDepth[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 	rtDepth[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
@@ -259,6 +265,8 @@ void RT64::View::createOutputBuffers() {
 	rtRefraction.SetName(L"rtRefraction");
 	rtTransparent.SetName(L"rtTransparent");
 	rtFlow.SetName(L"rtFlow");
+	rtReactiveMask.SetName(L"rtReactiveMask");
+	rtLockMask.SetName(L"rtLockMask");
 	rtDepth[0].SetName(L"rtDepth[0]");
 	rtDepth[1].SetName(L"rtDepth[1]");
 	rtHitDistAndFlow.SetName(L"rtHitDistAndFlow");
@@ -314,6 +322,8 @@ void RT64::View::releaseOutputBuffers() {
 	rtRefraction.Release();
 	rtTransparent.Release();
 	rtFlow.Release();
+	rtReactiveMask.Release();
+	rtLockMask.Release();
 	rtDepth[0].Release();
 	rtDepth[1].Release();
 	rtHitDistAndFlow.Release();
@@ -513,6 +523,14 @@ void RT64::View::createShaderResourceHeap() {
 		
 		// UAV for flow buffer.
 		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtFlow.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for reactive mask buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtReactiveMask.Get(), nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// UAV for lock mask buffer.
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtLockMask.Get(), nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for first hit normal buffer.
@@ -1332,6 +1350,8 @@ void RT64::View::render(float deltaTimeMs) {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtRefraction.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtTransparent.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtReactiveMask.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtLockMask.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		};
 
@@ -1552,6 +1572,8 @@ void RT64::View::render(float deltaTimeMs) {
 		// Transition the motion vectors and depth buffer to shader resources.
 		CD3DX12_RESOURCE_BARRIER beforeFiltersBarriers[] = {
 			CD3DX12_RESOURCE_BARRIER::Transition(rtFlow.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtReactiveMask.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+			CD3DX12_RESOURCE_BARRIER::Transition(rtLockMask.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
 			CD3DX12_RESOURCE_BARRIER::Transition(rtDepth[rtSwap ? 1 : 0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		};
 
@@ -1566,6 +1588,8 @@ void RT64::View::render(float deltaTimeMs) {
 			params.inRect = { 0, 0, rtWidth, rtHeight };
 			params.inColor = rtOutputCur;
 			params.inFlow = rtFlow.Get();
+			params.inReactiveMask = upscalerReactiveMask ? rtReactiveMask.Get() : nullptr;
+			params.inLockMask = upscalerLockMask ? rtLockMask.Get() : nullptr;
 			params.inDepth = rtDepth[rtSwap ? 1 : 0].Get();
 			params.outColor = rtOutputUpscaled.Get();
 			params.sharpness = upscalerSharpness;
@@ -2001,6 +2025,22 @@ void RT64::View::setUpscalerResolutionOverride(bool v) {
 
 bool RT64::View::getUpscalerResolutionOverride() const {
 	return upscalerResolutionOverride;
+}
+
+void RT64::View::setUpscalerReactiveMask(bool v) {
+	upscalerReactiveMask = v;
+}
+
+bool RT64::View::getUpscalerReactiveMask() const {
+	return upscalerReactiveMask;
+}
+
+void RT64::View::setUpscalerLockMask(bool v) {
+	upscalerLockMask = v;
+}
+
+bool RT64::View::getUpscalerLockMask() const {
+	return upscalerLockMask;
 }
 
 bool RT64::View::getUpscalerInitialized(UpscaleMode mode) const {

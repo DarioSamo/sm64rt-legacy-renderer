@@ -24,6 +24,8 @@ namespace RT64 {
 			RT64_RECT inRect;
 			ID3D12Resource *inColor;
 			ID3D12Resource *inFlow;
+			ID3D12Resource *inReactiveMask;
+			ID3D12Resource *inLockMask;
 			ID3D12Resource *inDepth;
 			ID3D12Resource *outColor;
 			float jitterX;

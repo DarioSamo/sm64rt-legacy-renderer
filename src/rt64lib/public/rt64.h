@@ -135,6 +135,7 @@ typedef struct {
 	float fogMul;
 	float fogOffset;
 	unsigned int fogEnabled;
+	float lockMask;
 
 	// Flag containing all attributes that are actually used by this material.
 	int enabledAttributes;

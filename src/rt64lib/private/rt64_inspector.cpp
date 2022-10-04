@@ -133,7 +133,10 @@ void RT64::Inspector::renderViewParams(View *view) {
     ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
     ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
     ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
-    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0Reflection\0Refraction\0Transparent\0Motion vectors\0Depth\0");
+    ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0"
+        "Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
+        "Reflection\0Refraction\0Transparent\0Motion vectors\0Reactive mask\0Lock mask\0Depth\0");
+
     ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 2\0NVIDIA DLSS\0");
 
     const RT64::UpscaleMode eUpscaleMode = static_cast<RT64::UpscaleMode>(upscaleMode);
@@ -141,19 +144,28 @@ void RT64::Inspector::renderViewParams(View *view) {
         int upscalerQualityMode = (int)(view->getUpscalerQualityMode());
         float upscalerSharpness = view->getUpscalerSharpness();
         bool upscalerResolutionOverride = view->getUpscalerResolutionOverride();
+        bool upscalerReactiveMask = view->getUpscalerReactiveMask();
+        bool upscalerLockMask = view->getUpscalerLockMask();
         if (eUpscaleMode != RT64::UpscaleMode::Bilinear) {
             ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Auto\0");
             ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
             ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
+
+            if (eUpscaleMode == RT64::UpscaleMode::FSR) {
+                ImGui::Checkbox("Reactive Mask", &upscalerReactiveMask);
+                ImGui::Checkbox("Lock Mask", &upscalerLockMask);
+            }
 
             if (upscalerResolutionOverride) {
                 ImGui::SameLine();
                 ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
             }
 
-            view->setUpscalerQualityMode((DLSS::QualityMode)(upscalerQualityMode));
+            view->setUpscalerQualityMode((Upscaler::QualityMode)(upscalerQualityMode));
             view->setUpscalerSharpness(upscalerSharpness);
             view->setUpscalerResolutionOverride(upscalerResolutionOverride);
+            view->setUpscalerReactiveMask(upscalerReactiveMask);
+            view->setUpscalerLockMask(upscalerLockMask);
         }
         else {
             ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);

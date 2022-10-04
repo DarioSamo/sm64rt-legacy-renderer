@@ -102,6 +102,8 @@ namespace RT64 {
 		AllocatedResource rtRefraction;
 		AllocatedResource rtTransparent;
 		AllocatedResource rtFlow;
+		AllocatedResource rtReactiveMask;
+		AllocatedResource rtLockMask;
 		AllocatedResource rtNormal[2];
 		AllocatedResource rtDepth[2];
 		AllocatedResource rtHitDistAndFlow;
@@ -162,6 +164,8 @@ namespace RT64 {
 		Upscaler::QualityMode upscalerQuality;
 		float upscalerSharpness;
 		bool upscalerResolutionOverride;
+		bool upscalerReactiveMask;
+		bool upscalerLockMask;
 
 		void createOutputBuffers();
 		void releaseOutputBuffers();
@@ -225,6 +229,10 @@ namespace RT64 {
 		float getUpscalerSharpness() const;
 		void setUpscalerResolutionOverride(bool v);
 		bool getUpscalerResolutionOverride() const;
+		void setUpscalerReactiveMask(bool v);
+		bool getUpscalerReactiveMask() const;
+		void setUpscalerLockMask(bool v);
+		bool getUpscalerLockMask() const;
 		bool getUpscalerInitialized(UpscaleMode mode) const;
 	};
 };

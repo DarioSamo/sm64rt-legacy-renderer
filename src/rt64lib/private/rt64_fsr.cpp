@@ -148,8 +148,8 @@ public:
         dispatchDesc.depth = ffxGetResourceDX12(&fsrContext, p.inDepth, L"inDepth");
         dispatchDesc.motionVectors = ffxGetResourceDX12(&fsrContext, p.inFlow, L"inFlow");
         dispatchDesc.exposure = ffxGetResourceDX12(&fsrContext, nullptr, L"inExposure");
-        dispatchDesc.reactive = ffxGetResourceDX12(&fsrContext, nullptr, L"inReactive");
-        dispatchDesc.transparencyAndComposition = ffxGetResourceDX12(&fsrContext, nullptr, L"inTransparencyAndComposition");
+        dispatchDesc.reactive = ffxGetResourceDX12(&fsrContext, p.inReactiveMask, L"inReactive");
+        dispatchDesc.transparencyAndComposition = ffxGetResourceDX12(&fsrContext, p.inLockMask, L"inTransparencyAndComposition");
         dispatchDesc.output = ffxGetResourceDX12(&fsrContext, p.outColor, L"outColor", FFX_RESOURCE_STATE_UNORDERED_ACCESS);
         dispatchDesc.jitterOffset.x = p.jitterX;
         dispatchDesc.jitterOffset.y = p.jitterY;
