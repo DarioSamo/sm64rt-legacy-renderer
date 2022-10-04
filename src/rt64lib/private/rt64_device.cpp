@@ -178,10 +178,13 @@ void RT64::Device::createRaytracingDevice() {
 				ss << "D3D12CreateDevice error code: " << std::hex << deviceResult << std::endl;
 			}
 
+#		ifndef RT64_MINIMAL
 			// FIXME: Work around AMD's mipmap generation being corrupted until a solution is found.
+			// Refer to https://github.com/DarioSamo/RT64/issues/54
 			if (wcsstr(desc.Description, L"AMD") != nullptr) {
 				disableMipmaps = true;
 			}
+#		endif
 		}
 	}
 
