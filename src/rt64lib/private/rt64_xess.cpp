@@ -13,8 +13,6 @@
 
 #include "rt64_device.h"
 
-//#define DUMP_ALL
-
 // XeSS::Context
 
 class RT64::XeSS::Context {
@@ -95,19 +93,6 @@ public:
             RT64_LOG_PRINTF("xessD3D12Init failed: %d\n", xessRes);
             return false;
         }
-
-#   ifdef DUMP_ALL
-        xess_dump_parameters_t dumpParams;
-        dumpParams.path = "dumps";
-        dumpParams.frame_idx = 0;
-        dumpParams.frame_count = 5;
-        dumpParams.dump_elements_mask = XESS_DUMP_ALL;
-        xessRes = xessStartDump(xessContext, &dumpParams);
-        if (xessRes != XESS_RESULT_SUCCESS) {
-            RT64_LOG_PRINTF("xessStartDump failed: %d\n", xessRes);
-            return false;
-        }
-#   endif
 
         return true;
     }
