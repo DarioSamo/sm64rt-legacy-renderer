@@ -16,6 +16,8 @@ namespace RT64 {
 			Performance,
 			Balanced,
 			Quality,
+			UltraQuality,
+			Native,
 			Auto,
 			MAX
 		};

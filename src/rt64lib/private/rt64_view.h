@@ -237,5 +237,6 @@ namespace RT64 {
 		void setUpscalerLockMask(bool v);
 		bool getUpscalerLockMask() const;
 		bool getUpscalerInitialized(UpscaleMode mode) const;
+		bool getUpscalerAccelerated(UpscaleMode mode) const;
 	};
 };

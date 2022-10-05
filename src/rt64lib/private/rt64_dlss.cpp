@@ -84,7 +84,10 @@ public:
         case QualityMode::Balanced:
             return NVSDK_NGX_PerfQuality_Value_Balanced;
         case QualityMode::Quality:
+        case QualityMode::UltraQuality:
             return NVSDK_NGX_PerfQuality_Value_MaxQuality;
+        case QualityMode::Native:
+            return NVSDK_NGX_PerfQuality_Value_UltraQuality;
         default:
             return NVSDK_NGX_PerfQuality_Value_Balanced;
         }
@@ -145,32 +148,39 @@ public:
             quality = getQualityAuto(displayWidth, displayHeight);
         }
 
-        unsigned int renderOptimalWidth = 0, renderOptimalHeight = 0;
-        unsigned int renderMaxWidth = 0, renderMaxHeight = 0;
-        unsigned int renderMinWidth = 0, renderMinHeight = 0;
-        float renderSharpness;
-        NVSDK_NGX_Result Result = NGX_DLSS_GET_OPTIMAL_SETTINGS(
-            ngxParameters,
-            displayWidth, displayHeight,
-            toNGXQuality(quality),
-            &renderOptimalWidth, &renderOptimalHeight,
-            &renderMaxWidth, &renderMaxHeight,
-            &renderMinWidth, &renderMinHeight,
-            &renderSharpness);
-
-        // Failed to retrieve the optimal settings.
-        if (NVSDK_NGX_FAILED(Result)) {
-            RT64_LOG_PRINTF("Querying Optimal Settings failed! code = 0x%08x, info: %ls", Result, GetNGXResultAsString(Result));
-            return false;
-        }
-        // Quality mode isn't allowed.
-        else if ((renderOptimalWidth == 0) || (renderOptimalHeight == 0)) {
-            return false;
+        // DLSS doesn't provide settings for this quality setting, so we force it instead.
+        if (quality == QualityMode::UltraQuality) {
+            renderWidth = (displayWidth * 77) / 100;
+            renderHeight = (displayHeight * 77) / 100;
         }
         else {
-            renderWidth = renderOptimalWidth;
-            renderHeight = renderOptimalHeight;
-            return true;
+            unsigned int renderOptimalWidth = 0, renderOptimalHeight = 0;
+            unsigned int renderMaxWidth = 0, renderMaxHeight = 0;
+            unsigned int renderMinWidth = 0, renderMinHeight = 0;
+            float renderSharpness;
+            NVSDK_NGX_Result Result = NGX_DLSS_GET_OPTIMAL_SETTINGS(
+                ngxParameters,
+                displayWidth, displayHeight,
+                toNGXQuality(quality),
+                &renderOptimalWidth, &renderOptimalHeight,
+                &renderMaxWidth, &renderMaxHeight,
+                &renderMinWidth, &renderMinHeight,
+                &renderSharpness);
+
+            // Failed to retrieve the optimal settings.
+            if (NVSDK_NGX_FAILED(Result)) {
+                RT64_LOG_PRINTF("Querying Optimal Settings failed! code = 0x%08x, info: %ls", Result, GetNGXResultAsString(Result));
+                return false;
+            }
+            // Quality mode isn't allowed.
+            else if ((renderOptimalWidth == 0) || (renderOptimalHeight == 0)) {
+                return false;
+            }
+            else {
+                renderWidth = renderOptimalWidth;
+                renderHeight = renderOptimalHeight;
+                return true;
+            }
         }
     }
 

@@ -147,7 +147,7 @@ void RT64::Inspector::renderViewParams(View *view) {
         bool upscalerReactiveMask = view->getUpscalerReactiveMask();
         bool upscalerLockMask = view->getUpscalerLockMask();
         if (eUpscaleMode != RT64::UpscaleMode::Bilinear) {
-            ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Auto\0");
+            ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Ultra Quality\0Native\0Auto\0");
 
             if (eUpscaleMode != RT64::UpscaleMode::XeSS) {
                 ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);

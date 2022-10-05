@@ -16,6 +16,7 @@ namespace RT64 {
 	public:
 		XeSS(Device *device);
 		~XeSS();
+		bool isAccelerated() const;
 		virtual void set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) override;
 		virtual bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) override;
 		virtual int getJitterPhaseCount(int renderWidth, int displayWidth) override;

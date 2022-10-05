@@ -24,6 +24,7 @@ private:
     Device *device;
     bool initialized;
     xess_context_handle_t xessContext;
+    xess_version_t xefxVersion;
 public:
     Context(Device *device) {
         assert(device != nullptr);
@@ -34,6 +35,12 @@ public:
         xess_result_t xessRes = xessD3D12CreateContext(device->getD3D12Device(), &xessContext);
         if (xessRes != XESS_RESULT_SUCCESS) {
             RT64_LOG_PRINTF("xessD3D12CreateContext failed: %d\n", xessRes);
+            return;
+        }
+
+        xessRes = xessGetIntelXeFXVersion(xessContext, &xefxVersion);
+        if (xessRes != XESS_RESULT_SUCCESS) {
+            RT64_LOG_PRINTF("xessGetIntelXeFXVersion failed: %d\n", xessRes);
             return;
         }
 
@@ -58,15 +65,17 @@ public:
     xess_quality_settings_t toXeSSQuality(QualityMode q) {
         switch (q) {
         case QualityMode::UltraPerformance:
-            return XESS_QUALITY_SETTING_PERFORMANCE;
         case QualityMode::Performance:
-            return XESS_QUALITY_SETTING_BALANCED;
+            return XESS_QUALITY_SETTING_PERFORMANCE;
         case QualityMode::Balanced:
-            return XESS_QUALITY_SETTING_QUALITY;
+            return XESS_QUALITY_SETTING_BALANCED;
         case QualityMode::Quality:
+            return XESS_QUALITY_SETTING_QUALITY;
+        case QualityMode::UltraQuality:
+        case QualityMode::Native:
             return XESS_QUALITY_SETTING_ULTRA_QUALITY;
         default:
-            return XESS_QUALITY_SETTING_QUALITY;
+            return XESS_QUALITY_SETTING_BALANCED;
         }
     }
     
@@ -111,14 +120,26 @@ public:
         xess_2d_t outputResolution, internalResolution;
         outputResolution.x = displayWidth;
         outputResolution.y = displayHeight;
-        xess_result_t xessRes = xessGetInputResolution(xessContext, &outputResolution, toXeSSQuality(quality), &internalResolution);
-        if (xessRes != XESS_RESULT_SUCCESS) {
-            RT64_LOG_PRINTF("xessGetInputResolution failed: %d\n", xessRes);
-            return false;
-        }
 
-        renderWidth = internalResolution.x;
-        renderHeight = internalResolution.y;
+        // XeSS doesn't provide these quality settings, so we force them instead.
+        if (quality == QualityMode::Native) {
+            renderWidth = displayWidth;
+            renderHeight = displayHeight;
+        }
+        else if (quality == QualityMode::UltraPerformance) {
+            renderWidth = displayWidth / 3;
+            renderHeight = displayHeight / 3;
+        }
+        else {
+            xess_result_t xessRes = xessGetInputResolution(xessContext, &outputResolution, toXeSSQuality(quality), &internalResolution);
+            if (xessRes != XESS_RESULT_SUCCESS) {
+                RT64_LOG_PRINTF("xessGetInputResolution failed: %d\n", xessRes);
+                return false;
+            }
+
+            renderWidth = internalResolution.x;
+            renderHeight = internalResolution.y;
+        }
 
         return true;
     }
@@ -154,6 +175,10 @@ public:
     bool isInitialized() const {
         return initialized;
     }
+
+    bool isAccelerated() const {
+        return (xefxVersion.major != 0) || (xefxVersion.minor != 0) || (xefxVersion.patch != 0);
+    }
 };
 
 // XeSS
@@ -164,6 +189,10 @@ RT64::XeSS::XeSS(Device *device) {
 
 RT64::XeSS::~XeSS() {
     delete ctx;
+}
+
+bool RT64::XeSS::isAccelerated() const {
+    return ctx->isAccelerated();
 }
 
 void RT64::XeSS::set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) {

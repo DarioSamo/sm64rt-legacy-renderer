@@ -1594,7 +1594,7 @@ void RT64::View::render(float deltaTimeMs) {
 				}
 			}
 
-			d3dCommandList->ResourceBarrier(beforeBarriers.size(), beforeBarriers.data());
+			d3dCommandList->ResourceBarrier(static_cast<UINT>(beforeBarriers.size()), beforeBarriers.data());
 
 			Upscaler::UpscaleParameters params;
 			params.inRect = { 0, 0, rtWidth, rtHeight };
@@ -1614,7 +1614,7 @@ void RT64::View::render(float deltaTimeMs) {
 			params.resetAccumulation = false; // TODO: Make this configurable via the API.
 			upscaler->upscale(params);
 
-			d3dCommandList->ResourceBarrier(afterBarriers.size(), afterBarriers.data());
+			d3dCommandList->ResourceBarrier(static_cast<UINT>(afterBarriers.size()), afterBarriers.data());
 		}
 
 		// Set the final render target.
@@ -2068,6 +2068,19 @@ bool RT64::View::getUpscalerInitialized(UpscaleMode mode) const {
 	}
 }
 
+bool RT64::View::getUpscalerAccelerated(UpscaleMode mode) const {
+	switch (mode) {
+	case UpscaleMode::DLSS:
+		return getUpscalerInitialized(UpscaleMode::DLSS);
+	case UpscaleMode::FSR:
+		return true;
+	case UpscaleMode::XeSS:
+		return xess->isAccelerated();
+	default:
+		return false;
+	}
+}
+
 // Public
 
 DLLEXPORT RT64_VIEW *RT64_CreateView(RT64_SCENE *scenePtr) {
@@ -2096,9 +2109,13 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	switch (viewDesc.upscaler) {
 	case RT64_UPSCALER_AUTO:
 		// Prefer using DLSS if it's supported on NVIDIA hardware.
-		// TODO: XeSS preference on Intel hardware.
 		if (view->getUpscalerInitialized(RT64::UpscaleMode::DLSS)) {
 			view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+		}
+		// Prefer using XeSS if it's reported to be on Intel hardware. Initialization is not enough to check for
+		// this because XeSS can run on non-native platforms.
+		else if (view->getUpscalerInitialized(RT64::UpscaleMode::XeSS) && view->getUpscalerAccelerated(RT64::UpscaleMode::XeSS)) {
+			view->setUpscaleMode(RT64::UpscaleMode::XeSS);
 		}
 		else if (view->getUpscalerInitialized(RT64::UpscaleMode::FSR)) {
 			view->setUpscaleMode(RT64::UpscaleMode::FSR);
@@ -2125,19 +2142,25 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 
 	switch (viewDesc.upscalerMode) {
 	case RT64_UPSCALER_MODE_AUTO:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Auto);
-		break;
-	case RT64_UPSCALER_MODE_QUALITY:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Quality);
-		break;
-	case RT64_UPSCALER_MODE_BALANCED:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Balanced);
-		break;
-	case RT64_UPSCALER_MODE_PERFORMANCE:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Performance);
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Auto);
 		break;
 	case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraPerformance);
+		break;
+	case RT64_UPSCALER_MODE_PERFORMANCE:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Performance);
+		break;
+	case RT64_UPSCALER_MODE_BALANCED:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Balanced);
+		break;
+	case RT64_UPSCALER_MODE_QUALITY:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Quality);
+		break;
+	case RT64_UPSCALER_MODE_ULTRA_QUALITY:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraQuality);
+		break;
+	case RT64_UPSCALER_MODE_NATIVE:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Native);
 		break;
 	}
 
