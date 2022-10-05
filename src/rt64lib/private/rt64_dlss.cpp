@@ -6,7 +6,7 @@
 
 #include "rt64_dlss.h"
 
-#include <nvsdk_ngx_helpers.h>
+#include <DLSS/include/nvsdk_ngx_helpers.h>
 
 #include "rt64_common.h"
 #include "rt64_device.h"
@@ -84,7 +84,10 @@ public:
         case QualityMode::Balanced:
             return NVSDK_NGX_PerfQuality_Value_Balanced;
         case QualityMode::Quality:
+        case QualityMode::UltraQuality:
             return NVSDK_NGX_PerfQuality_Value_MaxQuality;
+        case QualityMode::Native:
+            return NVSDK_NGX_PerfQuality_Value_UltraQuality;
         default:
             return NVSDK_NGX_PerfQuality_Value_Balanced;
         }
@@ -140,60 +143,44 @@ public:
         dlssFeature = nullptr;
     }
 
-    QualityMode getQualityAuto(int displayWidth, int displayHeight) {
-        assert(displayWidth > 0);
-        assert(displayHeight > 0);
-
-        // Get the most appropriate quality level for the target resolution.
-        const uint64_t PixelsDisplay = displayWidth * displayHeight;
-        const uint64_t Pixels1080p = 1920 * 1080;
-        const uint64_t Pixels1440p = 2560 * 1440;
-        const uint64_t Pixels4K = 3840 * 2160;
-        if (PixelsDisplay <= Pixels1080p) {
-            return QualityMode::Quality;
-        }
-        else if (PixelsDisplay <= Pixels1440p) {
-            return QualityMode::Balanced;
-        }
-        else if (PixelsDisplay <= Pixels4K) {
-            return QualityMode::Performance;
-        }
-        else {
-            return QualityMode::UltraPerformance;
-        }
-    }
-
     bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) {
         if (quality == QualityMode::Auto) {
             quality = getQualityAuto(displayWidth, displayHeight);
         }
 
-        unsigned int renderOptimalWidth = 0, renderOptimalHeight = 0;
-        unsigned int renderMaxWidth = 0, renderMaxHeight = 0;
-        unsigned int renderMinWidth = 0, renderMinHeight = 0;
-        float renderSharpness;
-        NVSDK_NGX_Result Result = NGX_DLSS_GET_OPTIMAL_SETTINGS(
-            ngxParameters,
-            displayWidth, displayHeight,
-            toNGXQuality(quality),
-            &renderOptimalWidth, &renderOptimalHeight,
-            &renderMaxWidth, &renderMaxHeight,
-            &renderMinWidth, &renderMinHeight,
-            &renderSharpness);
-
-        // Failed to retrieve the optimal settings.
-        if (NVSDK_NGX_FAILED(Result)) {
-            RT64_LOG_PRINTF("Querying Optimal Settings failed! code = 0x%08x, info: %ls", Result, GetNGXResultAsString(Result));
-            return false;
-        }
-        // Quality mode isn't allowed.
-        else if ((renderOptimalWidth == 0) || (renderOptimalHeight == 0)) {
-            return false;
+        // DLSS doesn't provide settings for this quality setting, so we force it instead.
+        if (quality == QualityMode::UltraQuality) {
+            renderWidth = (displayWidth * 77) / 100;
+            renderHeight = (displayHeight * 77) / 100;
         }
         else {
-            renderWidth = renderOptimalWidth;
-            renderHeight = renderOptimalHeight;
-            return true;
+            unsigned int renderOptimalWidth = 0, renderOptimalHeight = 0;
+            unsigned int renderMaxWidth = 0, renderMaxHeight = 0;
+            unsigned int renderMinWidth = 0, renderMinHeight = 0;
+            float renderSharpness;
+            NVSDK_NGX_Result Result = NGX_DLSS_GET_OPTIMAL_SETTINGS(
+                ngxParameters,
+                displayWidth, displayHeight,
+                toNGXQuality(quality),
+                &renderOptimalWidth, &renderOptimalHeight,
+                &renderMaxWidth, &renderMaxHeight,
+                &renderMinWidth, &renderMinHeight,
+                &renderSharpness);
+
+            // Failed to retrieve the optimal settings.
+            if (NVSDK_NGX_FAILED(Result)) {
+                RT64_LOG_PRINTF("Querying Optimal Settings failed! code = 0x%08x, info: %ls", Result, GetNGXResultAsString(Result));
+                return false;
+            }
+            // Quality mode isn't allowed.
+            else if ((renderOptimalWidth == 0) || (renderOptimalHeight == 0)) {
+                return false;
+            }
+            else {
+                renderWidth = renderOptimalWidth;
+                renderHeight = renderOptimalHeight;
+                return true;
+            }
         }
     }
 
@@ -216,6 +203,7 @@ public:
         D3D12DlssEvalParams.pInDepth = p.inDepth;
         D3D12DlssEvalParams.pInMotionVectors = p.inFlow;
         D3D12DlssEvalParams.pInExposureTexture = nullptr;
+        D3D12DlssEvalParams.pInBiasCurrentColorMask = p.inLockMask;
         D3D12DlssEvalParams.InJitterOffsetX = p.jitterX;
         D3D12DlssEvalParams.InJitterOffsetY = p.jitterY;
         D3D12DlssEvalParams.Feature.InSharpness = p.sharpness;
@@ -267,6 +255,10 @@ void RT64::DLSS::upscale(const UpscaleParameters &p) {
 
 bool RT64::DLSS::isInitialized() const {
     return ctx->isInitialized();
+}
+
+bool RT64::DLSS::requiresNonShaderResourceInputs() const {
+    return false;
 }
 
 #endif

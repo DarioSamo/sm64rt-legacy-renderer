@@ -73,10 +73,10 @@ RT64::View::View(Scene *scene) {
 	scissorApplied = false;
 	viewportApplied = false;
 
-	// Try to initialize DLSS and FSR.
-	// The object will not be initialized if the hardware doesn't support it.
+	// Try to initialize upscalers. They won't be initialized if the hardware doesn't support it.
 	dlss = new DLSS(scene->getDevice());
 	fsr = new FSR(scene->getDevice());
+	xess = new XeSS(scene->getDevice());
 	upscalerQuality = Upscaler::QualityMode::Balanced;
 	upscalerSharpness = 0.0f;
 	upscalerResolutionOverride = false;
@@ -95,6 +95,7 @@ RT64::View::View(Scene *scene) {
 RT64::View::~View() {
 	delete dlss;
 	delete fsr;
+	delete xess;
 	
 	scene->removeView(this);
 
@@ -1014,6 +1015,7 @@ void RT64::View::updateGlobalParamsBuffer() {
 	globalParamsBufferData.diReproject = 0;
 #endif
 	globalParamsBufferData.giReproject = !rtSkipReprojection && denoiserEnabled && (globalParamsBufferData.giSamples > 0) ? 1 : 0;
+	globalParamsBufferData.binaryLockMask = (rtUpscaleMode != UpscaleMode::FSR);
 
 	// Use the total frame count as the random seed.
 	globalParamsBufferData.randomSeed = globalParamsBufferData.frameCount;
@@ -1580,9 +1582,19 @@ void RT64::View::render(float deltaTimeMs) {
 		d3dCommandList->ResourceBarrier(_countof(beforeFiltersBarriers), beforeFiltersBarriers);
 
 		if (rtUpscaleActive && (upscaler != nullptr)) {
-			// Switch output to UAV.
-			CD3DX12_RESOURCE_BARRIER beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			d3dCommandList->ResourceBarrier(1, &beforeBarrier);
+			std::vector<CD3DX12_RESOURCE_BARRIER> beforeBarriers, afterBarriers;
+			beforeBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+			afterBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+			ID3D12Resource *rtDepthCur = rtDepth[rtSwap ? 1 : 0].Get();
+			if (upscaler->requiresNonShaderResourceInputs()) {
+				for (ID3D12Resource *res : { rtOutputCur, rtFlow.Get(), rtReactiveMask.Get(), rtLockMask.Get(), rtDepthCur }) {
+					beforeBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(res, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+					afterBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(res, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+				}
+			}
+
+			d3dCommandList->ResourceBarrier(static_cast<UINT>(beforeBarriers.size()), beforeBarriers.data());
 
 			Upscaler::UpscaleParameters params;
 			params.inRect = { 0, 0, rtWidth, rtHeight };
@@ -1590,7 +1602,7 @@ void RT64::View::render(float deltaTimeMs) {
 			params.inFlow = rtFlow.Get();
 			params.inReactiveMask = upscalerReactiveMask ? rtReactiveMask.Get() : nullptr;
 			params.inLockMask = upscalerLockMask ? rtLockMask.Get() : nullptr;
-			params.inDepth = rtDepth[rtSwap ? 1 : 0].Get();
+			params.inDepth = rtDepthCur;
 			params.outColor = rtOutputUpscaled.Get();
 			params.sharpness = upscalerSharpness;
 			params.jitterX = -globalParamsBufferData.pixelJitter.x;
@@ -1602,9 +1614,7 @@ void RT64::View::render(float deltaTimeMs) {
 			params.resetAccumulation = false; // TODO: Make this configurable via the API.
 			upscaler->upscale(params);
 
-			// Switch output to shader resource.
-			CD3DX12_RESOURCE_BARRIER afterBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtOutputUpscaled.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			d3dCommandList->ResourceBarrier(1, &afterBarrier);
+			d3dCommandList->ResourceBarrier(static_cast<UINT>(afterBarriers.size()), afterBarriers.data());
 		}
 
 		// Set the final render target.
@@ -1899,6 +1909,8 @@ RT64::Upscaler *RT64::View::getUpscaler(UpscaleMode v) const {
 		return dlss;
 	case UpscaleMode::FSR:
 		return fsr;
+	case UpscaleMode::XeSS:
+		return xess;
 	default:
 		return nullptr;
 	}
@@ -1997,14 +2009,14 @@ int RT64::View::getHeight() const {
 	return scene->getDevice()->getHeight();
 }
 
-void RT64::View::setUpscalerQualityMode(RT64::FSR::QualityMode v) {
+void RT64::View::setUpscalerQualityMode(RT64::Upscaler::QualityMode v) {
 	if (upscalerQuality != v) {
 		upscalerQuality = v;
 		rtRecreateBuffers = true;
 	}
 }
 
-RT64::FSR::QualityMode RT64::View::getUpscalerQualityMode() {
+RT64::Upscaler::QualityMode RT64::View::getUpscalerQualityMode() {
 	return upscalerQuality;
 }
 
@@ -2049,8 +2061,23 @@ bool RT64::View::getUpscalerInitialized(UpscaleMode mode) const {
 		return dlss->isInitialized();
 	case UpscaleMode::FSR:
 		return fsr->isInitialized();
+	case UpscaleMode::XeSS:
+		return xess->isInitialized();
 	default:
 		return true;
+	}
+}
+
+bool RT64::View::getUpscalerAccelerated(UpscaleMode mode) const {
+	switch (mode) {
+	case UpscaleMode::DLSS:
+		return getUpscalerInitialized(UpscaleMode::DLSS);
+	case UpscaleMode::FSR:
+		return true;
+	case UpscaleMode::XeSS:
+		return xess->isAccelerated();
+	default:
+		return false;
 	}
 }
 
@@ -2081,9 +2108,14 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	
 	switch (viewDesc.upscaler) {
 	case RT64_UPSCALER_AUTO:
-		// Prefer using DLSS if it's supported.
+		// Prefer using DLSS if it's supported on NVIDIA hardware.
 		if (view->getUpscalerInitialized(RT64::UpscaleMode::DLSS)) {
 			view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+		}
+		// Prefer using XeSS if it's reported to be on Intel hardware. Initialization is not enough to check for
+		// this because XeSS can run on non-native platforms.
+		else if (view->getUpscalerInitialized(RT64::UpscaleMode::XeSS) && view->getUpscalerAccelerated(RT64::UpscaleMode::XeSS)) {
+			view->setUpscaleMode(RT64::UpscaleMode::XeSS);
 		}
 		else if (view->getUpscalerInitialized(RT64::UpscaleMode::FSR)) {
 			view->setUpscaleMode(RT64::UpscaleMode::FSR);
@@ -2099,6 +2131,9 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 	case RT64_UPSCALER_FSR:
 		view->setUpscaleMode(RT64::UpscaleMode::FSR);
 		break;
+	case RT64_UPSCALER_XESS:
+		view->setUpscaleMode(RT64::UpscaleMode::XeSS);
+		break;
 	case RT64_UPSCALER_OFF:
 	default:
 		view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
@@ -2107,19 +2142,25 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDe
 
 	switch (viewDesc.upscalerMode) {
 	case RT64_UPSCALER_MODE_AUTO:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Auto);
-		break;
-	case RT64_UPSCALER_MODE_QUALITY:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Quality);
-		break;
-	case RT64_UPSCALER_MODE_BALANCED:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Balanced);
-		break;
-	case RT64_UPSCALER_MODE_PERFORMANCE:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::Performance);
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Auto);
 		break;
 	case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
-		view->setUpscalerQualityMode(RT64::DLSS::QualityMode::UltraPerformance);
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraPerformance);
+		break;
+	case RT64_UPSCALER_MODE_PERFORMANCE:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Performance);
+		break;
+	case RT64_UPSCALER_MODE_BALANCED:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Balanced);
+		break;
+	case RT64_UPSCALER_MODE_QUALITY:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Quality);
+		break;
+	case RT64_UPSCALER_MODE_ULTRA_QUALITY:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraQuality);
+		break;
+	case RT64_UPSCALER_MODE_NATIVE:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Native);
 		break;
 	}
 
@@ -2147,6 +2188,8 @@ DLLEXPORT bool RT64_GetViewUpscalerSupport(RT64_VIEW *viewPtr, int upscaler) {
 		return view->getUpscalerInitialized(RT64::UpscaleMode::DLSS);
 	case RT64_UPSCALER_FSR:
 		return view->getUpscalerInitialized(RT64::UpscaleMode::FSR);
+	case RT64_UPSCALER_XESS:
+		return view->getUpscalerInitialized(RT64::UpscaleMode::XeSS);
 	case 0:
 	default:
 		return false;

@@ -9,13 +9,14 @@
 namespace RT64 {
 	class Device;
 
-	class DLSS : public Upscaler {
+	class XeSS : public Upscaler {
 	private:
 		class Context;
 		Context *ctx;
 	public:
-		DLSS(Device *device);
-		virtual ~DLSS();
+		XeSS(Device *device);
+		~XeSS();
+		bool isAccelerated() const;
 		virtual void set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) override;
 		virtual bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) override;
 		virtual int getJitterPhaseCount(int renderWidth, int displayWidth) override;

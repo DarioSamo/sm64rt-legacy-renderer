@@ -137,7 +137,7 @@ void RT64::Inspector::renderViewParams(View *view) {
         "Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
         "Reflection\0Refraction\0Transparent\0Motion vectors\0Reactive mask\0Lock mask\0Depth\0");
 
-    ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FidelityFX Super Resolution 2\0NVIDIA DLSS\0");
+    ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0NVIDIA DLSS\0Intel XeSS\0");
 
     const RT64::UpscaleMode eUpscaleMode = static_cast<RT64::UpscaleMode>(upscaleMode);
     if (view->getUpscalerInitialized(eUpscaleMode)) {
@@ -147,19 +147,23 @@ void RT64::Inspector::renderViewParams(View *view) {
         bool upscalerReactiveMask = view->getUpscalerReactiveMask();
         bool upscalerLockMask = view->getUpscalerLockMask();
         if (eUpscaleMode != RT64::UpscaleMode::Bilinear) {
-            ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Auto\0");
-            ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
-            ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
+            ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Ultra Quality\0Native\0Auto\0");
 
-            if (eUpscaleMode == RT64::UpscaleMode::FSR) {
-                ImGui::Checkbox("Reactive Mask", &upscalerReactiveMask);
-                ImGui::Checkbox("Lock Mask", &upscalerLockMask);
+            if (eUpscaleMode != RT64::UpscaleMode::XeSS) {
+                ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
             }
 
+            ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
             if (upscalerResolutionOverride) {
                 ImGui::SameLine();
                 ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
             }
+
+            if (eUpscaleMode == RT64::UpscaleMode::FSR) {
+                ImGui::Checkbox("Reactive Mask", &upscalerReactiveMask);
+            }
+
+            ImGui::Checkbox("Lock Mask", &upscalerLockMask);
 
             view->setUpscalerQualityMode((Upscaler::QualityMode)(upscalerQualityMode));
             view->setUpscalerSharpness(upscalerSharpness);

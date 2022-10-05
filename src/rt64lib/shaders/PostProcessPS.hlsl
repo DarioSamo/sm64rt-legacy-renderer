@@ -16,19 +16,21 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         float flowLength = length(flow);
         if (flowLength > 1e-6f) {
             const float SampleStep = motionBlurStrength / motionBlurSamples;
-            float4 sumColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
+            float3 sumColor = float3(0.0f, 0.0f, 0.0f);
             float sumWeight = 0.0f;
             float2 startUV = uv - (flow * motionBlurStrength / 2.0f);
             for (uint s = 0; s < motionBlurSamples; s++) {
                 float2 sampleUV = clamp(startUV + flow * s * SampleStep, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
                 float sampleWeight = 1.0f;
-                sumColor += gOutput.SampleLevel(gSampler, sampleUV, 0) * sampleWeight;
+                float4 outputColor = gOutput.SampleLevel(gSampler, sampleUV, 0);
+                sumColor += outputColor.rgb * sampleWeight;
                 sumWeight += sampleWeight;
             }
 
-            return sumColor / sumWeight;
+            return float4(sumColor / sumWeight, 1.0f);
         }
     }
 
-    return gOutput.SampleLevel(gSampler, uv, 0);
+    float4 outputColor = gOutput.SampleLevel(gSampler, uv, 0);
+    return float4(outputColor.rgb, 1.0f);
 }

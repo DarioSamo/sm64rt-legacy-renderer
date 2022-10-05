@@ -53,6 +53,8 @@ public:
         case QualityMode::Balanced:
             return FFX_FSR2_QUALITY_MODE_BALANCED;
         case QualityMode::Quality:
+        case QualityMode::UltraQuality:
+        case QualityMode::Native:
             return FFX_FSR2_QUALITY_MODE_QUALITY;
         default:
             return FFX_FSR2_QUALITY_MODE_BALANCED;
@@ -93,46 +95,32 @@ public:
         }
     }
 
-    QualityMode getQualityAuto(int displayWidth, int displayHeight) {
-        assert(displayWidth > 0);
-        assert(displayHeight > 0);
-
-        // Get the most appropriate quality level for the target resolution.
-        const uint64_t PixelsDisplay = displayWidth * displayHeight;
-        const uint64_t Pixels1080p = 1920 * 1080;
-        const uint64_t Pixels1440p = 2560 * 1440;
-        const uint64_t Pixels4K = 3840 * 2160;
-        if (PixelsDisplay <= Pixels1080p) {
-            return QualityMode::Quality;
-        }
-        else if (PixelsDisplay <= Pixels1440p) {
-            return QualityMode::Balanced;
-        }
-        else if (PixelsDisplay <= Pixels4K) {
-            return QualityMode::Performance;
-        }
-        else {
-            return QualityMode::UltraPerformance;
-        }
-
-        return QualityMode::Balanced;
-    }
-
     bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) {
         if (quality == QualityMode::Auto) {
             quality = getQualityAuto(displayWidth, displayHeight);
         }
 
-        uint32_t fsrRenderWidth = 0;
-        uint32_t fsrRenderHeight = 0;
-        FfxErrorCode fsrRes = ffxFsr2GetRenderResolutionFromQualityMode(&fsrRenderWidth, &fsrRenderHeight, displayWidth, displayHeight, toFSRQuality(quality));
-        if (fsrRes != FFX_OK) {
-            RT64_LOG_PRINTF("ffxFsr2GetRenderResolutionFromQualityMode failed: %d\n", fsrRes);
-            return false;
+        // FSR doesn't provide these quality settings, so we force them instead.
+        if (quality == QualityMode::Native) {
+            renderWidth = displayWidth;
+            renderHeight = displayHeight;
         }
+        else if (quality == QualityMode::UltraQuality) {
+            renderWidth = (displayWidth * 77) / 100;
+            renderHeight = (displayHeight * 77) / 100;
+        }
+        else {
+            uint32_t fsrRenderWidth = 0;
+            uint32_t fsrRenderHeight = 0;
+            FfxErrorCode fsrRes = ffxFsr2GetRenderResolutionFromQualityMode(&fsrRenderWidth, &fsrRenderHeight, displayWidth, displayHeight, toFSRQuality(quality));
+            if (fsrRes != FFX_OK) {
+                RT64_LOG_PRINTF("ffxFsr2GetRenderResolutionFromQualityMode failed: %d\n", fsrRes);
+                return false;
+            }
 
-        renderWidth = fsrRenderWidth;
-        renderHeight = fsrRenderHeight;
+            renderWidth = fsrRenderWidth;
+            renderHeight = fsrRenderHeight;
+        }
 
         return true;
     }
@@ -204,6 +192,10 @@ void RT64::FSR::upscale(const UpscaleParameters &p) {
 
 bool RT64::FSR::isInitialized() const {
     return ctx->isInitialized();
+}
+
+bool RT64::FSR::requiresNonShaderResourceInputs() const {
+    return false;
 }
 
 #endif

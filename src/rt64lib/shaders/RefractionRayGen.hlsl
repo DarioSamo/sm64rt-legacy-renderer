@@ -35,7 +35,7 @@ void RefractionRayGen() {
 	float newRefractionAlpha = 0.0f;
 
 	// Mix background and sky color together.
-	float2 screenUV = (float2)(launchIndex) / (float2)(launchDims);
+	float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
 	float3 bgColor = SampleBackground2D(screenUV);
 	float4 skyColor = SampleSky2D(screenUV);
 	bgColor = lerp(bgColor, skyColor.rgb, skyColor.a);

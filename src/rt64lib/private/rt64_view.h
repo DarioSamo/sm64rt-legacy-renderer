@@ -13,6 +13,7 @@
 
 #include "rt64_dlss.h"
 #include "rt64_fsr.h"
+#include "rt64_xess.h"
 
 namespace RT64 {
 	class Scene;
@@ -68,6 +69,7 @@ namespace RT64 {
 			unsigned int giSamples;
 			unsigned int diReproject;
 			unsigned int giReproject;
+			unsigned int binaryLockMask;
 			unsigned int maxLights;
 			unsigned int motionBlurSamples;
 			unsigned int visualizationMode;
@@ -161,6 +163,7 @@ namespace RT64 {
 		// Upscalers
 		DLSS *dlss;
 		FSR *fsr;
+		XeSS *xess;
 		Upscaler::QualityMode upscalerQuality;
 		float upscalerSharpness;
 		bool upscalerResolutionOverride;
@@ -234,5 +237,6 @@ namespace RT64 {
 		void setUpscalerLockMask(bool v);
 		bool getUpscalerLockMask() const;
 		bool getUpscalerInitialized(UpscaleMode mode) const;
+		bool getUpscalerAccelerated(UpscaleMode mode) const;
 	};
 };

@@ -16,6 +16,8 @@ namespace RT64 {
 			Performance,
 			Balanced,
 			Quality,
+			UltraQuality,
+			Native,
 			Auto,
 			MAX
 		};
@@ -43,5 +45,8 @@ namespace RT64 {
 		virtual int getJitterPhaseCount(int renderWidth, int displayWidth) = 0;
 		virtual void upscale(const UpscaleParameters &p) = 0;
 		virtual bool isInitialized() const = 0;
+		virtual bool requiresNonShaderResourceInputs() const = 0;
+
+		static QualityMode getQualityAuto(int displayWidth, int displayHeight);
 	};
 };
