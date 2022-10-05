@@ -1,3 +1,6 @@
 [submodule "src/rt64lib/contrib/DLSS"]
 	path = src/rt64lib/contrib/DLSS
 	url = https://github.com/NVIDIA/DLSS
+[submodule "src/rt64lib/contrib/xess"]
+	path = src/rt64lib/contrib/xess
+	url = https://github.com/intel/xess
