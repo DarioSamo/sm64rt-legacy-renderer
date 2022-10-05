@@ -44,7 +44,7 @@ void PrimaryRayGen() {
 	gRefraction[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 	// Sample the background.
-	float2 screenUV = float2(launchIndex.x, launchIndex.y) / float2(launchDims.x, launchDims.y);
+	float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
 	float3 bgColor = SampleBackground2D(screenUV);
 	float4 skyColor = SampleSky2D(screenUV);
 	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
@@ -192,7 +192,7 @@ void PrimaryRayGen() {
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float2(-resFlow.x, resFlow.y);
 	gReactiveMask[launchIndex] = min(resReactiveMask, 0.9f);
-	gLockMask[launchIndex] = min(resLockMask, 1.0f);
+	gLockMask[launchIndex] = binaryLockMask ? step(0.5f, resLockMask) : min(resLockMask, 1.0f);
 	gNormal[launchIndex] = float4(resNormal, 0.0f);
 	gDepth[launchIndex] = resDepth;
 }

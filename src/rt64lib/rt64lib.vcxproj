@@ -48,6 +48,7 @@
     <ClInclude Include="private\rt64_texture.h" />
     <ClInclude Include="private\rt64_upscaler.h" />
     <ClInclude Include="private\rt64_view.h" />
+    <ClInclude Include="private\rt64_xess.h" />
     <ClInclude Include="public\rt64.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="res\bluenoise\LDR_64_64_64_RGB1.h" />
@@ -79,7 +80,9 @@
     <ClCompile Include="private\rt64_scene.cpp" />
     <ClCompile Include="private\rt64_shader.cpp" />
     <ClCompile Include="private\rt64_texture.cpp" />
+    <ClCompile Include="private\rt64_upscaler.cpp" />
     <ClCompile Include="private\rt64_view.cpp" />
+    <ClCompile Include="private\rt64_xess.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\BlueNoise.hlsli" />
@@ -354,21 +357,22 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/DLSS/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_s_dbg.lib;ffx_fsr2_api_dx12_x64d.lib;ffx_fsr2_api_x64d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_s_dbg.lib;ffx_fsr2_api_dx12_x64d.lib;ffx_fsr2_api_x64d.lib;libxess.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>../../lib/rt64libd.lib</ImportLibrary>
-      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;./contrib/fsr/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;./contrib/fsr/lib;./contrib/xess/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
 (robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\dev" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64d.dll ffx_fsr2_api_x64d.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
+(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64d.dll ffx_fsr2_api_x64d.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
+(robocopy "$(ProjectDir)\contrib\xess\bin" $(TargetDir) libxess.dll igxess.dll XeFX.dll XeFX_Loader.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -380,7 +384,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;RT64_EXPORTS;UNICODE;NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>./;./contrib/;./contrib/DLSS/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./;./contrib/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -388,14 +392,15 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <ImportLibrary>../../lib/rt64lib.lib</ImportLibrary>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_d.lib;ffx_fsr2_api_dx12_x64.lib;ffx_fsr2_api_x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;./contrib/fsr/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxcompiler.lib;nvsdk_ngx_d.lib;ffx_fsr2_api_dx12_x64.lib;ffx_fsr2_api_x64.lib;libxess.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>./contrib/DLSS/Lib/Windows_x86_64/x86_64;./contrib/fsr/lib;./contrib/xess/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
 (robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\rel" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64.dll ffx_fsr2_api_x64.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
+(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64.dll ffx_fsr2_api_x64.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
+(robocopy "$(ProjectDir)\contrib\xess\bin" $(TargetDir) libxess.dll igxess.dll XeFX.dll XeFX_Loader.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Minimal|x64'">

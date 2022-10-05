@@ -21,5 +21,6 @@ namespace RT64 {
 		virtual int getJitterPhaseCount(int renderWidth, int displayWidth) override;
 		virtual void upscale(const UpscaleParameters &p) override;
 		virtual bool isInitialized() const override;
+		virtual bool requiresNonShaderResourceInputs() const override;
 	};
 };

@@ -145,6 +145,9 @@
     <ClInclude Include="private\rt64_upscaler.h">
       <Filter>private</Filter>
     </ClInclude>
+    <ClInclude Include="private\rt64_xess.h">
+      <Filter>private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="private\rt64_device.cpp">
@@ -226,6 +229,12 @@
       <Filter>private</Filter>
     </ClCompile>
     <ClCompile Include="private\rt64_fsr.cpp">
+      <Filter>private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_xess.cpp">
+      <Filter>private</Filter>
+    </ClCompile>
+    <ClCompile Include="private\rt64_upscaler.cpp">
       <Filter>private</Filter>
     </ClCompile>
   </ItemGroup>
