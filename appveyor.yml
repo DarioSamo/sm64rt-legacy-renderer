@@ -5,6 +5,7 @@ configuration:
 - Minimal
 platform: x64
 build:
+  project: src/RT64.sln
   verbosity: minimal
 artifacts:
 - path: install/sdk
