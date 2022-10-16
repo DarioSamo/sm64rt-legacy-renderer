@@ -42,12 +42,6 @@ public:
             return;
         }
 
-        xessRes = xessD3D12BuildPipelines(xessContext, nullptr, false, XeSSFlags);
-        if (xessRes != XESS_RESULT_SUCCESS) {
-            RT64_LOG_PRINTF("xessD3D12BuildPipelines failed: %d\n", xessRes);
-            return;
-        }
-
         initialized = true;
 
         xessSetVelocityScale(xessContext, -1.0f, -1.0f);
