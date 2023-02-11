@@ -72,7 +72,9 @@ public:
 
 	~Context() {
         release();
-        NVSDK_NGX_D3D12_Shutdown();
+        
+        ID3D12Device *d3dDevice = device->getD3D12Device();
+        NVSDK_NGX_D3D12_Shutdown1(d3dDevice);
 	}
 
     NVSDK_NGX_PerfQuality_Value toNGXQuality(QualityMode q) {

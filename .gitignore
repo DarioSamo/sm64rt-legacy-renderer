@@ -19,3 +19,5 @@
 imgui.ini
 *.obj
 *.pdb
+*.ilk
+*.user
