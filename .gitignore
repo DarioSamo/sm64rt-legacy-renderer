@@ -17,3 +17,5 @@
 *.hlsl.h
 *.bat
 imgui.ini
+*.obj
+*.pdb
