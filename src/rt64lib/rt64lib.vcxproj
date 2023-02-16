@@ -371,7 +371,6 @@
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
 (robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\dev" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64d.dll ffx_fsr2_api_x64d.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
 (robocopy "$(ProjectDir)\contrib\xess\bin" $(TargetDir) libxess.dll igxess.dll XeFX.dll XeFX_Loader.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -399,7 +398,6 @@
     <PostBuildEvent>
       <Command>(robocopy "$(ProjectDir)\contrib\dxc\bin\x64" $(TargetDir) dxil.dll dxcompiler.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
 (robocopy "$(ProjectDir)\contrib\DLSS\Lib\Windows_x86_64\rel" $(TargetDir) nvngx_dlss.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-(robocopy "$(ProjectDir)\contrib\fsr\bin" $(TargetDir) ffx_fsr2_api_dx12_x64.dll ffx_fsr2_api_x64.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
 (robocopy "$(ProjectDir)\contrib\xess\bin" $(TargetDir) libxess.dll igxess.dll XeFX.dll XeFX_Loader.dll) ^&amp; IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

@@ -130,7 +130,7 @@ public:
     }
 
     void upscale(const UpscaleParameters &p) {
-        FfxFsr2DispatchDescription dispatchDesc;
+        FfxFsr2DispatchDescription dispatchDesc = { 0 };
         dispatchDesc.commandList = ffxGetCommandListDX12(device->getD3D12CommandList());
         dispatchDesc.color = ffxGetResourceDX12(&fsrContext, p.inColor, L"inColor");
         dispatchDesc.depth = ffxGetResourceDX12(&fsrContext, p.inDepth, L"inDepth");
@@ -152,6 +152,12 @@ public:
         dispatchDesc.cameraNear = p.nearPlane;
         dispatchDesc.cameraFar = p.farPlane;
         dispatchDesc.cameraFovAngleVertical = p.fovY;
+        dispatchDesc.viewSpaceToMetersFactor = 1.0f;
+        dispatchDesc.enableAutoReactive = false;
+        dispatchDesc.autoTcThreshold = 1.0f;
+        dispatchDesc.autoTcScale = 1.0f;
+        dispatchDesc.autoReactiveScale = 1.0f;
+        dispatchDesc.autoReactiveMax = 1.0f;
 
         FfxErrorCode fsrRes = ffxFsr2ContextDispatch(&fsrContext, &dispatchDesc);
         if (fsrRes != FFX_OK) {
