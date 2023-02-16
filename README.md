@@ -2,7 +2,7 @@
 
 ## IMPORTANT
 
-**This repository does not contain the code for the upcoming Emulator Plugin version.** It only includes the rendering backend for the Super Mario 64 PC port. The Plugin version is private and currently in development.
+**This repository does not contain the code for the upcoming Emulator Plugin version.** It only includes the rendering backend for the Super Mario 64 PC port. The Plugin version is *private and currently in development*.
 
 ## Description
 
