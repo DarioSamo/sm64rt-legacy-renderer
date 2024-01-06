@@ -755,9 +755,11 @@ void RT64::Device::loadAssets() {
 		D3D12_CHECK(d3dDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3dGaussianFilterRGB3x3PipelineState)));
 	}
 
+#if 0
 	if (!disableMipmaps) {
 		mipmaps = new RT64::Mipmaps(this);
 	}
+#endif
 
 	RT64_LOG_PRINTF("Creating the command list");
 
