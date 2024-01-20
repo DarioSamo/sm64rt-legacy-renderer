@@ -1,8 +1,10 @@
-# RT64
+# sm64rt-legacy-renderer (originally RT64)
 
 ## IMPORTANT
 
-**This repository does not contain the code for the upcoming Emulator Plugin version.** It only includes the rendering backend for the Super Mario 64 PC port. The Plugin version is *private and currently in development*.
+**This repository does not contain the code for the Emulator Plugin version of RT64.** It only includes the legacy rendering backend for the Super Mario 64 PC port.
+
+The following description remains in its original form.
 
 ## Description
 
